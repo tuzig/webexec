@@ -8,12 +8,11 @@ import (
     "os/exec"
 
     "github.com/pion/webrtc/v2"
-    "github.com/daonb/tmux4web/signal"
+    "github.com/afittestide/webexec/signal"
 )
 
 func main() {
-	// Everything below is the Pion WebRTC API! Thanks for using it ❤️.
-
+	// Everything below is the Pion WebRTC API
 	// Prepare the configuration
 	config := webrtc.Configuration{
 		ICEServers: []webrtc.ICEServer{
@@ -38,7 +37,8 @@ func main() {
 	// Register data channel creation handling
 	peerConnection.OnDataChannel(func(d *webrtc.DataChannel) {
 		fmt.Printf("New DataChannel %s %d\n", d.Label(), d.ID())
-        cmd := exec.Command("tmux", "-C", "-L", "tmux4web", "attach")
+        cmd := exec.Command("tmux", "-C", "attach", "-t", "tmux4web")
+        // cmd := exec.Command("zsh")
         stdin, err := cmd.StdinPipe()
         if err != nil {
             log.Fatal(err)
@@ -76,7 +76,7 @@ func main() {
 		d.OnMessage(func(msg webrtc.DataChannelMessage) {
             data := string(msg.Data)
 			fmt.Printf("Message from DataChannel '%s': '%s'\n", d.Label(), data)
-            io.WriteString(stdin, data + "\n")
+            io.WriteString(stdin, data)
 		})
 	})
 
