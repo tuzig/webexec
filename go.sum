@@ -47,6 +47,7 @@ github.com/pion/turn/v2 v2.0.3/go.mod h1:kl1hmT3NxcLynpXVnwJgObL8C9NaCyPTeqI2DcC
 github.com/pion/webrtc v1.2.0 h1:3LGGPQEMacwG2hcDfhdvwQPz315gvjZXOfY4vaF4+I4=
 github.com/pion/webrtc/v2 v2.2.4 h1:elWyBI/6S2kNoJ5rcTj2EMAvp/fmeiEqiuYbUd0ShRA=
 github.com/pion/webrtc/v2 v2.2.4/go.mod h1:9vTqkEISnB5AXlggrFSBLGSz/kopQuYUYzHubuFpnCU=
+github.com/pion/webrtc/v2 v2.2.5 h1:JHHv4fKeBJlVAziqq9QByCiH+g9Jnru9epmanRQqFG4=
 github.com/pions/dtls v1.0.2 h1:VOIp3whGooFWS4X0RBOXaykNORYr05yjs8mlNYqRc+4=
 github.com/pions/dtls v1.0.2/go.mod h1:T22vu8VCOxNmIrbe3nnM1UdIo3m1Bx5CJNkHyehahLg=
 github.com/pions/pkg v0.0.0-20181115215726-b60cd756f712 h1:ciXO7F7PusyAzW/EZJt01bETgfTxP/BIGoWQ15pBP54=
