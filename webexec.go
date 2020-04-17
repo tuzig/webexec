@@ -1,7 +1,7 @@
 package webexec
 
 import (
-	"bufio"
+    "bufio"
 	"fmt"
 	"io"
 	"log"
@@ -10,6 +10,24 @@ import (
 	"github.com/afittestide/webexec/signal"
 	"github.com/pion/webrtc/v2"
 )
+type TextSender func(msg string) error 
+
+func ReadNSend(r io.Reader, textSender TextSender) error { 
+    scanner := bufio.NewScanner(r)
+    if err := scanner.Err(); err != nil {
+        fmt.Printf("tmux output scanner error: %s\n", err)
+    }
+    for scanner.Scan() {
+        msg := scanner.Text()
+        log.Printf(">> Sending %q\n", msg)
+        // Send the msg as text
+        err := textSender(msg)
+        if err != nil {
+            return fmt.Errorf("Sening msg %q failed: %s", msg, err)
+        }
+    }
+    return nil
+}
 
 func NewServer(password string) (pc *webrtc.PeerConnection, err error) {
 	// Everything below is the Pion WebRTC API
@@ -36,6 +54,9 @@ func NewServer(password string) (pc *webrtc.PeerConnection, err error) {
 	})
 	// Register data channel creation handling
 	pc.OnDataChannel(func(d *webrtc.DataChannel) {
+        if d.Label() == "signaling" {
+            return
+        }
 		fmt.Printf("New DataChannel %s %d\n", d.Label(), d.ID())
 		// Register channel opening handling
 		d.OnOpen(func() {
@@ -44,11 +65,15 @@ func NewServer(password string) (pc *webrtc.PeerConnection, err error) {
 
 		// Register text message handling
 		state := "init"
-		cmd := exec.Command("tmux")
+		cmd := exec.Command("echo", "hello", "world")
 		stdin, err := cmd.StdinPipe()
 		if err != nil {
-			log.Panicf("failed to open cmd tmux  stdin: %v", err)
+			log.Panicf("failed to open cmd stdin: %v", err)
 		}
+        stdout, err := cmd.StdoutPipe()
+        if err != nil {
+            log.Panicf("failed to open cmd stdout: %v", err)
+        }
 		d.OnMessage(func(msg webrtc.DataChannelMessage) {
 			data := string(msg.Data)
 			switch state {
@@ -57,29 +82,9 @@ func NewServer(password string) (pc *webrtc.PeerConnection, err error) {
 				if data != password {
 					log.Panicf("Received the wrong password")
 				}
-				log.Printf(">> password checks, switching to 'sauthorized'")
-				state = "authorized"
-
-			case "authorized":
-				// We should do this: cmd := exec.Command(data)
-				/// and then set stdin
-				stdout, err := cmd.StdoutPipe()
-				if err != nil {
-					log.Panicf("failed to open cmd %q stdout: %v", data, err)
-				}
-				scanner := bufio.NewScanner(stdout)
-				if err := scanner.Err(); err != nil {
-					fmt.Printf("tmux output scanner error: %s\n", err)
-				}
-				for scanner.Scan() {
-					message := scanner.Text()
-					log.Printf(">> Sending %q\n", message)
-					// Send the message as text
-					sendErr := d.SendText(message)
-					if sendErr != nil {
-						log.Panicf("Sening message %q failed: %s", message, err)
-					}
-				}
+				log.Printf(">> password checks, starting to read cmd's stdout ")
+                cmd.Start()
+				go ReadNSend(stdout, d.SendText)
 				state = "running"
 
 			case "running":

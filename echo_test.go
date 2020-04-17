@@ -5,6 +5,8 @@ import (
 	"github.com/pion/webrtc/v2"
 	"testing"
 	"time"
+    "os/exec"
+    "log"
 )
 
 // expectedLabel represents the label of the data channel we are trying to test.
@@ -27,7 +29,7 @@ func signalPair(pcOffer *webrtc.PeerConnection, pcAnswer *webrtc.PeerConnection)
 	// candidate gathering in the background for the JavaScript/Wasm bindings. If
 	// we don't do this, the complete offer including ICE candidates will never be
 	// generated.
-	if _, err := pcOffer.CreateDataChannel("webexec", nil); err != nil {
+	if _, err := pcOffer.CreateDataChannel("signaling", nil); err != nil {
 		return err
 	}
 
@@ -67,6 +69,33 @@ func signalPair(pcOffer *webrtc.PeerConnection, pcAnswer *webrtc.PeerConnection)
 	}
 }
 
+var out []string
+func mockSender(msg string) error {
+    out = append(out, msg)
+    return nil
+}
+func TestAAA(t *testing.T) {
+    cmd := exec.Command("echo", "hello", "world")
+    stdout, err := cmd.StdoutPipe()
+    if err != nil {
+        log.Panicf("failed to open cmd stdout: %v", err)
+    }
+    err = cmd.Start()
+    if err != nil {
+        t.Fatalf("Failed to run command %q", err)
+    }
+    err = ReadNSend(stdout, mockSender)
+    if err != nil {
+        t.Fatalf("ReanNSend return an err - %q", err)
+    }
+    if len(out) != 1 {
+        t.Fatalf("Bad output len %d", len(out))
+    }
+    if out[0] != "hello world" {
+        t.Fatalf("Bad output string %q", out[0])
+    }
+    
+}
 func TestSimpleEcho(t *testing.T) {
 	done := make(chan bool)
 	server, err := NewServer("password")
@@ -82,10 +111,6 @@ func TestSimpleEcho(t *testing.T) {
 	dc, err := client.CreateDataChannel("webexec", nil)
 	dc.OnOpen(func() {
 		err := dc.SendText("password")
-		if err != nil {
-			t.Fatalf("Failed to send string on data channel")
-		}
-		err = dc.SendText("echo hello world")
 		if err != nil {
 			t.Fatalf("Failed to send string on data channel")
 		}
