@@ -2,10 +2,11 @@ package webexec
 
 import (
 	"fmt"
-	"github.com/pion/webrtc/v2"
 	"os/exec"
 	"testing"
 	"time"
+
+	"github.com/pion/webrtc/v2"
 )
 
 func signalPair(pcOffer *webrtc.PeerConnection, pcAnswer *webrtc.PeerConnection) error {
@@ -116,7 +117,7 @@ func TestSimpleEcho(t *testing.T) {
 	signalPair(client, server)
 	<-done
 }
-func TestMultiMessage(t *testing.T) {
+func TestMultiLine(t *testing.T) {
 	done := make(chan bool)
 	server, err := NewServer(webrtc.Configuration{})
 	if err != nil {
@@ -141,16 +142,17 @@ func TestMultiMessage(t *testing.T) {
 		}
 		data := string(msg.Data)
 		mockedMsgs = append(mockedMsgs, data)
-		if data == "EOF" {
+		//TODO: replace this with a way to verify the channel is closed
+		if data == "456" {
 			done <- true
 		}
 	})
 	signalPair(client, server)
 	<-done
-	if len(mockedMsgs) != 3 {
+	if len(mockedMsgs) != 2 {
 		t.Fatalf("Wrong number of strings in mockedMsgs - %v", mockedMsgs)
 	}
-	if mockedMsgs[0] != "123" || mockedMsgs[1] != "456" || mockedMsgs[2] != "EOF" {
+	if mockedMsgs[0] != "123" || mockedMsgs[1] != "456" {
 		t.Fatalf("Got bad mockedMsgsput - %v", mockedMsgs)
 	}
 }
