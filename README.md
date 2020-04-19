@@ -4,6 +4,15 @@ webexec
 webexec is a user's server daemon that executs commands and pipes them over
 webrtc.
 
+webexec is both an http and a webrtc server. the http server is used to start a
+session. Upon a POST request, webexec creates an offer and sends it to the
+client. On getting and answear, the srever is waitin for a data channel. 
+
+Next, the client opens a bi-directional data channel with the command to exec
+as the label. The protocol support 65536 chars so the client can pass scipts.
+
+TODO: If the label starts with a `>` use a pseudo terminal
+
 Installation
 ------------
 
