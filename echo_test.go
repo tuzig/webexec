@@ -3,16 +3,10 @@ package webexec
 import (
 	"fmt"
 	"github.com/pion/webrtc/v2"
+	"os/exec"
 	"testing"
 	"time"
-    "os/exec"
-    "log"
 )
-
-// expectedLabel represents the label of the data channel we are trying to test.
-// Some other channels may have been created during initialization (in the Wasm
-// bindings this is a requirement).
-const expectedLabel = "data"
 
 func signalPair(pcOffer *webrtc.PeerConnection, pcAnswer *webrtc.PeerConnection) error {
 	iceGatheringState := pcOffer.ICEGatheringState()
@@ -46,7 +40,7 @@ func signalPair(pcOffer *webrtc.PeerConnection, pcAnswer *webrtc.PeerConnection)
 	}
 	select {
 	case <-time.After(3 * time.Second):
-		return fmt.Errorf("timed out waiting to receive offer")
+		return fmt.Errorf("timed mockedMsgs waiting to receive offer")
 	case offer := <-offerChan:
 		if err := pcAnswer.SetRemoteDescription(offer); err != nil {
 			return err
@@ -69,32 +63,34 @@ func signalPair(pcOffer *webrtc.PeerConnection, pcAnswer *webrtc.PeerConnection)
 	}
 }
 
-var out []string
+var mockedMsgs []string
+
 func mockSender(msg string) error {
-    out = append(out, msg)
-    return nil
+	mockedMsgs = append(mockedMsgs, msg)
+	return nil
 }
 func TestAAA(t *testing.T) {
-    cmd := exec.Command("echo", "hello", "world")
-    stdout, err := cmd.StdoutPipe()
-    if err != nil {
-        log.Panicf("failed to open cmd stdout: %v", err)
-    }
-    err = cmd.Start()
-    if err != nil {
-        t.Fatalf("Failed to run command %q", err)
-    }
-    err = ReadNSend(stdout, mockSender)
-    if err != nil {
-        t.Fatalf("ReanNSend return an err - %q", err)
-    }
-    if len(out) != 1 {
-        t.Fatalf("Bad output len %d", len(out))
-    }
-    if out[0] != "hello world" {
-        t.Fatalf("Bad output string %q", out[0])
-    }
-    
+	var err error
+	cmd := exec.Command("echo", "hello", "world")
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		t.Fatalf("failed to open cmd %q: %v", cmd, err)
+	}
+	err = cmd.Start()
+	if err != nil {
+		t.Fatalf("Failed to run command %q", err)
+	}
+	err = ReadNSend(stdout, mockSender)
+	if err != nil {
+		t.Fatalf("ReanNSend return an err - %q", err)
+	}
+	if len(mockedMsgs) != 1 {
+		t.Fatalf("Bad mockedMsgsput len %d", len(mockedMsgs))
+	}
+	if mockedMsgs[0] != "hello world" {
+		t.Fatalf("Bad mockedMsgsput string %q", mockedMsgs[0])
+	}
+
 }
 func TestSimpleEcho(t *testing.T) {
 	done := make(chan bool)
@@ -109,7 +105,7 @@ func TestSimpleEcho(t *testing.T) {
 	}
 	dc, err := client.CreateDataChannel("echo hello world", nil)
 	dc.OnOpen(func() {
-        fmt.Println("Channel opened")
+		fmt.Println("Channel opened")
 	})
 	dc.OnMessage(func(msg webrtc.DataChannelMessage) {
 		if !msg.IsString && string(msg.Data) != "hello world" {
@@ -133,27 +129,28 @@ func TestMultiMessage(t *testing.T) {
 	}
 	dc, err := client.CreateDataChannel("cat", nil)
 	dc.OnOpen(func() {
-        dc.SendText("123\n")
-        dc.SendText("456\n")
-        dc.SendText("EOF\x04")
+		dc.SendText("123\n")
+		dc.SendText("456\n")
+		dc.SendText("\x04")
+
 	})
-    var out []string
+	var mockedMsgs []string
 	dc.OnMessage(func(msg webrtc.DataChannelMessage) {
 		if !msg.IsString {
 			t.Fatalf("Got bad msg: %q", msg.Data)
 		}
-        data := string(msg.Data)
-        out = append(out, data)
-        if data == "EOF" {
-            done <- true
-        }
+		data := string(msg.Data)
+		mockedMsgs = append(mockedMsgs, data)
+		if data == "EOF" {
+			done <- true
+		}
 	})
 	signalPair(client, server)
 	<-done
-    if len(out) != 3 {
-        t.Fatalf("Wrong number of strings in out - %v", out)
-    }
-    if out[0] != "123" || out[1] != "456" || out[2] != "EOF" {
-        t.Fatalf("Got bad output - %v", out)
-    }
+	if len(mockedMsgs) != 3 {
+		t.Fatalf("Wrong number of strings in mockedMsgs - %v", mockedMsgs)
+	}
+	if mockedMsgs[0] != "123" || mockedMsgs[1] != "456" || mockedMsgs[2] != "EOF" {
+		t.Fatalf("Got bad mockedMsgsput - %v", mockedMsgs)
+	}
 }
