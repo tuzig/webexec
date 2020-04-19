@@ -66,11 +66,12 @@ func signalPair(pcOffer *webrtc.PeerConnection, pcAnswer *webrtc.PeerConnection)
 
 var mockedMsgs []string
 
-func mockSender(msg string) error {
-	mockedMsgs = append(mockedMsgs, msg)
+func mockSender(msg []byte) error {
+	fmt.Printf("Mock sending - %v", msg)
+	mockedMsgs = append(mockedMsgs, string(msg))
 	return nil
 }
-func TestAAA(t *testing.T) {
+func TestReadNSend(t *testing.T) {
 	var err error
 	cmd := exec.Command("echo", "hello", "world")
 	stdout, err := cmd.StdoutPipe()
@@ -88,7 +89,7 @@ func TestAAA(t *testing.T) {
 	if len(mockedMsgs) != 1 {
 		t.Fatalf("Bad mockedMsgsput len %d", len(mockedMsgs))
 	}
-	if mockedMsgs[0] != "hello world" {
+	if mockedMsgs[0] != "hello world\n" {
 		t.Fatalf("Bad mockedMsgsput string %q", mockedMsgs[0])
 	}
 
@@ -109,9 +110,12 @@ func TestSimpleEcho(t *testing.T) {
 		fmt.Println("Channel opened")
 	})
 	dc.OnMessage(func(msg webrtc.DataChannelMessage) {
-		if !msg.IsString && string(msg.Data) != "hello world" {
+		if !msg.IsString && string(msg.Data) != "hello world\n" {
 			t.Fatalf("Got bad msg: %q", msg.Data)
 		}
+	})
+	dc.OnClose(func() {
+		fmt.Println("Client Data channel closed")
 		done <- true
 	})
 	signalPair(client, server)
@@ -128,24 +132,22 @@ func TestMultiLine(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to start a new server %v", err)
 	}
-	dc, err := client.CreateDataChannel("cat", nil)
+	dc, err := client.CreateDataChannel("cat <<EOF", nil)
 	dc.OnOpen(func() {
-		dc.SendText("123\n")
-		dc.SendText("456\n")
-		dc.SendText("\x04")
-
+		dc.Send([]byte("123\n"))
+		dc.Send([]byte("456\n"))
+		dc.Send([]byte("EOF\n"))
+		fmt.Println("Finished sending")
 	})
 	var mockedMsgs []string
 	dc.OnMessage(func(msg webrtc.DataChannelMessage) {
-		if !msg.IsString {
-			t.Fatalf("Got bad msg: %q", msg.Data)
-		}
 		data := string(msg.Data)
 		mockedMsgs = append(mockedMsgs, data)
-		//TODO: replace this with a way to verify the channel is closed
-		if data == "456" {
-			done <- true
-		}
+	})
+	dc.OnClose(func() {
+		fmt.Println("On closing the data channel")
+		done <- true
+
 	})
 	signalPair(client, server)
 	<-done
