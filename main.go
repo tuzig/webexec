@@ -2,6 +2,7 @@ package webexec
 
 import (
     "bufio"
+    "strings"
 	"fmt"
 	"io"
 	"log"
@@ -15,34 +16,23 @@ type TextSender func(msg string) error
 func ReadNSend(r io.Reader, textSender TextSender) error { 
     scanner := bufio.NewScanner(r)
     if err := scanner.Err(); err != nil {
-        fmt.Printf("tmux output scanner error: %s\n", err)
+        return fmt.Errorf("tmux output scanner error: %s\n", err)
     }
     for scanner.Scan() {
         msg := scanner.Text()
-        log.Printf(">> Sending %q\n", msg)
+        log.Printf("<< Sending %q\n", msg)
         // Send the msg as text
         err := textSender(msg)
         if err != nil {
             return fmt.Errorf("Sening msg %q failed: %s", msg, err)
         }
     }
+    log.Printf("<< ReadNSend finished")
     return nil
 }
 
-func NewServer(password string) (pc *webrtc.PeerConnection, err error) {
-	// Everything below is the Pion WebRTC API
-	// Prepare the configuration
-	// config := webrtc.Configuration{
-	//	ICEServers: []webrtc.ICEServer{
-	//		{
-	//			URLs: []string{"stun:stun.l.google.com:19302"},
-	//		},
-	//	},
-	// }
-	// config = webrtc.Configuration
-	// Create a new RTCPeerConnection
-	// pc, err := webrtc.NewPeerConnection(config)
-	pc, err = webrtc.NewPeerConnection(webrtc.Configuration{})
+func NewServer(config webrtc.Configuration) (pc *webrtc.PeerConnection, err error) {
+	pc, err = webrtc.NewPeerConnection(config)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to open peer connection: %q", err)
 	}
@@ -59,42 +49,41 @@ func NewServer(password string) (pc *webrtc.PeerConnection, err error) {
         }
 		fmt.Printf("New DataChannel %s %d\n", d.Label(), d.ID())
 		// Register channel opening handling
-		d.OnOpen(func() {
-			fmt.Printf("Data channel '%s'-'%d' open. Attaching tmux.\n", d.Label(), d.ID())
-		})
 
-		// Register text message handling
-		state := "init"
-		cmd := exec.Command("echo", "hello", "world")
-		stdin, err := cmd.StdinPipe()
-		if err != nil {
-			log.Panicf("failed to open cmd stdin: %v", err)
-		}
-        stdout, err := cmd.StdoutPipe()
-        if err != nil {
-            log.Panicf("failed to open cmd stdout: %v", err)
-        }
+        var cmdStdin io.Writer
+        stdinReady := make(chan bool, 1)
+		d.OnOpen(func() {
+			log.Printf("Data channel '%s'-'%d' open.\n", d.Label(), d.ID())
+            command := strings.Split(d.Label(), " ")
+            log.Printf("preparing command %q", command)
+            cmd := exec.Command(command[0], command[1:]...)
+            cmdStdin, err = cmd.StdinPipe()
+            if err != nil {
+                log.Panicf("failed to open cmd stdin: %v", err)
+            }
+            stdinReady<-true
+            stdout, err := cmd.StdoutPipe()
+            if err != nil {
+                log.Panicf("failed to open cmd stdout: %v", err)
+            }
+            cmd.Start()
+            log.Println(">> command started")
+            ReadNSend(stdout, d.SendText)
+            log.Println("Finished reading the commnd output")
+		})
 		d.OnMessage(func(msg webrtc.DataChannelMessage) {
 			data := string(msg.Data)
-			switch state {
-			case "init":
-				// start with a password
-				if data != password {
-					log.Panicf("Received the wrong password")
-				}
-				log.Printf(">> password checks, starting to read cmd's stdout ")
-                cmd.Start()
-				go ReadNSend(stdout, d.SendText)
-				state = "running"
+            log.Printf(">> recieved: %q ", data)
+            if cmdStdin == nil {
+                <-stdinReady
+            }
+            io.WriteString(cmdStdin, data)
 
-			case "running":
-				log.Printf(">> %q recieved: %q ", d.Label(), data)
-				io.WriteString(stdin, data)
-
-			default:
-				log.Panicf("Recieved a message in a bad state: %q", state)
-			}
 		})
+        // err = cmd.Wait()
+        // if err != nil {
+            // log.Panicf("cmd.Wait returned: %v", err)
+        // }
 	})
 	return pc, nil
 }
@@ -105,7 +94,14 @@ func main() {
 	signal.Decode(signal.MustReadStdin(), &offer)
 
 	// Set the remote SessionDescription
-	pc, err := NewServer("password-should-be-arg")
+	config := webrtc.Configuration{
+		ICEServers: []webrtc.ICEServer{
+			{
+				URLs: []string{"stun:stun.l.google.com:19302"},
+			},
+		},
+	}
+	pc, err := NewServer(config)
 	if err != nil {
 		panic(err)
 	}

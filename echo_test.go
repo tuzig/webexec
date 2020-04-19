@@ -98,22 +98,18 @@ func TestAAA(t *testing.T) {
 }
 func TestSimpleEcho(t *testing.T) {
 	done := make(chan bool)
-	server, err := NewServer("password")
+	server, err := NewServer(webrtc.Configuration{})
 	if err != nil {
 		t.Fatalf("Failed to start a new server %v", err)
 	}
-	fmt.Printf("%v", server)
 
 	client, err := webrtc.NewPeerConnection(webrtc.Configuration{})
 	if err != nil {
 		t.Fatalf("Failed to start a new server %v", err)
 	}
-	dc, err := client.CreateDataChannel("webexec", nil)
+	dc, err := client.CreateDataChannel("echo hello world", nil)
 	dc.OnOpen(func() {
-		err := dc.SendText("password")
-		if err != nil {
-			t.Fatalf("Failed to send string on data channel")
-		}
+        fmt.Println("Channel opened")
 	})
 	dc.OnMessage(func(msg webrtc.DataChannelMessage) {
 		if !msg.IsString && string(msg.Data) != "hello world" {
@@ -123,4 +119,41 @@ func TestSimpleEcho(t *testing.T) {
 	})
 	signalPair(client, server)
 	<-done
+}
+func TestMultiMessage(t *testing.T) {
+	done := make(chan bool)
+	server, err := NewServer(webrtc.Configuration{})
+	if err != nil {
+		t.Fatalf("Failed to start a new server %v", err)
+	}
+
+	client, err := webrtc.NewPeerConnection(webrtc.Configuration{})
+	if err != nil {
+		t.Fatalf("Failed to start a new server %v", err)
+	}
+	dc, err := client.CreateDataChannel("cat", nil)
+	dc.OnOpen(func() {
+        dc.SendText("123\n")
+        dc.SendText("456\n")
+        dc.SendText("EOF\x04")
+	})
+    var out []string
+	dc.OnMessage(func(msg webrtc.DataChannelMessage) {
+		if !msg.IsString {
+			t.Fatalf("Got bad msg: %q", msg.Data)
+		}
+        data := string(msg.Data)
+        out = append(out, data)
+        if data == "EOF" {
+            done <- true
+        }
+	})
+	signalPair(client, server)
+	<-done
+    if len(out) != 3 {
+        t.Fatalf("Wrong number of strings in out - %v", out)
+    }
+    if out[0] != "123" || out[1] != "456" || out[2] != "EOF" {
+        t.Fatalf("Got bad output - %v", out)
+    }
 }
