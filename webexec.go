@@ -1,34 +1,35 @@
 package webexec
 
 import (
-    "bufio"
-    "strings"
+	"bufio"
 	"fmt"
 	"io"
 	"log"
 	"os/exec"
+	"strings"
 
 	"github.com/afittestide/webexec/signal"
 	"github.com/pion/webrtc/v2"
 )
-type TextSender func(msg string) error 
 
-func ReadNSend(r io.Reader, textSender TextSender) error { 
-    scanner := bufio.NewScanner(r)
-    if err := scanner.Err(); err != nil {
-        return fmt.Errorf("tmux output scanner error: %s\n", err)
-    }
-    for scanner.Scan() {
-        msg := scanner.Text()
-        log.Printf("<< Sending %q\n", msg)
-        // Send the msg as text
-        err := textSender(msg)
-        if err != nil {
-            return fmt.Errorf("Sening msg %q failed: %s", msg, err)
-        }
-    }
-    log.Printf("<< ReadNSend finished")
-    return nil
+type TextSender func(msg string) error
+
+func ReadNSend(r io.Reader, textSender TextSender) error {
+	scanner := bufio.NewScanner(r)
+	if err := scanner.Err(); err != nil {
+		return fmt.Errorf("tmux output scanner error: %s\n", err)
+	}
+	for scanner.Scan() {
+		msg := scanner.Text()
+		log.Printf("<< Sending %q\n", msg)
+		// Send the msg as text
+		err := textSender(msg)
+		if err != nil {
+			return fmt.Errorf("Sening msg %q failed: %s", msg, err)
+		}
+	}
+	log.Printf("<< ReadNSend finished")
+	return nil
 }
 
 func NewServer(config webrtc.Configuration) (pc *webrtc.PeerConnection, err error) {
@@ -44,46 +45,46 @@ func NewServer(config webrtc.Configuration) (pc *webrtc.PeerConnection, err erro
 	})
 	// Register data channel creation handling
 	pc.OnDataChannel(func(d *webrtc.DataChannel) {
-        if d.Label() == "signaling" {
-            return
-        }
+		if d.Label() == "signaling" {
+			return
+		}
 		fmt.Printf("New DataChannel %s %d\n", d.Label(), d.ID())
 		// Register channel opening handling
 
-        var cmdStdin io.Writer
-        stdinReady := make(chan bool, 1)
+		var cmdStdin io.Writer
+		stdinReady := make(chan bool, 1)
 		d.OnOpen(func() {
 			log.Printf("Data channel '%s'-'%d' open.\n", d.Label(), d.ID())
-            command := strings.Split(d.Label(), " ")
-            log.Printf("preparing command %q", command)
-            cmd := exec.Command(command[0], command[1:]...)
-            cmdStdin, err = cmd.StdinPipe()
-            if err != nil {
-                log.Panicf("failed to open cmd stdin: %v", err)
-            }
-            stdinReady<-true
-            stdout, err := cmd.StdoutPipe()
-            if err != nil {
-                log.Panicf("failed to open cmd stdout: %v", err)
-            }
-            cmd.Start()
-            log.Println(">> command started")
-            ReadNSend(stdout, d.SendText)
-            log.Println("Finished reading the commnd output")
+			command := strings.Split(d.Label(), " ")
+			log.Printf("preparing command %q", command)
+			cmd := exec.Command(command[0], command[1:]...)
+			cmdStdin, err = cmd.StdinPipe()
+			if err != nil {
+				log.Panicf("failed to open cmd stdin: %v", err)
+			}
+			stdinReady <- true
+			stdout, err := cmd.StdoutPipe()
+			if err != nil {
+				log.Panicf("failed to open cmd stdout: %v", err)
+			}
+			cmd.Start()
+			log.Println(">> command started")
+			ReadNSend(stdout, d.SendText)
+			log.Println("Finished reading the commnd output")
 		})
 		d.OnMessage(func(msg webrtc.DataChannelMessage) {
 			data := string(msg.Data)
-            log.Printf(">> recieved: %q ", data)
-            if cmdStdin == nil {
-                <-stdinReady
-            }
-            io.WriteString(cmdStdin, data)
+			log.Printf(">> recieved: %q ", data)
+			if cmdStdin == nil {
+				<-stdinReady
+			}
+			io.WriteString(cmdStdin, data)
 
 		})
-        // err = cmd.Wait()
-        // if err != nil {
-            // log.Panicf("cmd.Wait returned: %v", err)
-        // }
+		// err = cmd.Wait()
+		// if err != nil {
+		// log.Panicf("cmd.Wait returned: %v", err)
+		// }
 	})
 	return pc, nil
 }
