@@ -1,14 +1,16 @@
 package server
+
 import (
 	"encoding/json"
 	"log"
 	"net/http"
-	"github.com/pion/webrtc/v2"
+
 	"github.com/afittestide/webexec/signal"
+	"github.com/pion/webrtc/v2"
 )
 
-type connectAPI struct {
-	offer string
+type ConnectAPI struct {
+	Offer string
 }
 
 func startWebRTCServer(remote string) []byte {
@@ -41,23 +43,23 @@ func startWebRTCServer(remote string) []byte {
 	}
 	return []byte(signal.Encode(answer))
 }
-func NewHTTPServer(address string) error {
-	http.HandleFunc("/connect", func (w http.ResponseWriter, r *http.Request) {
+
+func NewHTTPServer(address string) {
+	http.HandleFunc("/connect", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != "POST" {
 			log.Printf("Got an http request with bad method %q\n", r.Method)
 			return
 		}
 		decoder := json.NewDecoder(r.Body)
-		var t connectAPI
+		var t ConnectAPI
 		e := decoder.Decode(&t)
 		if e != nil {
 			panic(e)
 		}
-		answer := startWebRTCServer(t.offer)
+		answer := startWebRTCServer(t.Offer)
 		// Output the answer in base64 so we can paste it in browser
 		w.Write(answer)
 	})
 
-	e := http.ListenAndServe(address, nil)
-	return e
+	http.ListenAndServe(address, nil)
 }
