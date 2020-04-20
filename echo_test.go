@@ -102,29 +102,6 @@ func TestCat(t *testing.T) {
 		t.Fatalf("got wrong stdout: %v", r)
 	}
 }
-func TestReadNSend(t *testing.T) {
-	var err error
-	cmd := exec.Command("echo", "hello", "world")
-	stdout, err := cmd.StdoutPipe()
-	if err != nil {
-		t.Fatalf("failed to open cmd %q: %v", cmd, err)
-	}
-	err = cmd.Start()
-	if err != nil {
-		t.Fatalf("Failed to run command %q", err)
-	}
-	err = readNSend(stdout, mockSender)
-	if err != nil {
-		t.Fatalf("ReanNSend return an err - %q", err)
-	}
-	if len(mockedMsgs) != 1 {
-		t.Fatalf("Bad mockedMsgsput len %d", len(mockedMsgs))
-	}
-	if mockedMsgs[0] != "hello world\n" {
-		t.Fatalf("Bad mockedMsgsput string %q", mockedMsgs[0])
-	}
-
-}
 func TestSimpleEcho(t *testing.T) {
 	done := make(chan bool)
 	server, err := NewServer(webrtc.Configuration{})
@@ -163,11 +140,13 @@ func TestMultiLine(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to start a new server %v", err)
 	}
-	dc, err := client.CreateDataChannel("cat <<EOF", nil)
+	dc, err := client.CreateDataChannel("cat", nil)
 	dc.OnOpen(func() {
-		dc.Send([]byte("123\n456\nEOF\n"))
-		// dc.Send([]byte("456\n"))
-		// dc.Send([]byte("EOF\n"))
+		// dc.Send([]byte("123\n456\nEOF\n"))
+		dc.Send([]byte("123\n"))
+		dc.Send([]byte("456\n"))
+        time.Sleep(1 * time.Second)
+		dc.Close()
 		fmt.Println("Finished sending")
 	})
 	var mockedMsgs []string
@@ -182,10 +161,10 @@ func TestMultiLine(t *testing.T) {
 	})
 	signalPair(client, server)
 	<-done
-	if len(mockedMsgs) != 2 {
-		t.Fatalf("Wrong number of strings in mockedMsgs - %v", mockedMsgs)
+	if len(mockedMsgs) != 1 {
+        t.Fatalf("Wrong number of strings in mockedMsgs - %v", len(mockedMsgs))
 	}
-	if mockedMsgs[0] != "123" || mockedMsgs[1] != "456" {
+	if mockedMsgs[0] != "123\n456\n" {
 		t.Fatalf("Got bad mockedMsgsput - %v", mockedMsgs)
 	}
 }
