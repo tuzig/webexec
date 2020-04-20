@@ -14,7 +14,7 @@ type bytesSender func([]byte) error
 
 func readNSend(r io.Reader, s bytesSender) error {
 	b := make([]byte, 1024)
-	for { // r.isOpen?
+	for {
 		l, e := r.Read(b)
 		d := b[:l]
 		log.Printf("> %v", d)
@@ -23,11 +23,13 @@ func readNSend(r io.Reader, s bytesSender) error {
 			return nil
 		}
 		if e != nil {
+			log.Printf("Read failed: %s", e)
 			return fmt.Errorf("Read failed: %s", e)
 		}
 		if l > 0 {
 			e := s(d)
 			if e != nil {
+				log.Printf("Send failed: %s", e)
 				return fmt.Errorf("Sening msg %q failed: %s", d, e)
 			}
 		}
@@ -50,16 +52,14 @@ func NewServer(config webrtc.Configuration) (pc *webrtc.PeerConnection, err erro
 		if d.Label() == "signaling" {
 			return
 		}
-		log.Printf("New DataChannel %s %d\n", d.Label(), d.ID())
-		// Register channel opening handling
-
 		var cmdStdin io.Writer
+		var cmd *exec.Cmd
 		cmdReady := make(chan bool, 1)
 		d.OnOpen(func() {
 			l := d.Label()
-			log.Printf("Data channel '%s'-'%d' open.\n", l, d.ID())
+			log.Printf("New Data channel %q\n", l)
 			c := strings.Split(l, " ")
-			cmd := exec.Command(c[0], c[1:]...)
+			cmd = exec.Command(c[0], c[1:]...)
 			cmdStdin, err = cmd.StdinPipe()
 			if err != nil {
 				log.Panicf("failed to open cmd stdin: %v", err)
@@ -68,13 +68,21 @@ func NewServer(config webrtc.Configuration) (pc *webrtc.PeerConnection, err erro
 			if err != nil {
 				log.Panicf("failed to open cmd stdout: %v", err)
 			}
+			err = cmd.Start()
+			if err != nil {
+				log.Panicf("failed to start cmd: %v", err)
+			}
 			cmdReady <- true
-			cmd.Start()
 			log.Println(">> command started")
-			cmdStdin.Write([]byte("123\n456\nEOF\n"))
+			// cmdStdin.Write([]byte("123\n456\nEOF\n"))
 			err = readNSend(stdout, d.Send)
 			if err != nil {
 				log.Panicf("readNSend ended with an error: %v", err)
+			}
+			log.Printf("Closing Data Channel")
+			err = cmd.Wait()
+			if err != nil {
+				log.Panicf("cmd.Wait returned: %v", err)
 			}
 			d.Close()
 		})
@@ -84,6 +92,7 @@ func NewServer(config webrtc.Configuration) (pc *webrtc.PeerConnection, err erro
 		})
 		d.OnMessage(func(msg webrtc.DataChannelMessage) {
 			p := msg.Data
+			fmt.Printf("cmdStdin %v", cmdStdin)
 			if cmdStdin == nil {
 				log.Printf("< [First message]")
 				<-cmdReady
@@ -98,10 +107,6 @@ func NewServer(config webrtc.Configuration) (pc *webrtc.PeerConnection, err erro
 			}
 
 		})
-		// err = cmd.Wait()
-		// if err != nil {
-		// log.Panicf("cmd.Wait returned: %v", err)
-		// }
 	})
 	return pc, nil
 }

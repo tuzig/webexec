@@ -2,7 +2,10 @@ package webexec
 
 import (
 	"fmt"
+	"io"
+	"log"
 	"os/exec"
+	"reflect"
 	"testing"
 	"time"
 
@@ -71,6 +74,34 @@ func mockSender(msg []byte) error {
 	mockedMsgs = append(mockedMsgs, string(msg))
 	return nil
 }
+func TestCat(t *testing.T) {
+	cmd := exec.Command("cat", "<<EOF")
+	in, err := cmd.StdinPipe()
+	if err != nil {
+		log.Panicf("failed to open cmd stdin: %v", err)
+	}
+	out, err := cmd.StdoutPipe()
+	if err != nil {
+		log.Panicf("failed to open cmd stdout: %v", err)
+	}
+	cmd.Start()
+	in.Write([]byte("Hello\n"))
+	in.Write([]byte("World\nEOF\n"))
+	b := make([]byte, 1024)
+	var r []byte
+	for {
+		l, e := out.Read(b)
+		if e == io.EOF {
+			break
+		}
+		if l > 0 {
+			r = append(r, b[:l]...)
+		}
+	}
+	if reflect.DeepEqual(r, []byte("Hello\nWorld")) {
+		t.Fatalf("got wrong stdout: %v", r)
+	}
+}
 func TestReadNSend(t *testing.T) {
 	var err error
 	cmd := exec.Command("echo", "hello", "world")
@@ -82,7 +113,7 @@ func TestReadNSend(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to run command %q", err)
 	}
-	err = ReadNSend(stdout, mockSender)
+	err = readNSend(stdout, mockSender)
 	if err != nil {
 		t.Fatalf("ReanNSend return an err - %q", err)
 	}
@@ -134,9 +165,9 @@ func TestMultiLine(t *testing.T) {
 	}
 	dc, err := client.CreateDataChannel("cat <<EOF", nil)
 	dc.OnOpen(func() {
-		dc.Send([]byte("123\n"))
-		dc.Send([]byte("456\n"))
-		dc.Send([]byte("EOF\n"))
+		dc.Send([]byte("123\n456\nEOF\n"))
+		// dc.Send([]byte("456\n"))
+		// dc.Send([]byte("EOF\n"))
 		fmt.Println("Finished sending")
 	})
 	var mockedMsgs []string
