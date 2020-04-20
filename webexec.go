@@ -1,9 +1,10 @@
-package webexec
+package main
 
 import (
 	"fmt"
 
 	"github.com/afittestide/webexec/signal"
+	"github.com/afittestide/webexec/server"
 	"github.com/pion/webrtc/v2"
 )
 
@@ -19,7 +20,7 @@ func main() {
 			},
 		},
 	}
-	pc, err := NewServer(config)
+	pc, err := server.NewWebRTCServer(config)
 	if err != nil {
 		panic(err)
 	}

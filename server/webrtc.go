@@ -1,4 +1,4 @@
-package webexec
+package server
 
 import (
     "bytes"
@@ -24,7 +24,7 @@ func (pipe *dataChannelPipe) Write(p []byte) (n int, err error) {
     return len(p), err
 }
 
-func NewServer(config webrtc.Configuration) (pc *webrtc.PeerConnection, err error) {
+func NewWebRTCServer(config webrtc.Configuration) (pc *webrtc.PeerConnection, err error) {
 	pc, err = webrtc.NewPeerConnection(config)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to open peer connection: %q", err)

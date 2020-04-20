@@ -1,4 +1,4 @@
-package webexec
+package server
 
 import (
 	"fmt"
@@ -104,7 +104,7 @@ func TestCat(t *testing.T) {
 }
 func TestSimpleEcho(t *testing.T) {
 	done := make(chan bool)
-	server, err := NewServer(webrtc.Configuration{})
+	server, err := NewWebRTCServer(webrtc.Configuration{})
 	if err != nil {
 		t.Fatalf("Failed to start a new server %v", err)
 	}
@@ -131,7 +131,7 @@ func TestSimpleEcho(t *testing.T) {
 }
 func TestMultiLine(t *testing.T) {
 	done := make(chan bool)
-	server, err := NewServer(webrtc.Configuration{})
+	server, err := NewWebRTCServer(webrtc.Configuration{})
 	if err != nil {
 		t.Fatalf("Failed to start a new server %v", err)
 	}
