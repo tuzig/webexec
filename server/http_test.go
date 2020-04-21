@@ -28,7 +28,7 @@ func TestHTTPAPI(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed reading resonse body: %v", err)
 	}
-	if len(bs) != 1600 {
+	if len(bs) < 1000 {
 		t.Fatalf("Got a bad length response: %d", len(bs))
 	}
 }
