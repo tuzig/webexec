@@ -145,7 +145,7 @@ func TestMultiLine(t *testing.T) {
 		// dc.Send([]byte("123\n456\nEOF\n"))
 		dc.Send([]byte("123\n"))
 		dc.Send([]byte("456\n"))
-        time.Sleep(1 * time.Second)
+		time.Sleep(1 * time.Second)
 		dc.Close()
 		fmt.Println("Finished sending")
 	})
@@ -161,10 +161,11 @@ func TestMultiLine(t *testing.T) {
 	})
 	signalPair(client, server)
 	<-done
-	if len(mockedMsgs) != 1 {
-        t.Fatalf("Wrong number of strings in mockedMsgs - %v", len(mockedMsgs))
+
+	if len(mockedMsgs) == 1 && mockedMsgs[0] != "123\n456\n" {
+		t.Fatalf("Got one, wrong message  %v", mockedMsgs)
 	}
-	if mockedMsgs[0] != "123\n456\n" {
-		t.Fatalf("Got bad mockedMsgsput - %v", mockedMsgs)
+	if len(mockedMsgs) == 2 && (mockedMsgs[0] != "123\n" || mockedMsgs[1] != "456\n") {
+		t.Fatalf("Got two messages at least one wrong %v", mockedMsgs)
 	}
 }

@@ -1,7 +1,7 @@
 package server
 
 import (
-    "bytes"
+	"bytes"
 	"fmt"
 	"io"
 	"log"
@@ -12,16 +12,13 @@ import (
 )
 
 type dataChannelPipe struct {
-    d *webrtc.DataChannel
+	d *webrtc.DataChannel
 }
 
 func (pipe *dataChannelPipe) Write(p []byte) (n int, err error) {
-    log.Printf("> %v", p)
-    err = pipe.d.Send(p)
-    if err != nil {
-        log.Printf("Sending data over the data channel failed: %s", err)
-	}
-    return len(p), err
+	pipe.d.SendText(string(p))
+	log.Printf("> %v", p)
+	return len(p), nil
 }
 
 func NewWebRTCServer(config webrtc.Configuration) (pc *webrtc.PeerConnection, err error) {
@@ -42,9 +39,9 @@ func NewWebRTCServer(config webrtc.Configuration) (pc *webrtc.PeerConnection, er
 		}
 		var cmdStdin io.Writer
 		var cmd *exec.Cmd
-        var stderr bytes.Buffer
-        pipe := dataChannelPipe{d}
-        cmdReady := make(chan bool, 1)
+		var stderr bytes.Buffer
+		pipe := dataChannelPipe{d}
+		cmdReady := make(chan bool, 1)
 		d.OnOpen(func() {
 			l := d.Label()
 			log.Printf("New Data channel %q\n", l)
@@ -54,8 +51,8 @@ func NewWebRTCServer(config webrtc.Configuration) (pc *webrtc.PeerConnection, er
 			if err != nil {
 				log.Panicf("failed to open cmd stdin: %v", err)
 			}
-            cmd.Stdout = &pipe
-            cmd.Stderr = &stderr
+			cmd.Stdout = &pipe
+			cmd.Stderr = &stderr
 			err = cmd.Start()
 			if err != nil {
 				log.Panicf("failed to start cmd: %v %v", err, stderr.String())
@@ -74,7 +71,7 @@ func NewWebRTCServer(config webrtc.Configuration) (pc *webrtc.PeerConnection, er
 		})
 		d.OnMessage(func(msg webrtc.DataChannelMessage) {
 			p := msg.Data
-            <-cmdReady
+			<-cmdReady
 			log.Printf("< %v ", p)
 			l, err := cmdStdin.Write(p)
 			if err != nil {
@@ -83,7 +80,7 @@ func NewWebRTCServer(config webrtc.Configuration) (pc *webrtc.PeerConnection, er
 			if l != len(p) {
 				log.Printf("stdin write wrote %d instead of %d bytes", l, len(p))
 			}
-            cmdReady<-true
+			cmdReady <- true
 		})
 	})
 	return pc, nil
