@@ -7,6 +7,7 @@ import (
 
 	"github.com/afittestide/webexec/signal"
 	"github.com/pion/webrtc/v2"
+	"github.com/rs/cors"
 )
 
 type ConnectAPI struct {
@@ -44,15 +45,18 @@ func startWebRTCServer(remote string) []byte {
 	return []byte(signal.Encode(answer))
 }
 
-func NewHTTPServer(address string) {
-	http.HandleFunc("/connect", func(w http.ResponseWriter, r *http.Request) {
+func HTTPGo(address string) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/connect", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != "POST" {
 			log.Printf("Got an http request with bad method %q\n", r.Method)
 			return
 		}
+		w.Header().Set("Access-Control-Allow-Origin", "*")
 		decoder := json.NewDecoder(r.Body)
 		var t ConnectAPI
 		e := decoder.Decode(&t)
+		log.Printf("Got a valid POST request with data: %v", t)
 		if e != nil {
 			panic(e)
 		}
@@ -60,6 +64,6 @@ func NewHTTPServer(address string) {
 		// Output the answer in base64 so we can paste it in browser
 		w.Write(answer)
 	})
-
-	http.ListenAndServe(address, nil)
+	handler := cors.Default().Handler(mux)
+	log.Fatal(http.ListenAndServe(address, handler))
 }

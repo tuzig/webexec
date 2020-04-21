@@ -1,15 +1,12 @@
 package main
 
 import (
+	"log"
 
 	"github.com/afittestide/webexec/server"
 )
 
 func main() {
-	err := server.NewHTTPServer("0.0.0.0:8888")
-	if err != nil {
-		panic(err)
-	}
-	// Block forever
-	select {}
+	log.Printf("Starting http server on port 8888")
+	server.HTTPGo("0.0.0.0:8888")
 }

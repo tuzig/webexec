@@ -9,5 +9,6 @@ require (
 	github.com/pion/transport v0.10.0
 	github.com/pion/webrtc/v2 v2.2.4
 	github.com/pions/webrtc v1.2.0
+	github.com/rs/cors v1.7.0
 	github.com/stretchr/testify v1.5.1
 )
