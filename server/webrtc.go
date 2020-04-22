@@ -1,7 +1,6 @@
 package server
 
 import (
-	"bytes"
 	"fmt"
 	"io"
 	"log"
@@ -39,7 +38,6 @@ func NewWebRTCServer(config webrtc.Configuration) (pc *webrtc.PeerConnection, er
 		}
 		var cmdStdin io.Writer
 		var cmd *exec.Cmd
-		var stderr bytes.Buffer
 		pipe := dataChannelPipe{d}
 		cmdReady := make(chan bool, 1)
 		d.OnOpen(func() {
@@ -52,16 +50,18 @@ func NewWebRTCServer(config webrtc.Configuration) (pc *webrtc.PeerConnection, er
 				log.Panicf("failed to open cmd stdin: %v", err)
 			}
 			cmd.Stdout = &pipe
-			cmd.Stderr = &stderr
+			cmd.Stderr = &pipe
 			err = cmd.Start()
 			if err != nil {
-				log.Panicf("failed to start cmd: %v %v", err, stderr.String())
+				log.Printf("failed to start cmd: %v", err)
+				d.Close()
+				return
 			}
 			cmdReady <- true
 			log.Println("Waiting for command to finish")
 			err = cmd.Wait()
 			if err != nil {
-				log.Printf("cmd.Wait returned: %v", stderr.String())
+				log.Printf("cmd.Wait returned: %v", err)
 			}
 			d.Close()
 		})
