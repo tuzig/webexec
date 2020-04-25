@@ -4,9 +4,11 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"os"
 	"os/exec"
 	"strings"
 
+	"github.com/creack/pty"
 	"github.com/pion/webrtc/v2"
 )
 
@@ -21,6 +23,7 @@ func (pipe *dataChannelPipe) Write(p []byte) (n int, err error) {
 }
 
 func NewWebRTCServer(config webrtc.Configuration) (pc *webrtc.PeerConnection, err error) {
+
 	pc, err = webrtc.NewPeerConnection(config)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to open peer connection: %q", err)
@@ -36,8 +39,8 @@ func NewWebRTCServer(config webrtc.Configuration) (pc *webrtc.PeerConnection, er
 		if d.Label() == "signaling" {
 			return
 		}
-		var cmdStdin io.Writer
 		var cmd *exec.Cmd
+		var ptmx *os.File
 		pipe := dataChannelPipe{d}
 		cmdReady := make(chan bool, 1)
 		d.OnOpen(func() {
@@ -45,23 +48,15 @@ func NewWebRTCServer(config webrtc.Configuration) (pc *webrtc.PeerConnection, er
 			log.Printf("New Data channel %q\n", l)
 			c := strings.Split(l, " ")
 			cmd = exec.Command(c[0], c[1:]...)
-			cmdStdin, err = cmd.StdinPipe()
+			ptmx, err = pty.Start(cmd)
 			if err != nil {
-				log.Panicf("failed to open cmd stdin: %v", err)
+				log.Panicf("Failed to attach a ptyi and start cmd: %v", err)
 			}
-			cmd.Stdout = &pipe
-			cmd.Stderr = &pipe
-			err = cmd.Start()
-			if err != nil {
-				log.Printf("failed to start cmd: %v", err)
-				d.Close()
-				return
-			}
+			defer func() { _ = ptmx.Close() }() // Best effort.
 			cmdReady <- true
-			log.Println("Waiting for command to finish")
-			err = cmd.Wait()
+			_, err = io.Copy(&pipe, ptmx)
 			if err != nil {
-				log.Printf("cmd.Wait returned: %v", err)
+				log.Panicf("Failed to copy from pty: %v", err)
 			}
 			d.Close()
 		})
@@ -73,7 +68,8 @@ func NewWebRTCServer(config webrtc.Configuration) (pc *webrtc.PeerConnection, er
 			p := msg.Data
 			<-cmdReady
 			log.Printf("< %v ", p)
-			l, err := cmdStdin.Write(p)
+			// l, err := ptmx.Write([]byte("ls\n"))
+			l, err := ptmx.Write(p)
 			if err != nil {
 				log.Printf("Stdin Write returned an error: %v", err)
 			}
