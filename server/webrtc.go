@@ -56,9 +56,11 @@ func NewWebRTCServer(config webrtc.Configuration) (pc *webrtc.PeerConnection, er
 			cmdReady <- true
 			_, err = io.Copy(&pipe, ptmx)
 			if err != nil {
-				log.Panicf("Failed to copy from pty: %v", err)
+				log.Printf("Failed to copy from pty: %v %v", err, cmd.ProcessState.String())
 			}
+			cmd.Process.Kill()
 			d.Close()
+			pc.Close()
 		})
 		d.OnClose(func() {
 			// kill the command
@@ -71,7 +73,7 @@ func NewWebRTCServer(config webrtc.Configuration) (pc *webrtc.PeerConnection, er
 			// l, err := ptmx.Write([]byte("ls\n"))
 			l, err := ptmx.Write(p)
 			if err != nil {
-				log.Printf("Stdin Write returned an error: %v", err)
+				log.Printf("Stdin Write returned an error: %v %v", err, cmd.ProcessState.String())
 			}
 			if l != len(p) {
 				log.Printf("stdin write wrote %d instead of %d bytes", l, len(p))
