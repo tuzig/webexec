@@ -1,6 +1,7 @@
 package server
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"log"
@@ -18,11 +19,11 @@ type dataChannelPipe struct {
 
 func (pipe *dataChannelPipe) Write(p []byte) (n int, err error) {
 	pipe.d.SendText(string(p))
-	log.Printf("> %v", p)
 	return len(p), nil
 }
 
 func NewWebRTCServer(config webrtc.Configuration) (pc *webrtc.PeerConnection, err error) {
+	SET_SIZE_PREFIX := "A($%JFDS*(;dfjmlsdk9-0"
 
 	pc, err = webrtc.NewPeerConnection(config)
 	if err != nil {
@@ -69,14 +70,20 @@ func NewWebRTCServer(config webrtc.Configuration) (pc *webrtc.PeerConnection, er
 		d.OnMessage(func(msg webrtc.DataChannelMessage) {
 			p := msg.Data
 			<-cmdReady
-			log.Printf("< %v ", p)
 			// l, err := ptmx.Write([]byte("ls\n"))
-			l, err := ptmx.Write(p)
-			if err != nil {
-				log.Printf("Stdin Write returned an error: %v %v", err, cmd.ProcessState.String())
-			}
-			if l != len(p) {
-				log.Printf("stdin write wrote %d instead of %d bytes", l, len(p))
+			if string(p[:len(SET_SIZE_PREFIX)]) == SET_SIZE_PREFIX {
+				var ws pty.Winsize
+				json.Unmarshal(msg.Data[len(SET_SIZE_PREFIX):], &ws)
+				log.Printf("New size - %v", ws)
+				pty.Setsize(ptmx, &ws)
+			} else {
+				l, err := ptmx.Write(p)
+				if err != nil {
+					log.Printf("Stdin Write returned an error: %v %v", err, cmd.ProcessState.String())
+				}
+				if l != len(p) {
+					log.Printf("stdin write wrote %d instead of %d bytes", l, len(p))
+				}
 			}
 			cmdReady <- true
 		})
