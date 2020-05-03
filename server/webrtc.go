@@ -61,10 +61,10 @@ func NewWebRTCServer(config webrtc.Configuration) (pc *webrtc.PeerConnection, er
 			}
 			cmd.Process.Kill()
 			d.Close()
-			pc.Close()
+			// TODO: do we ever need to pc.Close() ?
 		})
 		d.OnClose(func() {
-			// kill the command
+			cmd.Process.Kill()
 			log.Println("Data channel closed")
 		})
 		d.OnMessage(func(msg webrtc.DataChannelMessage) {
