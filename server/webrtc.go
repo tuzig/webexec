@@ -59,12 +59,19 @@ func NewWebRTCServer(config webrtc.Configuration) (pc *webrtc.PeerConnection, er
 			if err != nil {
 				log.Printf("Failed to copy from pty: %v %v", err, cmd.ProcessState.String())
 			}
-			cmd.Process.Kill()
+			ptmx.Close()
+			err = cmd.Process.Kill()
+			if err != nil {
+				log.Printf("Failed to kill process: %v %v", err, cmd.ProcessState.String())
+			}
 			d.Close()
 			// TODO: do we ever need to pc.Close() ?
 		})
 		d.OnClose(func() {
-			cmd.Process.Kill()
+			err = cmd.Process.Kill()
+			if err != nil {
+				log.Printf("Failed to kill process: %v %v", err, cmd.ProcessState.String())
+			}
 			log.Println("Data channel closed")
 		})
 		d.OnMessage(func(msg webrtc.DataChannelMessage) {
