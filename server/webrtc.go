@@ -18,7 +18,16 @@ type dataChannelPipe struct {
 }
 
 func (pipe *dataChannelPipe) Write(p []byte) (n int, err error) {
-	pipe.d.SendText(string(p))
+	text := string(p)
+	// TODO:ogging...
+	if true {
+		for _, r := range strings.Split(text, "\r\n") {
+			if len(r) > 0 {
+				log.Printf("> %q\n", r)
+			}
+		}
+	}
+	pipe.d.SendText(text)
 	return len(p), nil
 }
 
@@ -76,6 +85,7 @@ func NewWebRTCServer(config webrtc.Configuration) (pc *webrtc.PeerConnection, er
 		})
 		d.OnMessage(func(msg webrtc.DataChannelMessage) {
 			p := msg.Data
+			log.Printf("< %v", p)
 			<-cmdReady
 			// l, err := ptmx.Write([]byte("ls\n"))
 			if string(p[:len(SET_SIZE_PREFIX)]) == SET_SIZE_PREFIX {
