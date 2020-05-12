@@ -17,6 +17,11 @@ type dataChannelPipe struct {
 	d *webrtc.DataChannel
 }
 
+var SET_SIZE_PREFIX = "A($%JFDS*(;dfjmlsdk9-0"
+var cmdReady = make(chan bool, 1)
+var ptmx *os.File
+var cmd *exec.Cmd
+
 func (pipe *dataChannelPipe) Write(p []byte) (n int, err error) {
 	text := string(p)
 	// TODO:ogging...
@@ -32,7 +37,6 @@ func (pipe *dataChannelPipe) Write(p []byte) (n int, err error) {
 }
 
 func NewWebRTCServer(config webrtc.Configuration) (pc *webrtc.PeerConnection, err error) {
-	SET_SIZE_PREFIX := "A($%JFDS*(;dfjmlsdk9-0"
 
 	pc, err = webrtc.NewPeerConnection(config)
 	if err != nil {
@@ -49,10 +53,7 @@ func NewWebRTCServer(config webrtc.Configuration) (pc *webrtc.PeerConnection, er
 		if d.Label() == "signaling" {
 			return
 		}
-		var cmd *exec.Cmd
-		var ptmx *os.File
 		pipe := dataChannelPipe{d}
-		cmdReady := make(chan bool, 1)
 		d.OnOpen(func() {
 			l := d.Label()
 			log.Printf("New Data channel %q\n", l)
@@ -64,7 +65,13 @@ func NewWebRTCServer(config webrtc.Configuration) (pc *webrtc.PeerConnection, er
 			}
 			defer func() { _ = ptmx.Close() }() // Best effort.
 			cmdReady <- true
-			_, err = io.Copy(&pipe, ptmx)
+			if c[0] == "tmux" && c[1] == "-C" {
+				d.OnMessage(HandleTerminal7Messages)
+				err = TmuxReader(&pipe, ptmx)
+			} else {
+				d.OnMessage(handleDCMessages)
+				_, err = io.Copy(&pipe, ptmx)
+			}
 			if err != nil {
 				log.Printf("Failed to copy from pty: %v %v", err, cmd.ProcessState.String())
 			}
@@ -83,27 +90,38 @@ func NewWebRTCServer(config webrtc.Configuration) (pc *webrtc.PeerConnection, er
 			}
 			log.Println("Data channel closed")
 		})
-		d.OnMessage(func(msg webrtc.DataChannelMessage) {
-			p := msg.Data
-			log.Printf("< %v", p)
-			<-cmdReady
-			// l, err := ptmx.Write([]byte("ls\n"))
-			if string(p[:len(SET_SIZE_PREFIX)]) == SET_SIZE_PREFIX {
-				var ws pty.Winsize
-				json.Unmarshal(msg.Data[len(SET_SIZE_PREFIX):], &ws)
-				log.Printf("New size - %v", ws)
-				pty.Setsize(ptmx, &ws)
-			} else {
-				l, err := ptmx.Write(p)
-				if err != nil {
-					log.Printf("Stdin Write returned an error: %v %v", err, cmd.ProcessState.String())
-				}
-				if l != len(p) {
-					log.Printf("stdin write wrote %d instead of %d bytes", l, len(p))
-				}
-			}
-			cmdReady <- true
-		})
 	})
 	return pc, nil
+}
+
+func TmuxReader(dc io.Writer, tmuxOut io.Reader) error {
+	return nil
+}
+func HandleTerminal7Messages(msg webrtc.DataChannelMessage) {
+	p := msg.Data
+	<-cmdReady
+	log.Printf("< %v", p)
+	cmdReady <- true
+}
+
+func handleDCMessages(msg webrtc.DataChannelMessage) {
+	p := msg.Data
+	log.Printf("< %v", p)
+	<-cmdReady
+	// l, err := ptmx.Write([]byte("ls\n"))
+	if string(p[:len(SET_SIZE_PREFIX)]) == SET_SIZE_PREFIX {
+		var ws pty.Winsize
+		json.Unmarshal(msg.Data[len(SET_SIZE_PREFIX):], &ws)
+		log.Printf("New size - %v", ws)
+		pty.Setsize(ptmx, &ws)
+	} else {
+		l, err := ptmx.Write(p)
+		if err != nil {
+			log.Printf("Stdin Write returned an error: %v %v", err, cmd.ProcessState.String())
+		}
+		if l != len(p) {
+			log.Printf("stdin write wrote %d instead of %d bytes", l, len(p))
+		}
+	}
+	cmdReady <- true
 }
