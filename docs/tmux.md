@@ -1,13 +1,13 @@
 TMUX Support
 ============
 
-Webexec has code that runs only when the client requested a command that starts
+webexec has code that runs only when the client requested a command that starts
 with `tmux -CC`. This code opens a data channel for each pane and communicates
 with the client using json messages over the original data channel.
 
 After receiving the request the server queries tmux for the sessions windows
-and panes and sends it back in a message. The snippet below descripes a session
-with two windows. The first has a single pane and the second a three pane
+and panes and sends it back. For example, the message below descripes a session
+with two windows, the first has a single pane and the second a three pane
 layout that looks like ` |-`.
 
 
@@ -75,6 +75,15 @@ layout that looks like ` |-`.
 	]
 }
 ```
+
+Each message must include a `version` field, specifying the protocol's version
+and a `time` - a float specifying how may seconds passed since 1/1/1970. 
+In addition, the message can include one of the following fields:
+
+* layout - sent by the server when the session's layout changes
+* size - sent by the client when the screen size changes.
+* ...
+
 
 
 Help Needed
