@@ -28,7 +28,7 @@ second a three pane layout that looks like ` |-`.
     "layout": [{
         "id": "@41",
         "name": "root",
-        "zommed": false,
+        "zoomed": false,
         "sx": 190, "sy": 49,
         "xoff": 0, "yoff": 0,
         "active": false,
@@ -56,9 +56,9 @@ second a three pane layout that looks like ` |-`.
             "last_search_string": "ERROR"
           }]
     }, {
-        "window_id": "@42",
-        "window_name": "demo",
-        "zommed": false,
+        "id": "@42",
+        "name": "demo",
+        "zoomed": false,
         "sx": 190,
         "sy": 49,
         "xoff": 0,
@@ -67,17 +67,17 @@ second a three pane layout that looks like ` |-`.
         "panes": [{
             "id": "46",
             "sx": 95, "sy": 49,
-            "xoff":0, "yoff":0,
+            "xoff": 0, "yoff": 0,
             "active": true
         }, {
             "id": "47",
-            "sx": "94, "sy": "24",
-            "xoff":96, "yoff":0,
+            "sx": 94, "sy": 24,
+            "xoff": 96, "yoff": 0,
             "active": false
         }, {
             "id": "48",
-            "sx": "94, "sy": "24",
-            "xoff":96, "yoff":25,
+            "sx": 94, "sy": 24,
+            "xoff": 96, "yoff": 25,
             "active": false
         }]
     }
