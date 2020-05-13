@@ -80,8 +80,7 @@ second a three pane layout that looks like ` |-`.
             "xoff": 96, "yoff": 25,
             "active": false
         }]
-    }
-    ]
+    }]
 }
 ```
 
