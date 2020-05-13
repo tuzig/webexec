@@ -26,63 +26,62 @@ second a three pane layout that looks like ` |-`.
     "version": 1,
     "time": 1589355555.147976,
     "layout": [{
-		"id": "@41",
-		"name": "root",
-		"zommed": false,
-		"sx": 190, "sy": 49,
-		"xoff": 0, "yoff": 0,
-		"active": false,
-		"active_clients": 1,
-		"active_sessions": 1,
-		"last_activity": 1589355444.147976,
-		"bigger": false,
-		"flags": "*",
-		"index": 0,
-		"is_last": true,
-		"marked": false,
-		"silence_flag": 0,
-		"stack_index": 0,
-		"panes": [{
-			"id": "45",
-			"sx": 190, "sy": 49,
-			"xoff":0, "yoff":0,
-			"active": true,
-			"current_command": "python",
-			"current_path": "/root",
-			"exit_status": null,
-			"in_mode": false,
-			"index": 23,
-			"marked": false,
-			"last_search_string": "ERROR",
-			"tabs": [8,16,24,32,40,48,56,64,72,80,88]
-		  }]
-	}, {
-		"window_id": "@42",
-		"window_name": "demo",
-		"zommed": false,
-		"sx": 190,
-		"sy": 49,
-		"xoff": 0,
-		"yoff": 0,
-		"active": true,
-		"panes": [{
-			"id": "46",
-			"sx": 95, "sy": 49,
-			"xoff":0, "yoff":0,
+        "id": "@41",
+        "name": "root",
+        "zommed": false,
+        "sx": 190, "sy": 49,
+        "xoff": 0, "yoff": 0,
+        "active": false,
+        "active_clients": 1,
+        "active_sessions": 1,
+        "last_activity": 1589355444.147976,
+        "bigger": false,
+        "flags": "*",
+        "index": 0,
+        "is_last": true,
+        "marked": false,
+        "silence_flag": 0,
+        "stack_index": 0,
+        "panes": [{
+            "id": "45",
+            "sx": 190, "sy": 49,
+            "xoff":0, "yoff":0,
+            "active": true,
+            "current_command": "python",
+            "current_path": "/root",
+            "exit_status": null,
+            "in_mode": false,
+            "index": 23,
+            "marked": false,
+            "last_search_string": "ERROR"
+          }]
+    }, {
+        "window_id": "@42",
+        "window_name": "demo",
+        "zommed": false,
+        "sx": 190,
+        "sy": 49,
+        "xoff": 0,
+        "yoff": 0,
+        "active": true,
+        "panes": [{
+            "id": "46",
+            "sx": 95, "sy": 49,
+            "xoff":0, "yoff":0,
             "active": true
-		}, {
-			"id": "47",
-			"sx": "94, "sy": "24",
-			"xoff":96, "yoff":0,
+        }, {
+            "id": "47",
+            "sx": "94, "sy": "24",
+            "xoff":96, "yoff":0,
             "active": false
-		}, {
-			"id": "48",
-			"sx": "94, "sy": "24",
-			"xoff":96, "yoff":25,
+        }, {
+            "id": "48",
+            "sx": "94, "sy": "24",
+            "xoff":96, "yoff":25,
             "active": false
-		}]
-	}
-	]
+        }]
+    }
+    ]
 }
 ```
 
@@ -101,7 +100,7 @@ When the client changes the size of the its windows it send a message:
     }
 }
 ```
-	
+    
 
 
 Help Needed
