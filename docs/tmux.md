@@ -1,0 +1,85 @@
+TMUX Support
+============
+
+Webexec has code that runs only when the client requested a command that starts
+with `tmux -CC`. This code opens a data channel for each pane and communicates
+with the client using json messages over the original data channel.
+
+After receiving the request the server queries tmux for the sessions windows
+and panes and sends it back in a message. The snippet below descripes a session
+with two windows. The first has a single pane and the second a three pane
+layout that looks like ` |-`.
+
+
+```json
+{ 
+    "version": 1,
+    "time": 1589355555.147976,
+    "layout": [{
+		"id": "@41",
+		"name": "root",
+		"zommed": false,
+		"sx": 190, "sy": 49,
+		"xoff": 0, "yoff": 0,
+		"active": false,
+		"active_clients": 1,
+		"active_sessions": 1,
+		"last_activity": 1589355444.147976,
+		"bigger": false,
+		"flags": "*",
+		"index": 0,
+		"is_last": true,
+		"marked": false,
+		"silence_flag": 0,
+		"stack_index": 0,
+		"panes": [{
+			"id": "45",
+			"sx": 190, "sy": 49,
+			"xoff":0, "yoff":0,
+			"active": true,
+			"current_command": "python",
+			"current_path": "/root",
+			"exit_status": null,
+			"in_mode": false,
+			"index": 23,
+			"marked": false,
+			"last_search_string": "ERROR",
+			"tabs": [8,16,24,32,40,48,56,64,72,80,88]
+		  }]
+	}, {
+		"window_id": "@42",
+		"window_name": "demo",
+		"zommed": false,
+		"sx": 190,
+		"sy": 49,
+		"xoff": 0,
+		"yoff": 0,
+		"active": true,
+		"panes": [{
+			"id": "46",
+			"sx": 95, "sy": 49,
+			"xoff":0, "yoff":0,
+            active: true
+		}, {
+			"id": "47",
+			"sx": "94, "sy": "24",
+			"xoff":96, "yoff":0,
+            active: false
+		}, {
+			"id": "48",
+			"sx": "94, "sy": "24",
+			"xoff":96, "yoff":25
+            active: false
+		}]
+	}
+	]
+}
+```
+
+
+Help Needed
+-----------
+
+I need help adding a plugin architecture and refactoring tmux support
+as a plugin. It's probably worth doing only if you have an idea for a plugin
+you want to develop. Issue #XYZ.
