@@ -5,10 +5,20 @@ webexec has code that runs only when the client requested a command that starts
 with `tmux -CC`. This code opens a data channel for each pane and communicates
 with the client using json messages over the original data channel.
 
-After receiving the request the server queries tmux for the sessions windows
-and panes and sends it back. For example, the message below descripes a session
-with two windows, the first has a single pane and the second a three pane
-layout that looks like ` |-`.
+Each message must include a `version` field, specifying the protocol's version
+and a `time` - a float specifying how may seconds passed since 1/1/1970. 
+In addition, the message can include one of the following fields:
+
+* layout - sent by the server when the session's layout changes
+* size - sent by the client when the screen size changes.
+* ...
+
+Layout Update
+-------------
+When the server discovers the sessions' layout has changed, it queries tmux
+for the sessions windows and panes and sends it back. The message below
+descripes a session with two windows, the first has a single pane and the
+second a three pane layout that looks like ` |-`.
 
 
 ```json
@@ -59,31 +69,39 @@ layout that looks like ` |-`.
 			"id": "46",
 			"sx": 95, "sy": 49,
 			"xoff":0, "yoff":0,
-            active: true
+            "active": true
 		}, {
 			"id": "47",
 			"sx": "94, "sy": "24",
 			"xoff":96, "yoff":0,
-            active: false
+            "active": false
 		}, {
 			"id": "48",
 			"sx": "94, "sy": "24",
-			"xoff":96, "yoff":25
-            active: false
+			"xoff":96, "yoff":25,
+            "active": false
 		}]
 	}
 	]
 }
 ```
 
-Each message must include a `version` field, specifying the protocol's version
-and a `time` - a float specifying how may seconds passed since 1/1/1970. 
-In addition, the message can include one of the following fields:
+Client Resize
+-------------
 
-* layout - sent by the server when the session's layout changes
-* size - sent by the client when the screen size changes.
-* ...
+When the client changes the size of the its windows it send a message:
 
+```json
+{ 
+    "version": 1,
+    "time": 1589355555.147976,
+    "size": {
+        "sx": 80,
+        "sy": 24
+    }
+}
+```
+	
 
 
 Help Needed
