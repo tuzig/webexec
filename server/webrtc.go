@@ -18,7 +18,7 @@ type dataChannelPipe struct {
 }
 
 var SET_SIZE_PREFIX = "A($%JFDS*(;dfjmlsdk9-0"
-var cmdReady = make(chan bool, 1)
+var CmdReady = make(chan bool, 1)
 var ptmx *os.File
 var cmd *exec.Cmd
 
@@ -64,9 +64,9 @@ func NewWebRTCServer(config webrtc.Configuration) (pc *webrtc.PeerConnection, er
 				log.Panicf("Failed to attach a ptyi and start cmd: %v", err)
 			}
 			defer func() { _ = ptmx.Close() }() // Best effort.
-			cmdReady <- true
-			if c[0] == "tmux" && c[1] == "-C" {
-				d.OnMessage(HandleTerminal7Messages)
+			CmdReady <- true
+			if c[0] == "tmux" && c[1] == "-CC" {
+				d.OnMessage(HandleTmuxClientMessages)
 				err = TmuxReader(&pipe, ptmx)
 			} else {
 				d.OnMessage(handleDCMessages)
@@ -94,20 +94,10 @@ func NewWebRTCServer(config webrtc.Configuration) (pc *webrtc.PeerConnection, er
 	return pc, nil
 }
 
-func TmuxReader(dc io.Writer, tmuxOut io.Reader) error {
-	return nil
-}
-func HandleTerminal7Messages(msg webrtc.DataChannelMessage) {
-	p := msg.Data
-	<-cmdReady
-	log.Printf("< %v", p)
-	cmdReady <- true
-}
-
 func handleDCMessages(msg webrtc.DataChannelMessage) {
 	p := msg.Data
 	log.Printf("< %v", p)
-	<-cmdReady
+	<-CmdReady
 	// l, err := ptmx.Write([]byte("ls\n"))
 	if string(p[:len(SET_SIZE_PREFIX)]) == SET_SIZE_PREFIX {
 		var ws pty.Winsize
@@ -123,5 +113,5 @@ func handleDCMessages(msg webrtc.DataChannelMessage) {
 			log.Printf("stdin write wrote %d instead of %d bytes", l, len(p))
 		}
 	}
-	cmdReady <- true
+	CmdReady <- true
 }

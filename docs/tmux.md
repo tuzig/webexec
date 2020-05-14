@@ -15,11 +15,10 @@ In addition, messages include the fields required by specific commands:
 The layout update is sent on two ocaasions:
 - When the server discovers the sessions' layout has changed
 - When the client requests a command that changes the layout,
-the reply includes the new layout.
+the code quieries tmux for the lates windows and panes and sends the new layout
 
-The message below
-descripes a session with two windows, the first has a single pane and the
-second a three pane layout that looks like ` |-`.
+The message below descripes a session with two windows, the first has a single
+pane and the second a three pane layout that looks like ` |-`.
 
 
 ```json
@@ -41,7 +40,7 @@ second a three pane layout that looks like ` |-`.
         "index": 0,
         "is_last": true,
         "marked": false,
-        "silence_flag": 0,
+        "t_alert": 0,
         "stack_index": 0,
         "panes": [{
             "id": "45",
@@ -252,7 +251,7 @@ The user can change the way panes are laid out on the current window.
 }
 ```
 
-### Client Resize
+### Refresh Client
 
 When the user changes the size of the its windows it send a message:
 
@@ -267,7 +266,7 @@ When the user changes the size of the its windows it send a message:
 }
 ```
 
-### Run a user's command
+### Run a tmux command
 
 This message executes a tmux command
 

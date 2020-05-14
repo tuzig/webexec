@@ -1,6 +1,7 @@
 package server
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"log"
@@ -168,4 +169,53 @@ func TestMultiLine(t *testing.T) {
 	if len(mockedMsgs) == 2 && (mockedMsgs[0] != "123\n" || mockedMsgs[1] != "456\n") {
 		t.Fatalf("Got two messages at least one wrong %v", mockedMsgs)
 	}
+}
+
+func TestTmuxConnect(t *testing.T) {
+	done := make(chan bool)
+	server, err := NewWebRTCServer(webrtc.Configuration{})
+	if err != nil {
+		t.Fatalf("Failed to start a new server %v", err)
+	}
+
+	client, err := webrtc.NewPeerConnection(webrtc.Configuration{})
+	if err != nil {
+		t.Fatalf("Failed to start a new server %v", err)
+	}
+	dc, err := client.CreateDataChannel("tmux -CC", nil)
+
+	dc.OnOpen(func() {
+		fmt.Println("Channel opened")
+		dc.Send([]byte(`
+{
+    "version": 1,
+    "time": 1589355555.147976,
+    "refresh-client": {
+        "sx": 80,
+        "sy": 24
+    }
+}`))
+	})
+
+	dc.OnMessage(func(msg webrtc.DataChannelMessage) {
+		var m Message
+		if !msg.IsString {
+			t.Errorf("Got a message that's not a string: %q", msg.Data)
+		}
+		json.Unmarshal(msg.Data, &m)
+		if m.Layout == nil {
+			t.Errorf("Expected a layout and got: %q", msg.Data)
+		}
+		layout := m.Layout[0]
+		if layout.zoomed {
+			t.Errorf("Got a zoomed window")
+		}
+	})
+
+	dc.OnClose(func() {
+		fmt.Println("Client Data channel closed")
+		done <- true
+	})
+	signalPair(client, server)
+	<-done
 }
