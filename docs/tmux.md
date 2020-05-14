@@ -12,14 +12,18 @@ In addition, messages include the fields required by specific commands:
 
 ### Layout Update
 
-When the server discovers the sessions' layout has changed, it queries tmux
-for the sessions windows and panes and sends it back. The message below
+The layout update is sent on two ocaasions:
+- When the server discovers the sessions' layout has changed
+- When the client requests a command that changes the layout,
+the reply includes the new layout.
+
+The message below
 descripes a session with two windows, the first has a single pane and the
 second a three pane layout that looks like ` |-`.
 
 
 ```json
-{ 
+{
     "version": 1,
     "time": 1589355555.147976,
     "layout": [{
@@ -83,17 +87,54 @@ second a three pane layout that looks like ` |-`.
 
 ## Client Messages
 
-### Client Resize
+### Toogle Zoom
 
-When the user changes the size of the its windows it send a message:
+When toggling the zoom the specified pane is becoming the active pane.
 
 ```json
-{ 
+{
     "version": 1,
     "time": 1589355555.147976,
-    "size": {
-        "sx": 80,
-        "sy": 24
+    "toggle_zoom": "45"
+}
+```
+
+### Resize Pane
+
+Resizing a pane can be done by passing the `up`, `down`, `left` or `right` field
+as part of the `resize_pane` field and setting it to the number of rows/cols.
+For example, to grow a pane by 3 rows: 
+
+```json
+{
+    "version": 1,
+    "time": 1589355555.147976,
+    "resize_pane": {
+        "id": "45",
+        "down": 3
+    }
+}
+```
+
+You can mix "down" with "right" or "left" to grow the pane in two directions.
+
+### Break Pane
+
+The `active` field can be used to specify whether the new window should be
+docused (defaul is true). 
+
+```json
+{
+    "version": 1,
+    "time": 1589355555.147976,
+    "break_pane": {
+        "id": "A window",
+        "active": false,
+        "down": 3,
+        "command": "htop",
+        "env": {
+            "varA": "valueA"
+        }
     }
 }
 ```
@@ -103,7 +144,7 @@ When the user changes the size of the its windows it send a message:
 When the user splits a pane the following message is sent: 
 
 ```json
-{ 
+{
     "version": 1,
     "time": 1589355555.147976,
     "split": {
@@ -112,6 +153,129 @@ When the user splits a pane the following message is sent:
         "size": "50%",
         "before_target": false
     }
+}
+```
+
+### Kill pane
+
+```json
+{
+    "version": 1,
+    "time": 1589355555.147976,
+    "kill-pane": "%XY"
+}
+```
+
+### New Window
+
+The `active` field can be used to specify whether the new window should be
+focused (default is true). The `env` field for setting environment variables. 
+```json
+{
+    "version": 1,
+    "time": 1589355555.147976,
+    "new_window": {
+        "name": "A window",
+        "active": false,
+        "command": "htop",
+        "env": {
+            "varA": "valueA"
+        }
+    }
+}
+```
+
+### Select Window 
+
+This message changes the active window.
+
+
+```json
+{
+    "version": 1,
+    "time": 1589355555.147976,
+    "select-window": "@XY"
+}
+```
+
+### Rotate Window 
+
+This message rotates the panes inside a window.
+
+
+```json
+{
+    "version": 1,
+    "time": 1589355555.147976,
+    "rotate-window": "@XY"
+}
+```
+
+### Select Layout 
+
+The user can change the way panes are laid out on the current window.
+`layou_name` can be one of: `even-horizontal`, `even-vertical`,
+`main-horizontal`, `main-vertical` or `tiled`.
+
+
+```json
+{
+    "version": 1,
+    "time": 1589355555.147976,
+    "refresh-client": {
+        "window_id": "@XY",
+        "layout": "<layout_name>"
+    }
+}
+```
+
+### rename Window
+
+```json
+{
+    "version": 1,
+    "time": 1589355555.147976,
+    "rename-window": {
+        "id": "@XY",
+        "name": "Window's name"
+    }
+}
+```
+
+### Kill Window
+
+```json
+{
+    "version": 1,
+    "time": 1589355555.147976,
+    "kill-window": "@XY"
+}
+```
+
+### Client Resize
+
+When the user changes the size of the its windows it send a message:
+
+```json
+{
+    "version": 1,
+    "time": 1589355555.147976,
+    "refresh-client": {
+        "sx": 80,
+        "sy": 24
+    }
+}
+```
+
+### Run a user's command
+
+This message executes a tmux command
+
+```json
+{
+    "version": 1,
+    "time": 1589355555.147976,
+    "command": "list-panes -a"
 }
 ```
 
