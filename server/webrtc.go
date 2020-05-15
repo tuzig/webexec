@@ -66,8 +66,9 @@ func NewWebRTCServer(config webrtc.Configuration) (pc *webrtc.PeerConnection, er
 			defer func() { _ = ptmx.Close() }() // Best effort.
 			CmdReady <- true
 			if c[0] == "tmux" && c[1] == "-CC" {
-				d.OnMessage(HandleTmuxClientMessages)
-				err = TmuxReader(&pipe, ptmx)
+				c := Terminal7Client{ptmx}
+				d.OnMessage(c.OnClientMessage)
+				err = c.TmuxReader(&pipe)
 			} else {
 				d.OnMessage(handleDCMessages)
 				_, err = io.Copy(&pipe, ptmx)
@@ -98,7 +99,7 @@ func handleDCMessages(msg webrtc.DataChannelMessage) {
 	p := msg.Data
 	log.Printf("< %v", p)
 	<-CmdReady
-	// l, err := ptmx.Write([]byte("ls\n"))
+	l, err := ptmx.Write([]byte("ls\n"))
 	if string(p[:len(SET_SIZE_PREFIX)]) == SET_SIZE_PREFIX {
 		var ws pty.Winsize
 		json.Unmarshal(msg.Data[len(SET_SIZE_PREFIX):], &ws)

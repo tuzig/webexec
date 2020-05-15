@@ -10,6 +10,10 @@ import (
 	"github.com/pion/webrtc/v2"
 )
 
+type Terminal7Client struct {
+	ptmux io.File
+}
+
 type PaneLayout struct {
 }
 type WindowLayout struct {
@@ -35,8 +39,8 @@ type WindowLayout struct {
 }
 
 type RefreshClientArgs struct {
-	Sx int16
-	Sy int16
+	sx int16
+	sy int16
 }
 
 type ResizePaneArgs struct {
@@ -47,21 +51,21 @@ type ResizePaneArgs struct {
 	left  int16
 }
 
-type Message struct {
-	Version       int16             `json:"version"`
-	Time          float64           `json:"time"` // want to change this to `json:"name"`
-	ResizePane    ResizePaneArgs    `json:"resize_pane"`
-	RefreshClient RefreshClientArgs `json:"refresh_client"`
-	Layout        []WindowLayout    `json:"layout"`
+type Terminal7Message struct {
+	Version       int16              `json:"version"`
+	Time          float64            `json:"time"` // want to change this to `json:"name"`
+	ResizePane    *ResizePaneArgs    `json:"resize_pane"`
+	RefreshClient *RefreshClientArgs `json:"refresh_client"`
+	Layout        *[]WindowLayout    `json:"layout"`
 
 	// map[string]interface{}
 }
 
-func TmuxReader(dc io.Writer, tmuxOut io.Reader) error {
+func (client *Terminal7Client) TmuxReader(dc io.Writer) error {
 	schwantz := ""
 	b := make([]byte, 1024)
 	for {
-		_, err := tmuxOut.Read(b)
+		_, err := clientptmux.Read(b)
 		if err == io.EOF {
 			return nil
 		} else if err != nil {
@@ -87,12 +91,13 @@ func TmuxReader(dc io.Writer, tmuxOut io.Reader) error {
 	}
 	return nil
 }
-func HandleTmuxClientMessages(msg webrtc.DataChannelMessage) {
-	var m Message
+
+func (client *Terminal7Client) OnClientMessage(msg webrtc.DataChannelMessage) {
+	var m Terminal7Message
 	p := json.Unmarshal(msg.Data, &m)
 	<-CmdReady
 	if m.RefreshClient != nil {
-		tmux.write(fmt.string("refresh-client -F %sx%s", m.RefreshClient.sx,
+		client.ptmux.Write(fmt.Sprintf("refresh-client -F %sx%s", m.RefreshClient.sx,
 			m.RefreshClient.sy))
 	}
 

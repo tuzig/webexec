@@ -198,7 +198,7 @@ func TestTmuxConnect(t *testing.T) {
 	})
 
 	dc.OnMessage(func(msg webrtc.DataChannelMessage) {
-		var m Message
+		var m Terminal7Message
 		if !msg.IsString {
 			t.Errorf("Got a message that's not a string: %q", msg.Data)
 		}
