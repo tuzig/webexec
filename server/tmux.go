@@ -11,7 +11,7 @@ import (
 )
 
 type Terminal7Client struct {
-	ptmux io.File
+	ptmux io.ReadWriteCloser
 }
 
 type PaneLayout struct {
@@ -56,7 +56,7 @@ type Terminal7Message struct {
 	Time          float64            `json:"time"` // want to change this to `json:"name"`
 	ResizePane    *ResizePaneArgs    `json:"resize_pane"`
 	RefreshClient *RefreshClientArgs `json:"refresh_client"`
-	Layout        *[]WindowLayout    `json:"layout"`
+	Layout        []WindowLayout     `json:"layout"`
 
 	// map[string]interface{}
 }
@@ -65,7 +65,7 @@ func (client *Terminal7Client) TmuxReader(dc io.Writer) error {
 	schwantz := ""
 	b := make([]byte, 1024)
 	for {
-		_, err := clientptmux.Read(b)
+		_, err := client.ptmux.Read(b)
 		if err == io.EOF {
 			return nil
 		} else if err != nil {
@@ -95,12 +95,11 @@ func (client *Terminal7Client) TmuxReader(dc io.Writer) error {
 func (client *Terminal7Client) OnClientMessage(msg webrtc.DataChannelMessage) {
 	var m Terminal7Message
 	p := json.Unmarshal(msg.Data, &m)
-	<-CmdReady
 	if m.RefreshClient != nil {
-		client.ptmux.Write(fmt.Sprintf("refresh-client -F %sx%s", m.RefreshClient.sx,
-			m.RefreshClient.sy))
+		c := fmt.Sprintf("refresh-client -F %dx%d", m.RefreshClient.sx,
+			m.RefreshClient.sy)
+		client.ptmux.Write([]byte(c))
 	}
 
 	log.Printf("< %v", p)
-	CmdReady <- true
 }

@@ -2,11 +2,11 @@ package server
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
+	"net"
 	"net/http"
 
-	"github.com/afittestide/webexec/signal"
-	"github.com/pion/webrtc/v2"
 	"github.com/rs/cors"
 )
 
@@ -14,42 +14,11 @@ type ConnectAPI struct {
 	Offer string
 }
 
-func startWebRTCServer(remote string) []byte {
-	offer := webrtc.SessionDescription{}
-	signal.Decode(remote, &offer)
-	config := webrtc.Configuration{
-		ICEServers: []webrtc.ICEServer{
-			{
-				URLs: []string{"stun:stun.l.google.com:19302"},
-			},
-		},
-	}
-	pc, err := NewWebRTCServer(config)
-	if err != nil {
-		panic(err)
-	}
-	err = pc.SetRemoteDescription(offer)
-	if err != nil {
-		panic(err)
-	}
-	answer, err := pc.CreateAnswer(nil)
-	if err != nil {
-		panic(err)
-	}
-
-	// Sets the LocalDescription, and starts our UDP listeners
-	err = pc.SetLocalDescription(answer)
-	if err != nil {
-		panic(err)
-	}
-	return []byte(signal.Encode(answer))
-}
-
-func HTTPGo(address string) {
+func NewHandler() (h http.Handler, e error) {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/connect", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != "POST" {
-			log.Printf("Got an http request with bad method %q\n", r.Method)
+			e = fmt.Errorf("Got an http request with bad method %q\n", r.Method)
 			return
 		}
 		w.Header().Set("Access-Control-Allow-Origin", "*")
@@ -58,12 +27,36 @@ func HTTPGo(address string) {
 		e := decoder.Decode(&t)
 		log.Printf("Got a valid POST request with data: %v", t)
 		if e != nil {
-			panic(e)
+			e = fmt.Errorf("Failed to decode client's key: %v", e)
+			return
 		}
-		answer := startWebRTCServer(t.Offer)
-		// Output the answer in base64 so we can paste it in browser
-		w.Write(answer)
+		s, e := NewWebRTCServer()
+		if e != nil {
+			return
+		}
+		k := s.start(t.Offer)
+		// reply with server's key
+		w.Write(k)
 	})
-	handler := cors.Default().Handler(mux)
-	log.Fatal(http.ListenAndServe(address, handler))
+	h = cors.Default().Handler(mux)
+	return
+}
+
+func NewHTTPListner() (l net.Listener, p int, e error) {
+	l, e = net.Listen("tcp", ":0")
+	if e != nil {
+		return
+	}
+	p = l.Addr().(*net.TCPAddr).Port
+	return
+}
+
+func HTTPGo(address string) (e error) {
+	h, e := NewHandler()
+	if e != nil {
+		return
+	}
+	log.Fatal(http.ListenAndServe(address, h))
+
+	return
 }

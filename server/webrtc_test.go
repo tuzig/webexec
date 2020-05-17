@@ -13,6 +13,7 @@ import (
 	"github.com/pion/webrtc/v2"
 )
 
+//TODO: move this function to a test_utils.go file
 func signalPair(pcOffer *webrtc.PeerConnection, pcAnswer *webrtc.PeerConnection) error {
 	iceGatheringState := pcOffer.ICEGatheringState()
 	offerChan := make(chan webrtc.SessionDescription, 1)
@@ -105,7 +106,7 @@ func TestCat(t *testing.T) {
 }
 func TestSimpleEcho(t *testing.T) {
 	done := make(chan bool)
-	server, err := NewWebRTCServer(webrtc.Configuration{})
+	server, err := NewWebRTCServer()
 	if err != nil {
 		t.Fatalf("Failed to start a new server %v", err)
 	}
@@ -127,12 +128,12 @@ func TestSimpleEcho(t *testing.T) {
 		fmt.Println("Client Data channel closed")
 		done <- true
 	})
-	signalPair(client, server)
+	signalPair(client, server.pc)
 	<-done
 }
 func TestMultiLine(t *testing.T) {
 	done := make(chan bool)
-	server, err := NewWebRTCServer(webrtc.Configuration{})
+	server, err := NewWebRTCServer()
 	if err != nil {
 		t.Fatalf("Failed to start a new server %v", err)
 	}
@@ -160,7 +161,7 @@ func TestMultiLine(t *testing.T) {
 		done <- true
 
 	})
-	signalPair(client, server)
+	signalPair(client, server.pc)
 	<-done
 
 	if len(mockedMsgs) == 1 && mockedMsgs[0] != "123\n456\n" {
@@ -173,14 +174,14 @@ func TestMultiLine(t *testing.T) {
 
 func TestTmuxConnect(t *testing.T) {
 	done := make(chan bool)
-	server, err := NewWebRTCServer(webrtc.Configuration{})
+	server, err := NewWebRTCServer()
 	if err != nil {
-		t.Fatalf("Failed to start a new server %v", err)
+		t.Fatalf("Failed to start a new WebRTC server %v", err)
 	}
 
 	client, err := webrtc.NewPeerConnection(webrtc.Configuration{})
 	if err != nil {
-		t.Fatalf("Failed to start a new server %v", err)
+		t.Fatalf("Failed to start a new peer connection %v", err)
 	}
 	dc, err := client.CreateDataChannel("tmux -CC", nil)
 
@@ -214,8 +215,9 @@ func TestTmuxConnect(t *testing.T) {
 
 	dc.OnClose(func() {
 		fmt.Println("Client Data channel closed")
+		server.Close()
 		done <- true
 	})
-	signalPair(client, server)
+	signalPair(client, server.pc)
 	<-done
 }
