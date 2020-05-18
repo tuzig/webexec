@@ -84,9 +84,9 @@ func NewWebRTCServer() (server WebRTCServer, err error) {
 		if d.Label() == "signaling" {
 			return
 		}
-		server.ctrlDC = d
 		pipe := DataChannelPipe{d}
 		d.OnOpen(func() {
+			server.ctrlDC = d
 			l := d.Label()
 			log.Printf("New Data channel %q\n", l)
 			c := strings.Split(l, " ")
