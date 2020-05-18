@@ -2,7 +2,6 @@ package server
 
 import (
 	"bufio"
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -78,20 +77,32 @@ type Terminal7Message struct {
 	ResizePane    *ResizePaneArgs    `json:"resize_pane"`
 	RefreshClient *RefreshClientArgs `json:"refresh_client"`
 	Layout        []WindowLayout     `json:"layout"`
-
 	// map[string]interface{}
 }
 
-func (client *Terminal7Client) UpdateWindows(b bytes.Buffer) {
-	log.Printf("Updating Terminal7Client.Layout with windows: \n%s", b.String())
+func (client *Terminal7Client) UpdateWindows(b []string) {
+	log.Print(">>> Updating Terminal7Client.Layout with:")
+	for _, l := range b {
+		a := strings.Split(l, ";")
+		w := WindowLayout{a[0], a[1], a[2], a[3]...}
+		log.Print(l)
+	}
+	log.Print("<<<")
+
 }
-func (client *Terminal7Client) UpdatePanes(b bytes.Buffer) {
-	log.Printf("Updating Terminal7Client.Layout with panes: \n%s", b.String())
+func (client *Terminal7Client) UpdatePanes(b []string) {
+	log.Printf("Updating Terminal7Client.Layout with panes: \n%s",
+		strings.Join(b, "\n"))
 }
-func (client *Terminal7Client) HandleTmuxReply(b bytes.Buffer) {
+func (client *Terminal7Client) HandleTmuxReply(b []string) {
 	if client.State == StateInit && client.Layout == nil {
 		client.State = StateGettingWindows
-		client.pty.Write([]byte("list-windows\n"))
+		client.pty.Write([]byte("list-windows -F " +
+			"'#{window_id};#{window_name};#{window_zoomed_flag};#{window_width};" +
+			"#{window_height};#{window_offset_x};#{window_offset_y};#{window_active};" +
+			"#{window_active_clients};#{window_active_sessions};#{window_activity};" +
+			"#{window_bigger};#{window_flags};#{window_index};#{window_last_flag};" +
+			"#{window_marked_flag};#{window_stack_index};#{window_layout}'\n"))
 	} else if client.State == StateGettingWindows {
 		client.UpdateWindows(b)
 		client.State = StateGettingPanes
@@ -114,7 +125,7 @@ func (client *Terminal7Client) updateTmuxTime(ts string) {
 	client.LastTmuxTime = t
 }
 func (client *Terminal7Client) TmuxReader(dc io.Writer) error {
-	var b bytes.Buffer
+	var b []string
 	firstTime := true
 	scanner := bufio.NewScanner(client.pty)
 	for scanner.Scan() {
@@ -130,7 +141,7 @@ func (client *Terminal7Client) TmuxReader(dc io.Writer) error {
 
 		log.Print(l)
 		if client.outputBegun && l[0] != byte('%') {
-			b.WriteString(l)
+			b = append(b, l)
 			continue
 		}
 		w := strings.Split(l, " ")
@@ -138,7 +149,7 @@ func (client *Terminal7Client) TmuxReader(dc io.Writer) error {
 		case "%begin":
 			client.updateTmuxTime(w[1])
 			log.Printf("%%begin from %v", client.LastTmuxTime)
-			b.Reset()
+			b = nil
 			client.outputBegun = true
 
 		case "%end":

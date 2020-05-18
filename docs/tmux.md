@@ -29,7 +29,8 @@ pane and the second a three pane layout that looks like ` |-`.
         "id": "@41",
         "name": "root",
         "zoomed": false,
-        "sx": 190, "sy": 49,
+        "width": 190,
+        "height": 49,
         "xoff": 0, "yoff": 0,
         "active": false,
         "active_clients": 1,
@@ -40,11 +41,11 @@ pane and the second a three pane layout that looks like ` |-`.
         "index": 0,
         "is_last": true,
         "marked": false,
-        "t_alert": 0,
         "stack_index": 0,
+        "layout": "[]",
         "panes": [{
             "id": "45",
-            "sx": 190, "sy": 49,
+            "width": 190, "height": 49,
             "xoff":0, "yoff":0,
             "active": true,
             "current_command": "python",
@@ -59,24 +60,24 @@ pane and the second a three pane layout that looks like ` |-`.
         "id": "@42",
         "name": "demo",
         "zoomed": false,
-        "sx": 190,
-        "sy": 49,
+        "width": 190,
+        "height": 49,
         "xoff": 0,
         "yoff": 0,
         "active": true,
         "panes": [{
             "id": "46",
-            "sx": 95, "sy": 49,
+            "width": 95, "height": 49,
             "xoff": 0, "yoff": 0,
             "active": true
         }, {
             "id": "47",
-            "sx": 94, "sy": 24,
+            "width": 94, "height": 24,
             "xoff": 96, "yoff": 0,
             "active": false
         }, {
             "id": "48",
-            "sx": 94, "sy": 24,
+            "width": 94, "height": 24,
             "xoff": 96, "yoff": 25,
             "active": false
         }]
@@ -260,8 +261,8 @@ When the user changes the size of the its windows it send a message:
     "version": 1,
     "time": 1589355555.147976,
     "refresh-client": {
-        "sx": 80,
-        "sy": 24
+        "width": 80,
+        "height": 24
     }
 }
 ```
