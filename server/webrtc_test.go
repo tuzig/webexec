@@ -163,6 +163,7 @@ func TestMultiLine(t *testing.T) {
 	})
 	signalPair(client, server.pc)
 	<-done
+	server.Shutdown()
 
 	if len(mockedMsgs) == 1 && mockedMsgs[0] != "123\n456\n" {
 		t.Fatalf("Got one, wrong message  %v", mockedMsgs)
@@ -186,7 +187,7 @@ func TestTmuxConnect(t *testing.T) {
 	dc, err := client.CreateDataChannel("tmux -CC", nil)
 
 	dc.OnOpen(func() {
-		fmt.Println("Channel opened")
+		log.Print("Sending resize message")
 		dc.Send([]byte(`
 {
     "version": 1,
@@ -215,9 +216,9 @@ func TestTmuxConnect(t *testing.T) {
 
 	dc.OnClose(func() {
 		fmt.Println("Client Data channel closed")
-		server.Close()
 		done <- true
 	})
 	signalPair(client, server.pc)
 	<-done
+	server.Shutdown()
 }

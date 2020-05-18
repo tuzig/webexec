@@ -8,19 +8,12 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"time"
 
 	"github.com/afittestide/webexec/signal"
 	"github.com/creack/pty"
 	"github.com/pion/webrtc/v2"
 )
-
-type WebRTCServer struct {
-	c        webrtc.Configuration
-	CmdReady chan bool
-	ptmux    *os.File
-	cmd      *exec.Cmd
-	pc       *webrtc.PeerConnection
-}
 
 type DataChannelPipe struct {
 	d *webrtc.DataChannel
@@ -42,7 +35,17 @@ func (pipe *DataChannelPipe) Write(p []byte) (n int, err error) {
 	return len(p), nil
 }
 
-func NewWebRTCServer() (server *WebRTCServer, err error) {
+type WebRTCServer struct {
+	c        webrtc.Configuration
+	CmdReady chan bool
+	ptmux    *os.File
+	cmd      *exec.Cmd
+	pc       *webrtc.PeerConnection
+	ctrlDC   *webrtc.DataChannel
+	paneDC   []webrtc.DataChannel
+}
+
+func NewWebRTCServer() (server WebRTCServer, err error) {
 	config := webrtc.Configuration{
 		ICEServers: []webrtc.ICEServer{
 			{
@@ -50,7 +53,7 @@ func NewWebRTCServer() (server *WebRTCServer, err error) {
 			},
 		},
 	}
-	server = &WebRTCServer{c: config}
+	server = WebRTCServer{c: config}
 	pc, err := webrtc.NewPeerConnection(config)
 	if err != nil {
 		err = fmt.Errorf("Failed to open peer connection: %q", err)
@@ -60,13 +63,18 @@ func NewWebRTCServer() (server *WebRTCServer, err error) {
 	// Set the handler for ICE connection state
 	// This will notify you when the peer has connected/disconnected
 	pc.OnICEConnectionStateChange(func(connectionState webrtc.ICEConnectionState) {
-		log.Printf("ICE Connection State has changed: %s\n", connectionState.String())
+		s := connectionState.String()
+		log.Printf("ICE Connection State change: %s\n", s)
+		if s == "connected" {
+			go server.keepAlive()
+		}
 	})
 	// Register data channel creation handling
 	pc.OnDataChannel(func(d *webrtc.DataChannel) {
 		if d.Label() == "signaling" {
 			return
 		}
+		server.ctrlDC = d
 		pipe := DataChannelPipe{d}
 		d.OnOpen(func() {
 			l := d.Label()
@@ -80,16 +88,19 @@ func NewWebRTCServer() (server *WebRTCServer, err error) {
 			defer func() { _ = server.ptmux.Close() }() // Best effort.
 			// server.CmdReady <- true
 			if c[0] == "tmux" && c[1] == "-CC" {
-				c := Terminal7Client{server.ptmux}
+				c := NewTerminal7Client(server.ptmux)
 				d.OnMessage(c.OnClientMessage)
 				err = c.TmuxReader(&pipe)
+				if err != nil {
+					log.Printf("tmux reader failed: %v", err)
+				}
 			} else {
 				d.OnMessage(server.handleDCMessages)
 				_, err = io.Copy(&pipe, server.ptmux)
-			}
-			if err != nil {
-				log.Printf("Failed to copy from pty: %v %v", err,
-					server.cmd.ProcessState.String())
+				if err != nil {
+					log.Printf("Failed to copy from command: %v %v", err,
+						server.cmd.ProcessState.String())
+				}
 			}
 			server.ptmux.Close()
 			err = server.cmd.Process.Kill()
@@ -110,6 +121,14 @@ func NewWebRTCServer() (server *WebRTCServer, err error) {
 	return
 }
 
+func (server *WebRTCServer) keepAlive() {
+	for t := range time.NewTicker(3 * time.Second).C {
+		if server.ctrlDC != nil {
+			server.ctrlDC.SendText("PING")
+		}
+
+	}
+}
 func (server *WebRTCServer) start(remote string) []byte {
 	offer := webrtc.SessionDescription{}
 	signal.Decode(remote, &offer)
@@ -149,6 +168,9 @@ func (server *WebRTCServer) handleDCMessages(msg webrtc.DataChannelMessage) {
 	}
 	// server.CmdReady <- true
 }
-func (server *WebRTCServer) Close() {
-	server.cmd.Process.Kill()
+func (server *WebRTCServer) Shutdown() {
+	server.pc.Close()
+	if server.cmd != nil {
+		server.cmd.Process.Kill()
+	}
 }
