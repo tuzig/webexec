@@ -45,7 +45,16 @@ type WebRTCServer struct {
 	paneDC   []webrtc.DataChannel
 }
 
+const connectionTimeout = 600 * time.Second
+const keepAliveInterval = 3 * time.Second
+
 func NewWebRTCServer() (server WebRTCServer, err error) {
+	// Create a new API with a custom logger
+	// This SettingEngine allows non-standard WebRTC behavior
+	s := webrtc.SettingEngine{}
+	s.SetConnectionTimeout(connectionTimeout, keepAliveInterval)
+	api := webrtc.NewAPI(webrtc.WithSettingEngine(s))
+
 	config := webrtc.Configuration{
 		ICEServers: []webrtc.ICEServer{
 			{
@@ -54,7 +63,8 @@ func NewWebRTCServer() (server WebRTCServer, err error) {
 		},
 	}
 	server = WebRTCServer{c: config}
-	pc, err := webrtc.NewPeerConnection(config)
+	//TODO: call func (e *SettingEngine) SetEphemeralUDPPortRange(portMin, portMax uint16)
+	pc, err := api.NewPeerConnection(config)
 	if err != nil {
 		err = fmt.Errorf("Failed to open peer connection: %q", err)
 		return
@@ -66,7 +76,7 @@ func NewWebRTCServer() (server WebRTCServer, err error) {
 		s := connectionState.String()
 		log.Printf("ICE Connection State change: %s\n", s)
 		if s == "connected" {
-			go server.keepAlive()
+			// TODO add initialization code
 		}
 	})
 	// Register data channel creation handling
@@ -121,14 +131,6 @@ func NewWebRTCServer() (server WebRTCServer, err error) {
 	return
 }
 
-func (server *WebRTCServer) keepAlive() {
-	for t := range time.NewTicker(3 * time.Second).C {
-		if server.ctrlDC != nil {
-			server.ctrlDC.SendText("PING")
-		}
-
-	}
-}
 func (server *WebRTCServer) start(remote string) []byte {
 	offer := webrtc.SessionDescription{}
 	signal.Decode(remote, &offer)
@@ -171,6 +173,7 @@ func (server *WebRTCServer) handleDCMessages(msg webrtc.DataChannelMessage) {
 func (server *WebRTCServer) Shutdown() {
 	server.pc.Close()
 	if server.cmd != nil {
+		log.Print("Shutting down WebRTC server")
 		server.cmd.Process.Kill()
 	}
 }

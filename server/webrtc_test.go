@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/pion/transport/test"
 	"github.com/pion/webrtc/v2"
 )
 
@@ -174,7 +175,10 @@ func TestMultiLine(t *testing.T) {
 }
 
 func TestTmuxConnect(t *testing.T) {
+	to := test.TimeOut(time.Second * 5)
+	defer to.Stop()
 	done := make(chan bool)
+	gotLayout := make(chan bool)
 	server, err := NewWebRTCServer()
 	if err != nil {
 		t.Fatalf("Failed to start a new WebRTC server %v", err)
@@ -212,6 +216,7 @@ func TestTmuxConnect(t *testing.T) {
 		if layout.zoomed {
 			t.Errorf("Got a zoomed window")
 		}
+		gotLayout <- true
 	})
 
 	dc.OnClose(func() {
@@ -220,5 +225,6 @@ func TestTmuxConnect(t *testing.T) {
 	})
 	signalPair(client, server.pc)
 	<-done
+	<-gotLayout
 	server.Shutdown()
 }
