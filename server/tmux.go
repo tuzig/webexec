@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"strconv"
 	"strings"
 	"time"
 
@@ -36,25 +37,26 @@ func NewTerminal7Client(pty io.ReadWriteCloser) (c Terminal7Client) {
 
 type PaneLayout struct {
 }
+
 type WindowLayout struct {
 	id              string
 	name            string
 	zoomed          bool
-	sx              uint16
-	sy              uint16
+	width           uint16
+	height          uint16
 	xoff            uint16
 	yoff            uint16
 	active          bool
 	active_clients  int16
 	active_sessions int16
-	last_activity   float64
+	last_activity   int32
 	bigger          bool
 	flags           string
 	index           uint16
 	is_last         bool
 	marked          bool
-	silent_alert    bool
 	stack_index     uint16
+	layout          string
 	panes           []PaneLayout
 }
 
@@ -80,11 +82,22 @@ type Terminal7Message struct {
 	// map[string]interface{}
 }
 
+func toInt(s string) uint16 {
+	v, err := strconv.ParseInt(s, 0, 16)
+	if err != nil {
+		// log.Printf("Failed to convert field to int: %q, err: %v", s)
+	}
+	return uint16(v)
+
+}
 func (client *Terminal7Client) UpdateWindows(b []string) {
 	log.Print(">>> Updating Terminal7Client.Layout with:")
+	m := map[string]bool{"1": true, "0": false}
 	for _, l := range b {
 		a := strings.Split(l, ";")
-		w := WindowLayout{a[0], a[1], a[2], a[3]...}
+		w := WindowLayout{a[0], a[1], m[a[2]],
+			toInt(a[3]), toInt(a[4]), toInt(a[5]), toInt(a[6]), m[a[7]],
+			toInt(a[8]), toInt(a[9]), a[10], a[11], a[12], a[13], a[14], a[15], a[16], a[17]}
 		log.Print(l)
 	}
 	log.Print("<<<")
@@ -98,11 +111,12 @@ func (client *Terminal7Client) HandleTmuxReply(b []string) {
 	if client.State == StateInit && client.Layout == nil {
 		client.State = StateGettingWindows
 		client.pty.Write([]byte("list-windows -F " +
-			"'#{window_id};#{window_name};#{window_zoomed_flag};#{window_width};" +
-			"#{window_height};#{window_offset_x};#{window_offset_y};#{window_active};" +
-			"#{window_active_clients};#{window_active_sessions};#{window_activity};" +
-			"#{window_bigger};#{window_flags};#{window_index};#{window_last_flag};" +
-			"#{window_marked_flag};#{window_stack_index};#{window_layout}'\n"))
+			"'#{window_id};#{window_name};#{window_zoomed_flag};" +
+			"#{window_width};#{window_height};#{window_offset_x};" +
+			"#{window_offset_y};#{?window_active};#{window_active_clients};" +
+			"#{window_active_sessions};#{window_activity};#{?window_bigger};" +
+			"#{window_flags};#{window_index};#{?window_last_flag};" +
+			"#{?window_marked_flag};#{window_stack_index};#{window_layout}'\n"))
 	} else if client.State == StateGettingWindows {
 		client.UpdateWindows(b)
 		client.State = StateGettingPanes

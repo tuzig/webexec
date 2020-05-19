@@ -229,7 +229,7 @@ The user can change the way panes are laid out on the current window.
 }
 ```
 
-### rename Window
+### Rename Window
 
 ```json
 {

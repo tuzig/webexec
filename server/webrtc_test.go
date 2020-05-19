@@ -197,8 +197,8 @@ func TestTmuxConnect(t *testing.T) {
     "version": 1,
     "time": 1589355555.147976,
     "refresh-client": {
-        "sx": 80,
-        "sy": 24
+        "width": 80,
+        "height": 24
     }
 }`))
 	})
