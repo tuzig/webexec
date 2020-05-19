@@ -12,12 +12,12 @@ In addition, messages include the fields required by specific commands:
 
 ### Layout Update
 
-The layout update is sent on two ocaasions:
+The layout update is sent on two occasions:
 - When the server discovers the sessions' layout has changed
 - When the client requests a command that changes the layout,
-the code quieries tmux for the lates windows and panes and sends the new layout
+the code queries tmux for the lates windows and panes and sends the new layout
 
-The message below descripes a session with two windows, the first has a single
+The message below describes a session with two windows, the first has a single
 pane and the second a three pane layout that looks like ` |-`.
 
 
@@ -87,7 +87,7 @@ pane and the second a three pane layout that looks like ` |-`.
 
 ## Client Messages
 
-### Toogle Zoom
+### Toggle Zoom
 
 When toggling the zoom the specified pane is becoming the active pane.
 
@@ -121,7 +121,7 @@ You can mix "down" with "right" or "left" to grow the pane in two directions.
 ### Break Pane
 
 The `active` field can be used to specify whether the new window should be
-docused (defaul is true). 
+focused (defaul is true). 
 
 ```json
 {
@@ -254,7 +254,7 @@ The user can change the way panes are laid out on the current window.
 
 ### Refresh Client
 
-When the user changes the size of the its windows it send a message:
+When the user changes the size of the his window it sends a message:
 
 ```json
 {
