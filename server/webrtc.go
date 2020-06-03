@@ -1,7 +1,6 @@
 package server
 
 import (
-	"encoding/json"
 	"fmt"
 	"io"
 	"log"
@@ -14,6 +13,24 @@ import (
 	"github.com/creack/pty"
 	"github.com/pion/webrtc/v2"
 )
+
+const connectionTimeout = 600 * time.Second
+const keepAliveInterval = 3 * time.Second
+
+type TerminalChannel struct {
+	dc  *webrtc.DataChannel
+	cmd *exec.Cmd
+	pty *os.File
+}
+
+type WebRTCServer struct {
+	c        webrtc.Configuration
+	CmdReady chan bool
+	cmd      *exec.Cmd
+	pc       *webrtc.PeerConnection
+	// channels holds all the open channel we have with process ID as key
+	channels map[string]*TerminalChannel
+}
 
 type DataChannelPipe struct {
 	d *webrtc.DataChannel
@@ -34,19 +51,6 @@ func (pipe *DataChannelPipe) Write(p []byte) (n int, err error) {
 	pipe.d.SendText(text)
 	return len(p), nil
 }
-
-type WebRTCServer struct {
-	c        webrtc.Configuration
-	CmdReady chan bool
-	ptmux    *os.File
-	cmd      *exec.Cmd
-	pc       *webrtc.PeerConnection
-	ctrlDC   *webrtc.DataChannel
-	paneDC   []webrtc.DataChannel
-}
-
-const connectionTimeout = 600 * time.Second
-const keepAliveInterval = 3 * time.Second
 
 func NewWebRTCServer() (server WebRTCServer, err error) {
 	// Create a new API with a custom logger
@@ -86,39 +90,46 @@ func NewWebRTCServer() (server WebRTCServer, err error) {
 		}
 		pipe := DataChannelPipe{d}
 		d.OnOpen(func() {
-			server.ctrlDC = d
+			var ptmux *os.File
+
 			l := d.Label()
 			log.Printf("New Data channel %q\n", l)
 			c := strings.Split(l, " ")
-			server.cmd = exec.Command(c[0], c[1:]...)
-			server.ptmux, err = pty.Start(server.cmd)
 			if err != nil {
 				log.Panicf("Failed to attach a ptyi and start cmd: %v", err)
 			}
-			defer func() { _ = server.ptmux.Close() }() // Best effort.
-			// server.CmdReady <- true
-			if c[0] == "tmux" && c[1] == "-CC" {
-				c := NewTerminal7Client(server.ptmux)
-				d.OnMessage(c.OnClientMessage)
-				err = c.TmuxReader(&pipe)
+			defer func() { _ = ptmux.Close() }() // Best effort.
+			// We get "terminal7" in c[0] as the first channel name
+			// from a fresh client. This dc is used for as ctrl channel
+			if c[0] == "terminal7" {
+				err := NewTerminal7Client(d)
 				if err != nil {
-					log.Printf("tmux reader failed: %v", err)
+					log.Panicf("Failed to open a new terminal 7 client %v", err)
+
 				}
-			} else {
-				d.OnMessage(server.handleDCMessages)
-				_, err = io.Copy(&pipe, server.ptmux)
-				if err != nil {
-					log.Printf("Failed to copy from command: %v %v", err,
-						server.cmd.ProcessState.String())
-				}
+				return
 			}
-			server.ptmux.Close()
+			cmd := exec.Command(c[0], c[1:]...)
+			ptmux, err = pty.Start(server.cmd)
+			if err != nil {
+				log.Panicf("Failed to start pty: %v", err)
+			}
+			// create the channel and add to the server map
+			serverId := string(cmd.Process.Pid)
+			server.channels[serverId] = &TerminalChannel{d, cmd, ptmux}
+			d.OnMessage(server.channels[serverId].OnMessage)
+			_, err = io.Copy(&pipe, ptmux)
+			if err != nil {
+				log.Printf("Failed to copy from command: %v %v", err,
+					server.cmd.ProcessState.String())
+			}
+			ptmux.Close()
 			err = server.cmd.Process.Kill()
 			if err != nil {
-				log.Printf("Failed to kill process: %v %v", err, server.cmd.ProcessState.String())
+				log.Printf("Failed to kill process: %v %v",
+					err, server.cmd.ProcessState.String())
 			}
 			d.Close()
-			// TODO: do we ever need to pc.Close() ?
 		})
 		d.OnClose(func() {
 			err = server.cmd.Process.Kill()
@@ -150,23 +161,16 @@ func (server *WebRTCServer) start(remote string) []byte {
 	}
 	return []byte(signal.Encode(answer))
 }
-func (server *WebRTCServer) handleDCMessages(msg webrtc.DataChannelMessage) {
+func (channel *TerminalChannel) OnMessage(msg webrtc.DataChannelMessage) {
 	p := msg.Data
 	log.Printf("< %v", p)
 	// <-server.CmdReady
-	if string(p[:len(SET_SIZE_PREFIX)]) == SET_SIZE_PREFIX {
-		var ws pty.Winsize
-		json.Unmarshal(msg.Data[len(SET_SIZE_PREFIX):], &ws)
-		log.Printf("New size - %v", ws)
-		pty.Setsize(server.ptmux, &ws)
-	} else {
-		l, err := server.ptmux.Write(p)
-		if err != nil {
-			log.Printf("Stdin Write returned an error: %v %v", err, server.cmd.ProcessState.String())
-		}
-		if l != len(p) {
-			log.Printf("stdin write wrote %d instead of %d bytes", l, len(p))
-		}
+	l, err := channel.pty.Write(p)
+	if err != nil {
+		log.Panicf("Stdin Write returned an error: %v", err)
+	}
+	if l != len(p) {
+		log.Panicf("stdin write wrote %d instead of %d bytes", l, len(p))
 	}
 	// server.CmdReady <- true
 }
