@@ -197,12 +197,12 @@ func TestControlChannel(t *testing.T) {
 	cdc.OnOpen(func() {
 		// control channel is open let's open another one, so we'll have
 		// what to resize
-		dc, err := client.CreateDataChannel("bash", nil)
+		dc, err := client.CreateDataChannel("12x34 bash", nil)
 		if err != nil {
 			t.Fatalf("failed to create the a channel: %v", err)
 		}
 		// channelId hold the ID of the channel as recieved from the server
-		var channelId string
+		var channelId []byte
 		dc.OnOpen(func() {
 			// First message in is the server id for this channel
 			dc.OnMessage(func(msg webrtc.DataChannelMessage) {
@@ -220,7 +220,7 @@ func TestControlChannel(t *testing.T) {
     "time": 1589355555.147976,
 	"message_id": 123,
     "resize_pty": {
-        "id": "BADWOLF",
+        "id": "` + string(channelId) + `",
         "sx": 80,
         "sy": 24
     }

@@ -18,7 +18,7 @@ func TestHTTPAPI(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed getting a new HTTP listner: %v", err)
 	}
-	h, err := NewHandler()
+	h, err := ConnectHandler()
 	if err != nil {
 		t.Fatalf("Failed getting a new HTTP handler: %v", err)
 	}

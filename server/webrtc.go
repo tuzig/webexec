@@ -9,8 +9,10 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"strconv"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/afittestide/webexec/signal"
 	"github.com/creack/pty"
@@ -22,9 +24,8 @@ const keepAliveInterval = 3 * time.Second
 
 // type WebRTCServer is the singelton we use to store server globals
 type WebRTCServer struct {
-	c   webrtc.Configuration
-	cmd *exec.Cmd
-	pc  *webrtc.PeerConnection
+	c  webrtc.Configuration
+	pc *webrtc.PeerConnection
 	// channels holds all the open channel we have with process ID as key
 	channels map[string]*TerminalChannel
 }
@@ -62,12 +63,12 @@ func NewWebRTCServer() (server WebRTCServer, err error) {
 	})
 	// Register data channel creation handling
 	pc.OnDataChannel(func(d *webrtc.DataChannel) {
+		var cmd *exec.Cmd
 		if d.Label() == "signaling" {
 			return
 		}
 		d.OnOpen(func() {
 			var ptmux *os.File
-
 			l := d.Label()
 			log.Printf("New Data channel %q\n", l)
 			c := strings.Split(l, " ")
@@ -81,8 +82,18 @@ func NewWebRTCServer() (server WebRTCServer, err error) {
 				d.OnMessage(server.OnCTRLMsg)
 				return
 			}
-			cmd := exec.Command(c[0], c[1:]...)
-			ptmux, err = pty.Start(server.cmd)
+			var firstRune rune = rune(c[0][0])
+			if unicode.IsDigit(firstRune) {
+				ws, err := server.ParseWinsize(c[0])
+				if err != nil {
+					log.Printf("Failed to parse winsize: %q ", c[0])
+				}
+				cmd = exec.Command(c[1], c[2:]...)
+				ptmux, err = pty.StartWithSize(cmd, &ws)
+			} else {
+				cmd = exec.Command(c[0], c[1:]...)
+				ptmux, err = pty.Start(cmd)
+			}
 			if err != nil {
 				log.Panicf("Failed to start pty: %v", err)
 			}
@@ -94,20 +105,20 @@ func NewWebRTCServer() (server WebRTCServer, err error) {
 			_, err = io.Copy(&channel, ptmux)
 			if err != nil {
 				log.Printf("Failed to copy from command: %v %v", err,
-					server.cmd.ProcessState.String())
+					cmd.ProcessState.String())
 			}
 			ptmux.Close()
-			err = server.cmd.Process.Kill()
+			err = cmd.Process.Kill()
 			if err != nil {
 				log.Printf("Failed to kill process: %v %v",
-					err, server.cmd.ProcessState.String())
+					err, cmd.ProcessState.String())
 			}
 			d.Close()
 		})
 		d.OnClose(func() {
-			err = server.cmd.Process.Kill()
+			err = cmd.Process.Kill()
 			if err != nil {
-				log.Printf("Failed to kill process: %v %v", err, server.cmd.ProcessState.String())
+				log.Printf("Failed to kill process: %v %v", err, cmd.ProcessState.String())
 			}
 			log.Println("Data channel closed")
 		})
@@ -140,9 +151,11 @@ func (server *WebRTCServer) Listen(remote string) []byte {
 // Sweet dreams.
 func (server *WebRTCServer) Shutdown() {
 	server.pc.Close()
-	if server.cmd != nil {
-		log.Print("Shutting down WebRTC server")
-		server.cmd.Process.Kill()
+	for _, channel := range server.channels {
+		if channel.cmd != nil {
+			log.Print("Shutting down WebRTC server")
+			channel.cmd.Process.Kill()
+		}
 	}
 }
 
@@ -219,4 +232,20 @@ func (channel *TerminalChannel) OnMessage(msg webrtc.DataChannelMessage) {
 	if l != len(p) {
 		log.Panicf("stdin write wrote %d instead of %d bytes", l, len(p))
 	}
+}
+
+// ParseWinsize gets a string in the format of "24x80" and returns a Winsize
+func (server *WebRTCServer) ParseWinsize(s string) (ws pty.Winsize, err error) {
+	dim := strings.Split(s, "x")
+	sx, err := strconv.ParseInt(dim[1], 0, 16)
+	ws = pty.Winsize{0, 0, 0, 0}
+	if err != nil {
+		return ws, fmt.Errorf("Failed to parse number of cols: %v", err)
+	}
+	sy, err := strconv.ParseInt(dim[0], 0, 16)
+	if err != nil {
+		return ws, fmt.Errorf("Failed to parse number of rows: %v", err)
+	}
+	ws = pty.Winsize{uint16(sy), uint16(sx), 0, 0}
+	return
 }
