@@ -14,7 +14,13 @@ type ConnectAPI struct {
 	Offer string
 }
 
-func NewHandler() (h http.Handler, e error) {
+//
+// ConnectHandler starts the webrtcServer and
+func ConnectHandler() (h http.Handler, e error) {
+	s, e := NewWebRTCServer()
+	if e != nil {
+		return
+	}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/connect", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != "POST" {
@@ -30,11 +36,7 @@ func NewHandler() (h http.Handler, e error) {
 			e = fmt.Errorf("Failed to decode client's key: %v", e)
 			return
 		}
-		s, e := NewWebRTCServer()
-		if e != nil {
-			return
-		}
-		k := s.start(t.Offer)
+		k := s.Listen(t.Offer)
 		// reply with server's key
 		w.Write(k)
 	})
@@ -52,7 +54,7 @@ func NewHTTPListner() (l net.Listener, p int, e error) {
 }
 
 func HTTPGo(address string) (e error) {
-	h, e := NewHandler()
+	h, e := ConnectHandler()
 	if e != nil {
 		return
 	}

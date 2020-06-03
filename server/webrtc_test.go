@@ -174,11 +174,12 @@ func TestMultiLine(t *testing.T) {
 	}
 }
 
-func TestTmuxConnect(t *testing.T) {
+func TestControlChannel(t *testing.T) {
 	to := test.TimeOut(time.Second * 5)
 	defer to.Stop()
 	done := make(chan bool)
-	gotLayout := make(chan bool)
+	gotError := make(chan bool)
+	gotChannelId := make(chan bool)
 	server, err := NewWebRTCServer()
 	if err != nil {
 		t.Fatalf("Failed to start a new WebRTC server %v", err)
@@ -188,43 +189,66 @@ func TestTmuxConnect(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to start a new peer connection %v", err)
 	}
-	dc, err := client.CreateDataChannel("tmux -CC", nil)
+	signalPair(client, server.pc)
+	cdc, err := client.CreateDataChannel("%", nil)
+	if err != nil {
+		t.Fatalf("failed to create the control data channel: %v", err)
+	}
+	cdc.OnOpen(func() {
+		// control channel is open let's open another one, so we'll have
+		// what to resize
+		dc, err := client.CreateDataChannel("bash", nil)
+		if err != nil {
+			t.Fatalf("failed to create the a channel: %v", err)
+		}
+		// channelId hold the ID of the channel as recieved from the server
+		var channelId string
+		dc.OnOpen(func() {
+			// First message in is the server id for this channel
+			dc.OnMessage(func(msg webrtc.DataChannelMessage) {
+				if !msg.IsString {
+					t.Errorf("Got a message that's not a string: %q", msg.Data)
+				}
+				channelId = msg.Data
+				gotChannelId <- true
 
-	dc.OnOpen(func() {
-		log.Print("Sending resize message")
-		dc.Send([]byte(`
+			})
+		})
+		<-gotChannelId
+		cdc.Send([]byte(`
 {
-    "version": 1,
     "time": 1589355555.147976,
-    "refresh-client": {
-        "width": 80,
-        "height": 24
+	"message_id": 123,
+    "resize_pty": {
+        "id": "BADWOLF",
+        "sx": 80,
+        "sy": 24
     }
 }`))
-	})
 
-	dc.OnMessage(func(msg webrtc.DataChannelMessage) {
-		var m Terminal7Message
-		if !msg.IsString {
-			t.Errorf("Got a message that's not a string: %q", msg.Data)
-		}
-		json.Unmarshal(msg.Data, &m)
-		if m.Layout == nil {
-			t.Errorf("Expected a layout and got: %q", msg.Data)
-		}
-		layout := m.Layout[0]
-		if layout.zoomed {
-			t.Errorf("Got a zoomed window")
-		}
-		gotLayout <- true
-	})
+		cdc.OnMessage(func(msg webrtc.DataChannelMessage) {
+			var m CTRLMessage
+			if !msg.IsString {
+				t.Errorf("Got a message that's not a string: %q", msg.Data)
+			}
+			json.Unmarshal(msg.Data, &m)
+			if m.Error == nil {
+				t.Errorf("Expected a layout and got: %q", msg.Data)
+			}
 
-	dc.OnClose(func() {
-		fmt.Println("Client Data channel closed")
-		done <- true
+			if m.Error.Ref != 123 {
+				t.Errorf("Expected to get an error regrading 123 instead %v", m.Error.Ref)
+			}
+			dc.Send([]byte("exit\n"))
+			gotError <- true
+		})
+
+		dc.OnClose(func() {
+			fmt.Println("Client Data channel closed")
+			done <- true
+		})
 	})
-	signalPair(client, server.pc)
 	<-done
-	<-gotLayout
+	<-gotError
 	server.Shutdown()
 }

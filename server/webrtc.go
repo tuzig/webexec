@@ -1,6 +1,9 @@
+// Package server holds the code that runs a webrtc based service
+// connecting commands with datachannels thru a pseudo tty.
 package server
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"log"
@@ -17,39 +20,13 @@ import (
 const connectionTimeout = 600 * time.Second
 const keepAliveInterval = 3 * time.Second
 
-type TerminalChannel struct {
-	dc  *webrtc.DataChannel
-	cmd *exec.Cmd
-	pty *os.File
-}
-
+// type WebRTCServer is the singelton we use to store server globals
 type WebRTCServer struct {
-	c        webrtc.Configuration
-	CmdReady chan bool
-	cmd      *exec.Cmd
-	pc       *webrtc.PeerConnection
+	c   webrtc.Configuration
+	cmd *exec.Cmd
+	pc  *webrtc.PeerConnection
 	// channels holds all the open channel we have with process ID as key
 	channels map[string]*TerminalChannel
-}
-
-type DataChannelPipe struct {
-	d *webrtc.DataChannel
-}
-
-var SET_SIZE_PREFIX = "A($%JFDS*(;dfjmlsdk9-0"
-
-func (pipe *DataChannelPipe) Write(p []byte) (n int, err error) {
-	text := string(p)
-	// TODO: logging...
-	if true {
-		for _, r := range strings.Split(text, "\r\n") {
-			if len(r) > 0 {
-				log.Printf("> %q\n", r)
-			}
-		}
-	}
-	pipe.d.SendText(text)
-	return len(p), nil
 }
 
 func NewWebRTCServer() (server WebRTCServer, err error) {
@@ -88,7 +65,6 @@ func NewWebRTCServer() (server WebRTCServer, err error) {
 		if d.Label() == "signaling" {
 			return
 		}
-		pipe := DataChannelPipe{d}
 		d.OnOpen(func() {
 			var ptmux *os.File
 
@@ -101,12 +77,8 @@ func NewWebRTCServer() (server WebRTCServer, err error) {
 			defer func() { _ = ptmux.Close() }() // Best effort.
 			// We get "terminal7" in c[0] as the first channel name
 			// from a fresh client. This dc is used for as ctrl channel
-			if c[0] == "terminal7" {
-				err := NewTerminal7Client(d)
-				if err != nil {
-					log.Panicf("Failed to open a new terminal 7 client %v", err)
-
-				}
+			if c[0] == "%" {
+				d.OnMessage(server.OnCTRLMsg)
 				return
 			}
 			cmd := exec.Command(c[0], c[1:]...)
@@ -116,9 +88,10 @@ func NewWebRTCServer() (server WebRTCServer, err error) {
 			}
 			// create the channel and add to the server map
 			serverId := string(cmd.Process.Pid)
-			server.channels[serverId] = &TerminalChannel{d, cmd, ptmux}
-			d.OnMessage(server.channels[serverId].OnMessage)
-			_, err = io.Copy(&pipe, ptmux)
+			channel := TerminalChannel{d, cmd, ptmux}
+			server.channels[serverId] = &channel
+			d.OnMessage(channel.OnMessage)
+			_, err = io.Copy(&channel, ptmux)
 			if err != nil {
 				log.Printf("Failed to copy from command: %v %v", err,
 					server.cmd.ProcessState.String())
@@ -142,7 +115,8 @@ func NewWebRTCServer() (server WebRTCServer, err error) {
 	return
 }
 
-func (server *WebRTCServer) start(remote string) []byte {
+// Listen
+func (server *WebRTCServer) Listen(remote string) []byte {
 	offer := webrtc.SessionDescription{}
 	signal.Decode(remote, &offer)
 	err := server.pc.SetRemoteDescription(offer)
@@ -161,23 +135,88 @@ func (server *WebRTCServer) start(remote string) []byte {
 	}
 	return []byte(signal.Encode(answer))
 }
+
+// Shutdown is called when it's time to go.
+// Sweet dreams.
+func (server *WebRTCServer) Shutdown() {
+	server.pc.Close()
+	if server.cmd != nil {
+		log.Print("Shutting down WebRTC server")
+		server.cmd.Process.Kill()
+	}
+}
+
+// OnCTRLMsg handles incoming control messages
+func (server *WebRTCServer) OnCTRLMsg(msg webrtc.DataChannelMessage) {
+	var m CTRLMessage
+	// fmt.Printf("Got a terminal7 message: %q", string(msg.Data))
+	p := json.Unmarshal(msg.Data, &m)
+	if m.resizePTY != nil {
+		var ws pty.Winsize
+		ws.Cols = m.resizePTY.sx
+		ws.Rows = m.resizePTY.sy
+		pty.Setsize(server.channels[m.resizePTY.id].pty, &ws)
+	}
+	// TODO: add more commands here: mouse, clipboard, etc.
+	log.Printf("< %v", p)
+}
+
+// ErrorArgs is a type that holds the args for an error message
+type ErrorArgs struct {
+	Description string
+	// Ref holds the message id the error refers to or 0 for system errors
+	Ref uint32
+}
+
+// ResizePTYArgs is a type that holds the argumnet to the resize pty command
+type ResizePTYArgs struct {
+	id string
+	sx uint16
+	sy uint16
+}
+
+// CTRLMessage type holds control messages passed over the control channel
+type CTRLMessage struct {
+	time      float64
+	resizePTY *ResizePTYArgs `json:"resize_pty"`
+	Error     *ErrorArgs
+}
+
+// Type TerminalChannel holds the holy trinity: a data channel, a command and
+// a pseudo tty.
+type TerminalChannel struct {
+	dc  *webrtc.DataChannel
+	cmd *exec.Cmd
+	pty *os.File
+}
+
+// Write send a buffer of data over the data channel
+// TODO: rename this function, we use Write because of io.Copy
+func (channel *TerminalChannel) Write(p []byte) (n int, err error) {
+	text := string(p)
+	// TODO: logging...
+	if true {
+		for _, r := range strings.Split(text, "\r\n") {
+			if len(r) > 0 {
+				log.Printf("> %q\n", r)
+			}
+		}
+	}
+	channel.dc.SendText(text)
+	//TODO: can we get a truer value than `len(p)`
+	return len(p), nil
+}
+
+// OnMessage is called on incoming messages from the data channel.
+// It simply write the recieved data to the pseudo tty
 func (channel *TerminalChannel) OnMessage(msg webrtc.DataChannelMessage) {
 	p := msg.Data
 	log.Printf("< %v", p)
-	// <-server.CmdReady
 	l, err := channel.pty.Write(p)
 	if err != nil {
 		log.Panicf("Stdin Write returned an error: %v", err)
 	}
 	if l != len(p) {
 		log.Panicf("stdin write wrote %d instead of %d bytes", l, len(p))
-	}
-	// server.CmdReady <- true
-}
-func (server *WebRTCServer) Shutdown() {
-	server.pc.Close()
-	if server.cmd != nil {
-		log.Print("Shutting down WebRTC server")
-		server.cmd.Process.Kill()
 	}
 }
