@@ -7,6 +7,7 @@ import (
 	"log"
 	"os/exec"
 	"reflect"
+	"strconv"
 	"testing"
 	"time"
 
@@ -120,9 +121,22 @@ func TestSimpleEcho(t *testing.T) {
 	dc.OnOpen(func() {
 		fmt.Println("Channel opened")
 	})
+
+	// count the incoming messages
+	count := 0
 	dc.OnMessage(func(msg webrtc.DataChannelMessage) {
-		if !msg.IsString && string(msg.Data) != "hello world\n" {
-			t.Fatalf("Got bad msg: %q", msg.Data)
+		// first get a channel Id and then a the hello world text
+		if count == 0 {
+			_, err = strconv.Atoi(string(msg.Data))
+			if err != nil {
+				t.Fatalf("Failed to cover channel it to int: %v", err)
+				done <- true
+			}
+			count++
+		} else if count == 1 {
+			if !msg.IsString && string(msg.Data) != "hello world\r\n" {
+				t.Fatalf("Got bad msg: %q", msg.Data)
+			}
 		}
 	})
 	dc.OnClose(func() {
@@ -131,6 +145,9 @@ func TestSimpleEcho(t *testing.T) {
 	})
 	signalPair(client, server.pc)
 	<-done
+	if count != 2 {
+		t.Fatalf("Expected to reieve 2 messages and got %d", count)
+	}
 }
 func TestMultiLine(t *testing.T) {
 	done := make(chan bool)
@@ -154,22 +171,23 @@ func TestMultiLine(t *testing.T) {
 	})
 	var mockedMsgs []string
 	dc.OnMessage(func(msg webrtc.DataChannelMessage) {
+		log.Printf("Got dc msg: %s", msg.Data)
 		data := string(msg.Data)
 		mockedMsgs = append(mockedMsgs, data)
+
 	})
 	dc.OnClose(func() {
 		fmt.Println("On closing the data channel")
-		done <- true
 
 	})
 	signalPair(client, server.pc)
 	<-done
 	server.Shutdown()
 
-	if len(mockedMsgs) == 1 && mockedMsgs[0] != "123\n456\n" {
+	if len(mockedMsgs) == 1 && mockedMsgs[1] != "123\n456\n" {
 		t.Fatalf("Got one, wrong message  %v", mockedMsgs)
 	}
-	if len(mockedMsgs) == 2 && (mockedMsgs[0] != "123\n" || mockedMsgs[1] != "456\n") {
+	if len(mockedMsgs) == 2 && (mockedMsgs[1] != "123\n" || mockedMsgs[2] != "456\n") {
 		t.Fatalf("Got two messages at least one wrong %v", mockedMsgs)
 	}
 }
@@ -202,14 +220,17 @@ func TestControlChannel(t *testing.T) {
 			t.Fatalf("failed to create the a channel: %v", err)
 		}
 		// channelId hold the ID of the channel as recieved from the server
-		var channelId []byte
+		var channelId int
 		dc.OnOpen(func() {
 			// First message in is the server id for this channel
 			dc.OnMessage(func(msg webrtc.DataChannelMessage) {
 				if !msg.IsString {
 					t.Errorf("Got a message that's not a string: %q", msg.Data)
 				}
-				channelId = msg.Data
+				channelId, err = strconv.Atoi(string(msg.Data))
+				if err != nil {
+					t.Errorf("Expected an int id as first message: %v", err)
+				}
 				gotChannelId <- true
 
 			})

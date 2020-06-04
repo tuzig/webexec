@@ -69,14 +69,14 @@ func NewWebRTCServer() (server WebRTCServer, err error) {
 			return
 		}
 		d.OnOpen(func() {
-			var ptmux *os.File
+			var p *os.File
 			l := d.Label()
 			log.Printf("New Data channel %q\n", l)
 			c := strings.Split(l, " ")
 			if err != nil {
 				log.Panicf("Failed to attach a ptyi and start cmd: %v", err)
 			}
-			defer func() { _ = ptmux.Close() }() // Best effort.
+			defer func() { _ = p.Close() }() // Best effort.
 			// We get "terminal7" in c[0] as the first channel name
 			// from a fresh client. This dc is used for as ctrl channel
 			if c[0] == "%" {
@@ -84,31 +84,42 @@ func NewWebRTCServer() (server WebRTCServer, err error) {
 				return
 			}
 			var firstRune rune = rune(c[0][0])
+			// If the message starts with a digit we assume it starts with
+			// a size
 			if unicode.IsDigit(firstRune) {
 				ws, err := server.ParseWinsize(c[0])
 				if err != nil {
 					log.Printf("Failed to parse winsize: %q ", c[0])
 				}
 				cmd = exec.Command(c[1], c[2:]...)
-				ptmux, err = pty.StartWithSize(cmd, &ws)
+				log.Printf("starting command with size: %v", ws)
+				p, err = pty.StartWithSize(cmd, &ws)
 			} else {
 				cmd = exec.Command(c[0], c[1:]...)
-				ptmux, err = pty.Start(cmd)
+				log.Printf("starting command without size")
+				p, err = pty.Start(cmd)
 			}
 			if err != nil {
 				log.Panicf("Failed to start pty: %v", err)
 			}
-			// create the channel and add to the server map
-			serverId := cmd.Process.Pid
-			channel := TerminalChannel{d, cmd, ptmux}
-			server.channels[serverId] = &channel
+			// create the channel and add to the server's channels map
+			channelId := cmd.Process.Pid
+			channel := TerminalChannel{d, cmd, p}
+			server.channels[channelId] = &channel
 			d.OnMessage(channel.OnMessage)
-			_, err = io.Copy(&channel, ptmux)
+			// send the channel id as the first message
+			s := strconv.Itoa(channelId)
+			bs := []byte(s)
+			d.Send(bs)
+			// use copy to read command output and send it to the data channel
+			_, err = io.Copy(&channel, p)
 			if err != nil {
+
+				log.Printf("Process state: %v", cmd.ProcessState)
 				log.Printf("Failed to copy from command: %v %v", err,
 					cmd.ProcessState.String())
 			}
-			ptmux.Close()
+			p.Close()
 			err = cmd.Process.Kill()
 			if err != nil {
 				log.Printf("Failed to kill process: %v %v",
@@ -206,17 +217,20 @@ type TerminalChannel struct {
 
 // Write send a buffer of data over the data channel
 // TODO: rename this function, we use Write because of io.Copy
-func (channel *TerminalChannel) Write(p []byte) (n int, err error) {
-	text := string(p)
+func (channel *TerminalChannel) Write(p []byte) (int, error) {
 	// TODO: logging...
 	if true {
+		text := string(p)
 		for _, r := range strings.Split(text, "\r\n") {
 			if len(r) > 0 {
 				log.Printf("> %q\n", r)
 			}
 		}
 	}
-	channel.dc.SendText(text)
+	err := channel.dc.Send(p)
+	if err != nil {
+		return 0, fmt.Errorf("Data channel send failed: %v", err)
+	}
 	//TODO: can we get a truer value than `len(p)`
 	return len(p), nil
 }
