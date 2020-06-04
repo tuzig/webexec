@@ -27,7 +27,7 @@ type WebRTCServer struct {
 	c  webrtc.Configuration
 	pc *webrtc.PeerConnection
 	// channels holds all the open channel we have with process ID as key
-	channels map[string]*TerminalChannel
+	channels map[int]*TerminalChannel
 }
 
 func NewWebRTCServer() (server WebRTCServer, err error) {
@@ -44,7 +44,8 @@ func NewWebRTCServer() (server WebRTCServer, err error) {
 			},
 		},
 	}
-	server = WebRTCServer{c: config}
+	server = WebRTCServer{c: config,
+		channels: make(map[int]*TerminalChannel)}
 	//TODO: call func (e *SettingEngine) SetEphemeralUDPPortRange(portMin, portMax uint16)
 	pc, err := api.NewPeerConnection(config)
 	if err != nil {
@@ -98,7 +99,7 @@ func NewWebRTCServer() (server WebRTCServer, err error) {
 				log.Panicf("Failed to start pty: %v", err)
 			}
 			// create the channel and add to the server map
-			serverId := string(cmd.Process.Pid)
+			serverId := cmd.Process.Pid
 			channel := TerminalChannel{d, cmd, ptmux}
 			server.channels[serverId] = &channel
 			d.OnMessage(channel.OnMessage)
@@ -183,7 +184,7 @@ type ErrorArgs struct {
 
 // ResizePTYArgs is a type that holds the argumnet to the resize pty command
 type ResizePTYArgs struct {
-	id string
+	id int
 	sx uint16
 	sy uint16
 }

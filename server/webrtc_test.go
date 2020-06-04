@@ -220,7 +220,7 @@ func TestControlChannel(t *testing.T) {
     "time": 1589355555.147976,
 	"message_id": 123,
     "resize_pty": {
-        "id": "` + string(channelId) + `",
+        "id": "kkk` + string(channelId) + `",
         "sx": 80,
         "sy": 24
     }
