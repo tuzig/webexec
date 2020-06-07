@@ -28,8 +28,7 @@ type WebRTCServer struct {
 	// peers holds the connected and disconnected peers
 	peers []Peer
 	// channels holds all the open channel we have with process ID as key
-	// TODO: refactor to a slice
-	channels map[int]*TerminalChannel
+	Channels []*TerminalChannel
 }
 
 // type Peer is used to remember a client aka peer connection
@@ -86,11 +85,11 @@ func (server *WebRTCServer) OnChannelReq(d *webrtc.DataChannel) {
 			log.Panicf("Failed to start command: %v", err)
 		}
 		defer func() { _ = tty.Close() }() // Best effort.
-		// create the channel and add to the server's channels map
-		channelId := cmd.Process.Pid
+		// create the channel and add to the server's channels slice
+		channelId := len(server.Channels)
 		finished := make(chan bool)
 		channel := TerminalChannel{d, cmd, tty, finished}
-		server.channels[channelId] = &channel
+		server.Channels = append(server.Channels, &channel)
 		d.OnMessage(channel.OnMessage)
 		// send the channel id as the first message
 		s := strconv.Itoa(channelId)
@@ -148,6 +147,7 @@ func (server *WebRTCServer) Listen(remote string) *Peer {
 			// TODO add initialization code
 		}
 	})
+	// testing uses special signaling, so there's no remote information
 	if len(remote) > 0 {
 		offer := webrtc.SessionDescription{}
 		signal.Decode(remote, &offer)
@@ -155,20 +155,19 @@ func (server *WebRTCServer) Listen(remote string) *Peer {
 		if err != nil {
 			panic(err)
 		}
-	}
-	answer, err := pc.CreateAnswer(nil)
-	if err != nil {
-		panic(err)
-	}
-	// Sets the LocalDescription, and starts listning for UDP packets
-	err = pc.SetLocalDescription(answer)
-	if err != nil {
-		panic(err)
+		answer, err := pc.CreateAnswer(nil)
+		if err != nil {
+			panic(err)
+		}
+		// Sets the LocalDescription, and starts listning for UDP packets
+		err = pc.SetLocalDescription(answer)
+		if err != nil {
+			panic(err)
+		}
+		peer.Answer = []byte(signal.Encode(answer))
 	}
 	pc.OnDataChannel(server.OnChannelReq)
 	peer.pc = pc
-	peer.Answer = []byte(signal.Encode(answer))
-
 	return &peer
 }
 
@@ -176,9 +175,11 @@ func (server *WebRTCServer) Listen(remote string) *Peer {
 // Sweet dreams.
 func (server *WebRTCServer) Shutdown() {
 	for _, peer := range server.peers {
-		peer.pc.Close()
+		if peer.pc != nil {
+			peer.pc.Close()
+		}
 	}
-	for _, channel := range server.channels {
+	for _, channel := range server.Channels {
 		if channel.cmd != nil {
 			log.Print("Shutting down WebRTC server")
 			channel.cmd.Process.Kill()
@@ -199,7 +200,7 @@ func (server *WebRTCServer) OnCTRLMsg(msg webrtc.DataChannelMessage) {
 		var ws pty.Winsize
 		ws.Cols = m.resizePTY.sx
 		ws.Rows = m.resizePTY.sy
-		pty.Setsize(server.channels[m.resizePTY.id].pty, &ws)
+		pty.Setsize(server.Channels[m.resizePTY.id].pty, &ws)
 	}
 	// TODO: add more commands here: mouse, clipboard, etc.
 }
