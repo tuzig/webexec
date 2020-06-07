@@ -38,7 +38,6 @@ type Peer struct {
 	Remote      string
 	LastContact *time.Time
 	LastMsgId   uint32
-	Buffer      [][]byte
 	pc          *webrtc.PeerConnection
 	Answer      []byte
 }
@@ -196,35 +195,48 @@ func (server *WebRTCServer) OnCTRLMsg(msg webrtc.DataChannelMessage) {
 		log.Printf("Failed to parse incoming control message: %v", err)
 		return
 	}
-	if m.resizePTY != nil {
+	if m.ResizePTY != nil {
 		var ws pty.Winsize
-		ws.Cols = m.resizePTY.sx
-		ws.Rows = m.resizePTY.sy
-		pty.Setsize(server.Channels[m.resizePTY.id].pty, &ws)
+		channel := server.Channels[m.ResizePTY.Id]
+		ws.Cols = m.ResizePTY.Sx
+		ws.Rows = m.ResizePTY.Sy
+		log.Printf("Changing pty size for channel %v: %v", channel, ws)
+		pty.Setsize(channel.pty, &ws)
+		// TODO: send an ack
+		args := AckArgs{Ref: m.Ref})
+		msg := CTRLMessage{
 	}
 	// TODO: add more commands here: mouse, clipboard, etc.
 }
 
 // ErrorArgs is a type that holds the args for an error message
 type ErrorArgs struct {
-	Description string
+	// Desc hold the textual desciption of the error
+	Desc string `json:"description"`
 	// Ref holds the message id the error refers to or 0 for system errors
-	Ref uint32
+	Ref int `json:"ref"`
+}
+
+// AckArgs is a type to hold the args for an Ack message
+type AckArgs struct {
+	// Ref holds the message id the error refers to or 0 for system errors
+	Ref int
 }
 
 // ResizePTYArgs is a type that holds the argumnet to the resize pty command
 type ResizePTYArgs struct {
-	id int
-	sx uint16
-	sy uint16
+	ChannelId int
+	Sx uint16
+	Sy uint16
 }
 
 // CTRLMessage type holds control messages passed over the control channel
 type CTRLMessage struct {
-	time      float64        `json:"time"`
-	messageId int            `json:"message_id"`
-	resizePTY *ResizePTYArgs `json:"resize_pty"`
-	Error     *ErrorArgs
+	Time      float64        `json:"time"`
+	MessageId int            `json:"message_id"`
+	ResizePTY *ResizePTYArgs `json:"resize_pty"`
+	Ack       *AckArgs       `json:"ack"`
+	Error     *ErrorArgs     `json:"error"`
 }
 
 // Type TerminalChannel holds the holy trinity: a data channel, a command and
@@ -234,6 +246,7 @@ type TerminalChannel struct {
 	cmd  *exec.Cmd
 	pty  *os.File
 	busy chan bool
+	Buffer      [][]byte
 }
 
 // Write send a buffer of data over the data channel

@@ -7,7 +7,7 @@ output over webrtc.
 ## flow
 
 Clients start by ssh-ing into their development machine and starting webexec 
-with their offer as their arg:
+with their offer key (encoded SDP) as their arg:
 
 ```console
 
@@ -20,8 +20,8 @@ webexec than will look for the local webexec daemon and create it if it's not
 there. Next, the cli will send the daemon a request to listen for a connection
 request from offer. The server gets the listen (and other) requests over a unix
 socket and then listens for the offer and return the server's key.
-Upon getting the server key the client esatblishs a peer connection and opens
-multiple data channels.
+Upon getting the server key the client esatblishs a WebRTC peer connection
+and opens multiple data channels.
 
 ## Data Channels
 
@@ -31,8 +31,10 @@ start with a dimension, e.g. `24x80 zsh` it will open a pseudo tty and exec
 shells and editors over it.
 When a data channel is opened, the first message webexec sends is the channel
 id. One use for this id is to reconnect to an existing channel,
-e.g. `24x80 >12` to reconnect to channel 12. webexec buffers command output 
-and upon reconnecting the it sends buffered messages.
+e.g. `24x80 >12` to reconnect to channel 12. 
+When the peer is disocnnected, webexec buffers command output and use it to 
+refresh the peer upon reconnection.
+
 
 ## Control Channel
 

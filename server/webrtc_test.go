@@ -201,7 +201,7 @@ func TestControlChannel(t *testing.T) {
 	to := test.TimeOut(time.Second * 3)
 	defer to.Stop()
 	done := make(chan bool)
-	gotError := make(chan bool)
+	gotAck := make(chan bool)
 	gotChannelId := make(chan bool)
 	server, err := NewWebRTCServer()
 	if err != nil {
@@ -253,27 +253,31 @@ func TestControlChannel(t *testing.T) {
     "time": 1589355555.147976,
 	"message_id": 123,
     "resize_pty": {
-        "id": "kkk` + string(channelId) + `",
+        "id":` + strconv.Itoa(channelId) + `,
         "sx": 80,
         "sy": 24
     }
 }`))
 
+		log.Printf("Test is now waiting for an Ack message")
 		cdc.OnMessage(func(msg webrtc.DataChannelMessage) {
 			var m CTRLMessage
 			if !msg.IsString {
 				t.Errorf("Got a message that's not a string: %q", msg.Data)
 			}
 			json.Unmarshal(msg.Data, &m)
-			if m.Error == nil {
-				t.Errorf("Expected a layout and got: %q", msg.Data)
+			if m.Error != nil {
+				t.Errorf("Got an error messages from the client: %v",
+					m.Error.Desc)
+			}
+			if m.Ack != nil {
+				if m.Ack.Ref != channelId {
+					t.Errorf("got an Ack on a bad ref expecting %d got %d",
+						channelId, m.Ack.Ref)
+				}
+				gotAck <- true
 			}
 
-			if m.Error.Ref != 123 {
-				t.Errorf("Expected to get an error regrading 123 instead %v", m.Error.Ref)
-			}
-			dc.Send([]byte("exit\n"))
-			gotError <- true
 		})
 
 		dc.OnClose(func() {
@@ -282,6 +286,6 @@ func TestControlChannel(t *testing.T) {
 		})
 	})
 	<-done
-	<-gotError
+	<-gotAck
 	server.Shutdown()
 }
