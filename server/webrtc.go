@@ -25,6 +25,7 @@ const peerBufferSize = 5000
 
 // type Command hold an executed command, it's pty and buffer
 type Command struct {
+	Id     int
 	C      *exec.Cmd
 	Pty    *os.File
 	Buffer [][]byte
@@ -47,6 +48,7 @@ type Channel struct {
 
 // type Peer is used to remember a client aka peer connection
 type Peer struct {
+	server      *WebRTCServer
 	Id          int
 	State       string
 	Remote      string
@@ -64,7 +66,7 @@ func NewWebRTCServer() (server WebRTCServer, err error) {
 }
 
 // start a system command over a pty
-func (peer *Peer) StartCommand(c []string) (*Command, error) {
+func (server *WebRTCServer) StartCommand(c []string) (*Command, error) {
 	var cmd *exec.Cmd
 	var tty *os.File
 	var err error
@@ -89,7 +91,8 @@ func (peer *Peer) StartCommand(c []string) (*Command, error) {
 	}
 	defer func() { _ = tty.Close() }() // Best effort.
 	// create the channel and add to the server's channels slice
-	ret := Command{cmd, tty, nil}
+	ret := Command{len(server.Cmds), cmd, tty, nil}
+	server.Cmds = append(server.Cmds, ret)
 	return &ret, nil
 }
 func (peer *Peer) OnChannelReq(d *webrtc.DataChannel) {
@@ -109,7 +112,7 @@ func (peer *Peer) OnChannelReq(d *webrtc.DataChannel) {
 			d.OnMessage(peer.OnCTRLMsg)
 			return
 		}
-		cmd, err := peer.StartCommand(c)
+		cmd, err := peer.server.StartCommand(c)
 		if err != nil {
 			log.Printf("Failed to start command: %v", err)
 			return
@@ -145,7 +148,7 @@ func (peer *Peer) OnChannelReq(d *webrtc.DataChannel) {
 // Listen opens a peer connection and starts listening for the offer
 func (server *WebRTCServer) Listen(remote string) *Peer {
 	// TODO: protected the next two line from re entrancy
-	peer := Peer{len(server.Peers), "init", remote, nil, 0, nil, nil, nil, nil}
+	peer := Peer{server, len(server.Peers), "init", remote, nil, 0, nil, nil, nil, nil}
 	server.Peers = append(server.Peers, peer)
 
 	// Create a new webrtc API with a custom logger
