@@ -200,7 +200,6 @@ func TestMultiLine(t *testing.T) {
 func TestControlChannel(t *testing.T) {
 	to := test.TimeOut(time.Second * 3)
 	defer to.Stop()
-	done := make(chan bool)
 	gotAck := make(chan bool)
 	gotChannelId := make(chan bool)
 	server, err := NewWebRTCServer()
@@ -247,10 +246,28 @@ func TestControlChannel(t *testing.T) {
 
 			})
 		})
+		cdc.OnMessage(func(msg webrtc.DataChannelMessage) {
+			var m CTRLMessage
+			log.Printf("Got a control message: %q", msg.Data)
+			json.Unmarshal(msg.Data, &m)
+			if m.Error != nil {
+				t.Errorf("Got an error messages from the client: %v",
+					m.Error.Desc)
+			}
+			if m.Ack != nil {
+				if m.Ack.Ref != 123 {
+					t.Errorf("got an Ack on a bad ref expecting %d got %d",
+						channelId, m.Ack.Ref)
+				}
+				gotAck <- true
+			}
+
+		})
+
 		<-gotChannelId
 		cdc.Send([]byte(`
 {
-    "time": 1589355555.147976,
+	"time": 989898298,
 	"message_id": 123,
     "resize_pty": {
         "id":` + strconv.Itoa(channelId) + `,
@@ -260,32 +277,7 @@ func TestControlChannel(t *testing.T) {
 }`))
 
 		log.Printf("Test is now waiting for an Ack message")
-		cdc.OnMessage(func(msg webrtc.DataChannelMessage) {
-			var m CTRLMessage
-			if !msg.IsString {
-				t.Errorf("Got a message that's not a string: %q", msg.Data)
-			}
-			json.Unmarshal(msg.Data, &m)
-			if m.Error != nil {
-				t.Errorf("Got an error messages from the client: %v",
-					m.Error.Desc)
-			}
-			if m.Ack != nil {
-				if m.Ack.Ref != channelId {
-					t.Errorf("got an Ack on a bad ref expecting %d got %d",
-						channelId, m.Ack.Ref)
-				}
-				gotAck <- true
-			}
-
-		})
-
-		dc.OnClose(func() {
-			fmt.Println("Client Data channel closed")
-			done <- true
-		})
 	})
-	<-done
 	<-gotAck
 	server.Shutdown()
 }

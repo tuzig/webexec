@@ -23,12 +23,26 @@ const connectionTimeout = 600 * time.Second
 const keepAliveInterval = 15 * time.Minute
 const peerBufferSize = 5000
 
+// type Command hold an executed command, it's pty and buffer
+type Command struct {
+	C      *exec.Cmd
+	Pty    *os.File
+	Buffer [][]byte
+}
+
 // type WebRTCServer is the singelton we use to store server globals
 type WebRTCServer struct {
 	// peers holds the connected and disconnected peers
-	peers []Peer
+	Peers []Peer
 	// channels holds all the open channel we have with process ID as key
-	Channels []*TerminalChannel
+	Cmds []Command
+}
+
+// Type Channel connects a data channel with a command
+// a pseudo tty.
+type Channel struct {
+	dc  *webrtc.DataChannel
+	Cmd *Command
 }
 
 // type Peer is used to remember a client aka peer connection
@@ -37,22 +51,52 @@ type Peer struct {
 	State       string
 	Remote      string
 	LastContact *time.Time
-	LastMsgId   uint32
+	LastMsgId   int
 	pc          *webrtc.PeerConnection
 	Answer      []byte
+	Channels    []*Channel
+	cdc         *webrtc.DataChannel
 }
 
 func NewWebRTCServer() (server WebRTCServer, err error) {
+	return WebRTCServer{nil, nil}, nil
 	// Register data channel creation handling
-	return
 }
-func (server *WebRTCServer) OnChannelReq(d *webrtc.DataChannel) {
+
+// start a system command over a pty
+func (peer *Peer) StartCommand(c []string) (*Command, error) {
 	var cmd *exec.Cmd
+	var tty *os.File
+	var err error
+	var firstRune rune = rune(c[0][0])
+	// If the message starts with a digit we assume it starts with
+	// a size
+	if unicode.IsDigit(firstRune) {
+		ws, err := parseWinsize(c[0])
+		if err != nil {
+			return nil, fmt.Errorf("Failed to parse winsize: %q ", c[0])
+		}
+		cmd = exec.Command(c[1], c[2:]...)
+		log.Printf("starting command with size: %v", ws)
+		tty, err = pty.StartWithSize(cmd, &ws)
+	} else {
+		cmd = exec.Command(c[0], c[1:]...)
+		log.Printf("starting command without size %v %v", cmd.Path, cmd.Args)
+		tty, err = pty.Start(cmd)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("Failed to start command: %v", err)
+	}
+	defer func() { _ = tty.Close() }() // Best effort.
+	// create the channel and add to the server's channels slice
+	ret := Command{cmd, tty, nil}
+	return &ret, nil
+}
+func (peer *Peer) OnChannelReq(d *webrtc.DataChannel) {
 	if d.Label() == "signaling" {
 		return
 	}
 	d.OnOpen(func() {
-		var tty *os.File
 		var err error
 		l := d.Label()
 		log.Printf("New Data channel %q\n", l)
@@ -61,63 +105,48 @@ func (server *WebRTCServer) OnChannelReq(d *webrtc.DataChannel) {
 		// from a fresh client. This dc is used for as ctrl channel
 		if c[0] == "%" {
 			// TODO: register the control client so we can send notifications
-			d.OnMessage(server.OnCTRLMsg)
+			peer.cdc = d
+			d.OnMessage(peer.OnCTRLMsg)
 			return
 		}
-		var firstRune rune = rune(c[0][0])
-		// If the message starts with a digit we assume it starts with
-		// a size
-		if unicode.IsDigit(firstRune) {
-			ws, err := parseWinsize(c[0])
-			if err != nil {
-				log.Printf("Failed to parse winsize: %q ", c[0])
-			}
-			cmd = exec.Command(c[1], c[2:]...)
-			log.Printf("starting command with size: %v", ws)
-			tty, err = pty.StartWithSize(cmd, &ws)
-		} else {
-			cmd = exec.Command(c[0], c[1:]...)
-			log.Printf("starting command without size %v %v", cmd.Path, cmd.Args)
-			tty, err = pty.Start(cmd)
-		}
+		cmd, err := peer.StartCommand(c)
 		if err != nil {
-			log.Panicf("Failed to start command: %v", err)
+			log.Printf("Failed to start command: %v", err)
+			return
 		}
-		defer func() { _ = tty.Close() }() // Best effort.
-		// create the channel and add to the server's channels slice
-		channelId := len(server.Channels)
-		finished := make(chan bool)
-		channel := TerminalChannel{d, cmd, tty, finished}
-		server.Channels = append(server.Channels, &channel)
+		channel := Channel{d, cmd}
+		// TODO: protect from reentrancy
+		channelId := len(peer.Channels)
+		peer.Channels = append(peer.Channels, &channel)
 		d.OnMessage(channel.OnMessage)
 		// send the channel id as the first message
 		s := strconv.Itoa(channelId)
 		bs := []byte(s)
 		channel.Write(bs)
 		// use copy to read command output and send it to the data channel
-		io.Copy(&channel, tty)
+		io.Copy(&channel, cmd.Pty)
 
 		if err != nil {
 			log.Printf("Failed to kill process: %v %v",
-				err, cmd.ProcessState.String())
+				err, cmd.C.ProcessState.String())
 		}
-		// <-channel.busy
 		d.Close()
-	})
-	d.OnClose(func() {
-		err := cmd.Process.Kill()
-		if err != nil {
-			log.Printf("Failed to kill process: %v %v", err, cmd.ProcessState.String())
-		}
-		log.Println("Data channel closed")
+		d.OnClose(func() {
+			err := cmd.C.Process.Kill()
+			if err != nil {
+				log.Printf("Failed to kill process: %v %v",
+					err, cmd.C.ProcessState.String())
+			}
+			log.Println("Data channel closed")
+		})
 	})
 }
 
 // Listen opens a peer connection and starts listening for the offer
 func (server *WebRTCServer) Listen(remote string) *Peer {
 	// TODO: protected the next two line from re entrancy
-	peer := Peer{len(server.peers), "init", remote, nil, 0, nil, nil, nil}
-	server.peers = append(server.peers, peer)
+	peer := Peer{len(server.Peers), "init", remote, nil, 0, nil, nil, nil, nil}
+	server.Peers = append(server.Peers, peer)
 
 	// Create a new webrtc API with a custom logger
 	// This SettingEngine allows non-standard WebRTC behavior
@@ -165,7 +194,7 @@ func (server *WebRTCServer) Listen(remote string) *Peer {
 		}
 		peer.Answer = []byte(signal.Encode(answer))
 	}
-	pc.OnDataChannel(server.OnChannelReq)
+	pc.OnDataChannel(peer.OnChannelReq)
 	peer.pc = pc
 	return &peer
 }
@@ -173,21 +202,18 @@ func (server *WebRTCServer) Listen(remote string) *Peer {
 // Shutdown is called when it's time to go.
 // Sweet dreams.
 func (server *WebRTCServer) Shutdown() {
-	for _, peer := range server.peers {
+	for _, peer := range server.Peers {
 		if peer.pc != nil {
 			peer.pc.Close()
 		}
 	}
-	for _, channel := range server.Channels {
-		if channel.cmd != nil {
-			log.Print("Shutting down WebRTC server")
-			channel.cmd.Process.Kill()
-		}
+	for _, c := range server.Cmds {
+		c.C.Process.Kill()
 	}
 }
 
 // OnCTRLMsg handles incoming control messages
-func (server *WebRTCServer) OnCTRLMsg(msg webrtc.DataChannelMessage) {
+func (peer *Peer) OnCTRLMsg(msg webrtc.DataChannelMessage) {
 	var m CTRLMessage
 	fmt.Printf("Got a control message: %q\n", string(msg.Data))
 	err := json.Unmarshal(msg.Data, &m)
@@ -197,14 +223,20 @@ func (server *WebRTCServer) OnCTRLMsg(msg webrtc.DataChannelMessage) {
 	}
 	if m.ResizePTY != nil {
 		var ws pty.Winsize
-		channel := server.Channels[m.ResizePTY.Id]
+		channel := peer.Channels[m.ResizePTY.ChannelId]
 		ws.Cols = m.ResizePTY.Sx
 		ws.Rows = m.ResizePTY.Sy
 		log.Printf("Changing pty size for channel %v: %v", channel, ws)
-		pty.Setsize(channel.pty, &ws)
+		pty.Setsize(channel.Cmd.Pty, &ws)
 		// TODO: send an ack
-		args := AckArgs{Ref: m.Ref})
-		msg := CTRLMessage{
+		args := AckArgs{Ref: m.MessageId}
+		msg := CTRLMessage{time.Now().UnixNano(), peer.LastMsgId + 1, nil, &args, nil}
+		msgJ, err := json.Marshal(msg)
+		if err != nil {
+			log.Printf("Failed to marshal the ack msg: %e", err)
+		}
+		log.Printf("Sending msg: %q", msgJ)
+		peer.cdc.Send(msgJ)
 	}
 	// TODO: add more commands here: mouse, clipboard, etc.
 }
@@ -220,64 +252,31 @@ type ErrorArgs struct {
 // AckArgs is a type to hold the args for an Ack message
 type AckArgs struct {
 	// Ref holds the message id the error refers to or 0 for system errors
-	Ref int
+	Ref int `json:"ref"`
 }
 
 // ResizePTYArgs is a type that holds the argumnet to the resize pty command
 type ResizePTYArgs struct {
 	ChannelId int
-	Sx uint16
-	Sy uint16
+	Sx        uint16
+	Sy        uint16
 }
 
 // CTRLMessage type holds control messages passed over the control channel
 type CTRLMessage struct {
-	Time      float64        `json:"time"`
+	Time      int64          `json:"time"`
 	MessageId int            `json:"message_id"`
 	ResizePTY *ResizePTYArgs `json:"resize_pty"`
 	Ack       *AckArgs       `json:"ack"`
 	Error     *ErrorArgs     `json:"error"`
 }
 
-// Type TerminalChannel holds the holy trinity: a data channel, a command and
-// a pseudo tty.
-type TerminalChannel struct {
-	dc   *webrtc.DataChannel
-	cmd  *exec.Cmd
-	pty  *os.File
-	busy chan bool
-	Buffer      [][]byte
-}
-
-// Write send a buffer of data over the data channel
-// TODO: rename this function, we use Write because of io.Copy
-func (channel *TerminalChannel) Write(p []byte) (int, error) {
-	// TODO: logging...
-	log.Printf("> %q", string(p))
-	if false {
-		text := string(p)
-		for _, r := range strings.Split(text, "\r\n") {
-			if len(r) > 0 {
-				log.Printf("> %q\n", r)
-			}
-		}
-	}
-	// channel.busy <- true
-	err := channel.dc.Send(p)
-	// channel.busy <- false
-	if err != nil {
-		return 0, fmt.Errorf("Data channel send failed: %v", err)
-	}
-	//TODO: can we get a truer value than `len(p)`
-	return len(p), nil
-}
-
 // OnMessage is called on incoming messages from the data channel.
 // It simply write the recieved data to the pseudo tty
-func (channel *TerminalChannel) OnMessage(msg webrtc.DataChannelMessage) {
+func (channel *Channel) OnMessage(msg webrtc.DataChannelMessage) {
 	p := msg.Data
 	log.Printf("< %v", p)
-	l, err := channel.pty.Write(p)
+	l, err := channel.Cmd.Pty.Write(p)
 	if err != nil {
 		log.Panicf("Stdin Write returned an error: %v", err)
 	}
@@ -300,4 +299,17 @@ func parseWinsize(s string) (ws pty.Winsize, err error) {
 	}
 	ws = pty.Winsize{uint16(sy), uint16(sx), 0, 0}
 	return
+}
+
+// Write send a buffer of data over the data channel
+// TODO: rename this function, we use Write because of io.Copy
+func (channel *Channel) Write(p []byte) (int, error) {
+	// TODO: logging...
+	log.Printf("> %q", string(p))
+	err := channel.dc.Send(p)
+	if err != nil {
+		return 0, fmt.Errorf("Data channel send failed: %v", err)
+	}
+	//TODO: can we get a truer value than `len(p)`
+	return len(p), nil
 }
