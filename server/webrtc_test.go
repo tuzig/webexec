@@ -71,13 +71,6 @@ func signalPair(pcOffer *webrtc.PeerConnection, pcAnswer *webrtc.PeerConnection)
 	}
 }
 
-var mockedMsgs []string
-
-func mockSender(msg []byte) error {
-	fmt.Printf("Mock sending - %v", msg)
-	mockedMsgs = append(mockedMsgs, string(msg))
-	return nil
-}
 func TestCat(t *testing.T) {
 	cmd := exec.Command("cat", "<<EOF")
 	in, err := cmd.StdinPipe()
@@ -106,12 +99,19 @@ func TestCat(t *testing.T) {
 		t.Fatalf("got wrong stdout: %v", r)
 	}
 }
+func TestTerminalChannelWrite(t *testing.T) {
+	to := test.TimeOut(time.Second * 3)
+	defer to.Stop()
+}
 func TestSimpleEcho(t *testing.T) {
+	// to := test.TimeOut(time.Second * 3)
+	// defer to.Stop()
 	done := make(chan bool)
 	server, err := NewWebRTCServer()
 	if err != nil {
 		t.Fatalf("Failed to start a new server %v", err)
 	}
+	peer := server.Listen("")
 
 	client, err := webrtc.NewPeerConnection(webrtc.Configuration{})
 	if err != nil {
@@ -121,11 +121,11 @@ func TestSimpleEcho(t *testing.T) {
 	dc.OnOpen(func() {
 		fmt.Println("Channel opened")
 	})
-
 	// count the incoming messages
 	count := 0
 	dc.OnMessage(func(msg webrtc.DataChannelMessage) {
 		// first get a channel Id and then a the hello world text
+		log.Printf("got message: #%d %q", count, string(msg.Data))
 		if count == 0 {
 			_, err = strconv.Atoi(string(msg.Data))
 			if err != nil {
@@ -136,17 +136,19 @@ func TestSimpleEcho(t *testing.T) {
 		} else if count == 1 {
 			if !msg.IsString && string(msg.Data) != "hello world\r\n" {
 				t.Fatalf("Got bad msg: %q", msg.Data)
+				done <- true
 			}
+			count++
 		}
 	})
 	dc.OnClose(func() {
 		fmt.Println("Client Data channel closed")
 		done <- true
 	})
-	signalPair(client, server.pc)
+	signalPair(client, peer.pc)
 	<-done
 	if count != 2 {
-		t.Fatalf("Expected to reieve 2 messages and got %d", count)
+		t.Fatalf("Expected to recieve 2 messages and got %d", count)
 	}
 }
 func TestMultiLine(t *testing.T) {
@@ -155,45 +157,48 @@ func TestMultiLine(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to start a new server %v", err)
 	}
-
+	peer := server.Listen("")
 	client, err := webrtc.NewPeerConnection(webrtc.Configuration{})
 	if err != nil {
 		t.Fatalf("Failed to start a new server %v", err)
 	}
-	dc, err := client.CreateDataChannel("cat", nil)
+	dc, err := client.CreateDataChannel("cat <<EOF", nil)
 	dc.OnOpen(func() {
 		// dc.Send([]byte("123\n456\nEOF\n"))
-		dc.Send([]byte("123\n"))
-		dc.Send([]byte("456\n"))
-		time.Sleep(1 * time.Second)
-		dc.Close()
+		dc.Send([]byte("123\r\n"))
+		dc.Send([]byte("456\r\n"))
+		dc.Send([]byte("EOF\r\n"))
 		fmt.Println("Finished sending")
 	})
 	var mockedMsgs []string
 	dc.OnMessage(func(msg webrtc.DataChannelMessage) {
-		log.Printf("Got dc msg: %s", msg.Data)
+		log.Printf("Got dc msg: %q", string(msg.Data))
 		data := string(msg.Data)
 		mockedMsgs = append(mockedMsgs, data)
 
 	})
 	dc.OnClose(func() {
 		fmt.Println("On closing the data channel")
-
+		// time.sleep(1*time.Second)
+		done <- true
 	})
-	signalPair(client, server.pc)
+	signalPair(client, peer.pc)
 	<-done
 	server.Shutdown()
 
-	if len(mockedMsgs) == 1 && mockedMsgs[1] != "123\n456\n" {
-		t.Fatalf("Got one, wrong message  %v", mockedMsgs)
+	if len(mockedMsgs) != 3 {
+		t.Fatalf("Got wrong number of messages: %d", len(mockedMsgs))
 	}
-	if len(mockedMsgs) == 2 && (mockedMsgs[1] != "123\n" || mockedMsgs[2] != "456\n") {
-		t.Fatalf("Got two messages at least one wrong %v", mockedMsgs)
+	if mockedMsgs[1] != "123\r\n" {
+		t.Fatalf("Expected a diffrent msg and got: %v", mockedMsgs[1])
+	}
+	if mockedMsgs[2] != "456\r\n" {
+		t.Fatalf("Expected a diffrent msg and got: %v", mockedMsgs[2])
 	}
 }
 
 func TestControlChannel(t *testing.T) {
-	to := test.TimeOut(time.Second * 5)
+	to := test.TimeOut(time.Second * 3)
 	defer to.Stop()
 	done := make(chan bool)
 	gotError := make(chan bool)
@@ -202,12 +207,13 @@ func TestControlChannel(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to start a new WebRTC server %v", err)
 	}
+	peer := server.Listen("")
 
 	client, err := webrtc.NewPeerConnection(webrtc.Configuration{})
 	if err != nil {
 		t.Fatalf("Failed to start a new peer connection %v", err)
 	}
-	signalPair(client, server.pc)
+	signalPair(client, peer.pc)
 	cdc, err := client.CreateDataChannel("%", nil)
 	if err != nil {
 		t.Fatalf("failed to create the control data channel: %v", err)
@@ -221,17 +227,23 @@ func TestControlChannel(t *testing.T) {
 		}
 		// channelId hold the ID of the channel as recieved from the server
 		var channelId int
+		count := 0
 		dc.OnOpen(func() {
 			// First message in is the server id for this channel
 			dc.OnMessage(func(msg webrtc.DataChannelMessage) {
-				if !msg.IsString {
-					t.Errorf("Got a message that's not a string: %q", msg.Data)
+				/*
+					if !msg.IsString {
+						t.Errorf("Got a message that's not a string: %q", msg.Data)
+					}
+				*/
+				if count == 0 {
+					channelId, err = strconv.Atoi(string(msg.Data))
+					if err != nil {
+						t.Errorf("Expected an int id as first message: %v", err)
+					}
+					gotChannelId <- true
+					count++
 				}
-				channelId, err = strconv.Atoi(string(msg.Data))
-				if err != nil {
-					t.Errorf("Expected an int id as first message: %v", err)
-				}
-				gotChannelId <- true
 
 			})
 		})

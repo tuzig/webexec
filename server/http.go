@@ -14,8 +14,8 @@ type ConnectAPI struct {
 	Offer string
 }
 
-//
-// ConnectHandler starts the webrtcServer and
+// ConnectHandler lintnes for POST requests on /connect.
+// A valid request should have an encoded WebRTC offer as its body.
 func ConnectHandler() (h http.Handler, e error) {
 	s, e := NewWebRTCServer()
 	if e != nil {
@@ -29,16 +29,16 @@ func ConnectHandler() (h http.Handler, e error) {
 		}
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 		decoder := json.NewDecoder(r.Body)
-		var t ConnectAPI
-		e := decoder.Decode(&t)
-		log.Printf("Got a valid POST request with data: %v", t)
+		var c ConnectAPI
+		e := decoder.Decode(&c)
+		log.Printf("Got a valid POST request with data: %v", c)
 		if e != nil {
 			e = fmt.Errorf("Failed to decode client's key: %v", e)
 			return
 		}
-		k := s.Listen(t.Offer)
+		peer := s.Listen(c.Offer)
 		// reply with server's key
-		w.Write(k)
+		w.Write(peer.Answer)
 	})
 	h = cors.Default().Handler(mux)
 	return
