@@ -99,9 +99,28 @@ func TestCat(t *testing.T) {
 		t.Fatalf("got wrong stdout: %v", r)
 	}
 }
-func TestTerminalChannelWrite(t *testing.T) {
-	to := test.TimeOut(time.Second * 3)
-	defer to.Stop()
+func TestStartCommand(t *testing.T) {
+	// to := test.TimeOut(time.Second * 3)
+	// defer to.Stop()
+	server, err := NewWebRTCServer()
+	if err != nil {
+		t.Errorf("Failed to start a new server %v", err)
+	}
+	var c []string
+	c = append(c, "echo", " badwolf")
+	cmd, err := server.StartCommand(c)
+	if err != nil {
+		t.Errorf("Failed to start a new server %v", err)
+
+	}
+	b := make([]byte, 1024)
+	_, err = cmd.Tty.Read(b)
+	if err != nil {
+		t.Errorf("Failed to read tty: %v", err)
+	}
+	if string(b[1:8]) != "badwolf" {
+		t.Errorf("Expected command output 'badwolf' got %q", b[1:8])
+	}
 }
 func TestSimpleEcho(t *testing.T) {
 	// to := test.TimeOut(time.Second * 3)

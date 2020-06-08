@@ -25,9 +25,10 @@ const peerBufferSize = 5000
 
 // type Command hold an executed command, it's pty and buffer
 type Command struct {
-	Id     int
+	Id int
+	// C holds the exectuted command
 	C      *exec.Cmd
-	Pty    *os.File
+	Tty    *os.File
 	Buffer [][]byte
 }
 
@@ -89,10 +90,13 @@ func (server *WebRTCServer) StartCommand(c []string) (*Command, error) {
 	if err != nil {
 		return nil, fmt.Errorf("Failed to start command: %v", err)
 	}
-	defer func() { _ = tty.Close() }() // Best effort.
 	// create the channel and add to the server's channels slice
 	ret := Command{len(server.Cmds), cmd, tty, nil}
 	server.Cmds = append(server.Cmds, ret)
+	go func() {
+		cmd.Wait()
+		tty.Close()
+	}()
 	return &ret, nil
 }
 func (peer *Peer) OnChannelReq(d *webrtc.DataChannel) {
@@ -127,7 +131,7 @@ func (peer *Peer) OnChannelReq(d *webrtc.DataChannel) {
 		bs := []byte(s)
 		channel.Write(bs)
 		// use copy to read command output and send it to the data channel
-		io.Copy(&channel, cmd.Pty)
+		io.Copy(&channel, cmd.Tty)
 
 		if err != nil {
 			log.Printf("Failed to kill process: %v %v",
@@ -135,14 +139,20 @@ func (peer *Peer) OnChannelReq(d *webrtc.DataChannel) {
 		}
 		d.Close()
 		d.OnClose(func() {
-			err := cmd.C.Process.Kill()
-			if err != nil {
-				log.Printf("Failed to kill process: %v %v",
-					err, cmd.C.ProcessState.String())
-			}
+			cmd.Kill()
 			log.Println("Data channel closed")
 		})
 	})
+}
+
+func (cmd *Command) Kill() {
+	if cmd.C.ProcessState.String() != "killed" {
+		err := cmd.C.Process.Kill()
+		if err != nil {
+			log.Printf("Failed to kill process: %v %v",
+				err, cmd.C.ProcessState.String())
+		}
+	}
 }
 
 // Listen opens a peer connection and starts listening for the offer
@@ -230,7 +240,7 @@ func (peer *Peer) OnCTRLMsg(msg webrtc.DataChannelMessage) {
 		ws.Cols = m.ResizePTY.Sx
 		ws.Rows = m.ResizePTY.Sy
 		log.Printf("Changing pty size for channel %v: %v", channel, ws)
-		pty.Setsize(channel.Cmd.Pty, &ws)
+		pty.Setsize(channel.Cmd.Tty, &ws)
 		// TODO: send an ack
 		args := AckArgs{Ref: m.MessageId}
 		msg := CTRLMessage{time.Now().UnixNano(), peer.LastMsgId + 1, nil, &args, nil}
@@ -279,7 +289,7 @@ type CTRLMessage struct {
 func (channel *Channel) OnMessage(msg webrtc.DataChannelMessage) {
 	p := msg.Data
 	log.Printf("< %v", p)
-	l, err := channel.Cmd.Pty.Write(p)
+	l, err := channel.Cmd.Tty.Write(p)
 	if err != nil {
 		log.Panicf("Stdin Write returned an error: %v", err)
 	}
