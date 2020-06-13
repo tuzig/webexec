@@ -1,4 +1,4 @@
-// // Package server holds the code that runs a webrtc based service
+// Package server holds the code that runs a webrtc based service
 // connecting commands with datachannels thru a pseudo tty.
 package server
 
