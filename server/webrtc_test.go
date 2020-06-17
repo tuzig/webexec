@@ -122,8 +122,6 @@ func TestStartCommand(t *testing.T) {
 	}
 }
 func TestSimpleEcho(t *testing.T) {
-	// to := test.TimeOut(time.Second * 3)
-	// defer to.Stop()
 	done := make(chan bool)
 	gotAuthAck := make(chan bool)
 	server, err := NewWebRTCServer()
@@ -254,26 +252,10 @@ func TestAuthCommand(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to start a new peer connection %v", err)
 	}
-	signalPair(client, peer.pc)
 	cdc, err := client.CreateDataChannel("%", nil)
 	if err != nil {
 		t.Fatalf("failed to create the control data channel: %v", err)
 	}
-	cdc.OnMessage(func(msg webrtc.DataChannelMessage) {
-		var cm CTRLMessage
-		log.Printf("Got a ctrl msg: %s", msg.Data)
-		err := json.Unmarshal(msg.Data, &cm)
-		if err != nil {
-			t.Fatalf("Failed to marshal the server msg: %v", err)
-		}
-
-		if cm.Ack == nil {
-			t.Errorf("Got an unexpected message: %v", msg.Data)
-		}
-		if cm.Ack.Ref == 123 {
-			gotAuthAck <- true
-		}
-	})
 	cdc.OnOpen(func() {
 		log.Println("cdc is open")
 		authArgs := AuthArgs{"jrandomhacker", "thejargonfile"}
@@ -284,7 +266,23 @@ func TestAuthCommand(t *testing.T) {
 			t.Fatalf("Failed to marshal the auth args: %v", err)
 		}
 		cdc.Send(authMsg)
+		cdc.OnMessage(func(msg webrtc.DataChannelMessage) {
+			var cm CTRLMessage
+			log.Printf("Got a ctrl msg: %s", msg.Data)
+			err := json.Unmarshal(msg.Data, &cm)
+			if err != nil {
+				t.Fatalf("Failed to marshal the server msg: %v", err)
+			}
+
+			if cm.Ack == nil {
+				t.Errorf("Got an unexpected message: %v", msg.Data)
+			}
+			if cm.Ack.Ref == 123 {
+				gotAuthAck <- true
+			}
+		})
 	})
+	signalPair(client, peer.pc)
 	<-gotAuthAck
 }
 
@@ -301,7 +299,6 @@ func TestResizeCommand(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to start a new peer connection %v", err)
 	}
-	signalPair(client, peer.pc)
 	cdc, err := client.CreateDataChannel("%", nil)
 	if err != nil {
 		t.Fatalf("failed to create the control data channel: %v", err)
@@ -346,22 +343,23 @@ func TestResizeCommand(t *testing.T) {
 		dc.OnOpen(func() {
 			log.Println("Data channel is open")
 			// send something to get the channel going
-			dc.Send([]byte{'#'})
-			time.AfterFunc(1*time.Minute, func() {
+			// dc.Send([]byte{'#'})
+			dc.OnMessage(func(msg webrtc.DataChannelMessage) {
 				cdc.Send([]byte(`
-{
-	"time": 989898298,
-	"message_id": 123,
-    "resize_pty": {
-        "id":` + strconv.Itoa(channelId) + `,
-        "sx": 80,
-        "sy": 24
-    }
-}`))
+	{
+		"time": 989898298,
+		"message_id": 456,
+		"resize_pty": {
+			"id":` + strconv.Itoa(channelId) + `,
+			"sx": 80,
+			"sy": 24
+		}
+	}`))
 			})
 		})
 	})
-	time.AfterFunc(2*time.Second, func() {
+	signalPair(client, peer.pc)
+	time.AfterFunc(time.Second, func() {
 		t.Error("Failed with a timeout")
 		done <- true
 	})

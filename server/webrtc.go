@@ -139,7 +139,7 @@ func (peer *Peer) OnChannelReq(d *webrtc.DataChannel) {
 		// TODO: protect from reentrancy
 		channelId := len(peer.Channels)
 		peer.Channels = append(peer.Channels, &channel)
-		log.Printf("Added a channel: id %q, num of channels: %d",
+		log.Printf("Added a channel: id %d, num of channels: %d",
 			channelId, len(peer.Channels))
 		d.OnMessage(channel.OnMessage)
 		// send the channel id as the first message
