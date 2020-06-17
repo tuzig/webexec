@@ -49,16 +49,17 @@ type Channel struct {
 
 // type Peer is used to remember a client aka peer connection
 type Peer struct {
-	server      *WebRTCServer
-	Id          int
-	State       string
-	Remote      string
-	LastContact *time.Time
-	LastMsgId   int
-	pc          *webrtc.PeerConnection
-	Answer      []byte
-	Channels    []*Channel
-	cdc         *webrtc.DataChannel
+	server        *WebRTCServer
+	Id            int
+	Authenticated bool
+	State         string
+	Remote        string
+	LastContact   *time.Time
+	LastMsgId     int
+	pc            *webrtc.PeerConnection
+	Answer        []byte
+	Channels      []*Channel
+	cdc           *webrtc.DataChannel
 }
 
 func NewWebRTCServer() (server WebRTCServer, err error) {
@@ -100,9 +101,21 @@ func (server *WebRTCServer) StartCommand(c []string) (*Command, error) {
 	return &ret, nil
 }
 func (peer *Peer) OnChannelReq(d *webrtc.DataChannel) {
+	log.Printf("Got a channel request: peer authenticate: %v, channel label %q",
+		peer.Authenticated, d.Label())
+	// the singalig channel is used for test setup
 	if d.Label() == "signaling" {
 		return
 	}
+	// let the command channel through as without it we can't authenticate
+	// if it's not that
+	if d.Label() != "%" && !peer.Authenticated {
+		log.Printf("Denying a channel request from an unauthenticated peer: %q",
+			d.Label())
+		d.Close()
+		return
+	}
+
 	d.OnOpen(func() {
 		var err error
 		l := d.Label()
@@ -111,7 +124,8 @@ func (peer *Peer) OnChannelReq(d *webrtc.DataChannel) {
 		// We get "terminal7" in c[0] as the first channel name
 		// from a fresh client. This dc is used for as ctrl channel
 		if c[0] == "%" {
-			// TODO: register the control client so we can send notifications
+			//TODO: if there's an older cdc close it
+			log.Println("Registering a control channel")
 			peer.cdc = d
 			d.OnMessage(peer.OnCTRLMsg)
 			return
@@ -125,6 +139,8 @@ func (peer *Peer) OnChannelReq(d *webrtc.DataChannel) {
 		// TODO: protect from reentrancy
 		channelId := len(peer.Channels)
 		peer.Channels = append(peer.Channels, &channel)
+		log.Printf("Added a channel: id %q, num of channels: %d",
+			channelId, len(peer.Channels))
 		d.OnMessage(channel.OnMessage)
 		// send the channel id as the first message
 		s := strconv.Itoa(channelId)
@@ -158,7 +174,8 @@ func (cmd *Command) Kill() {
 // Listen opens a peer connection and starts listening for the offer
 func (server *WebRTCServer) Listen(remote string) *Peer {
 	// TODO: protected the next two line from re entrancy
-	peer := Peer{server, len(server.Peers), "init", remote, nil, 0, nil, nil, nil, nil}
+	peer := Peer{server, len(server.Peers), false,
+		"connected", remote, nil, 0, nil, nil, nil, nil}
 	server.Peers = append(server.Peers, peer)
 
 	// Create a new webrtc API with a custom logger
@@ -225,6 +242,26 @@ func (server *WebRTCServer) Shutdown() {
 	}
 }
 
+// Authenticate checks authorization args against system's user
+func (peer *Peer) Authenticate(args *AuthArgs) bool {
+	return true
+}
+
+// SendAck sends an ack for a given control message
+func (peer *Peer) SendAck(cm CTRLMessage) {
+	args := AckArgs{Ref: cm.MessageId}
+	// TODO: protect message counter against reentrancy
+	msg := CTRLMessage{time.Now().UnixNano(), peer.LastMsgId + 1, &args,
+		nil, nil, nil}
+	peer.LastMsgId += 1
+	msgJ, err := json.Marshal(msg)
+	if err != nil {
+		log.Printf("Failed to marshal the ack msg: %e", err)
+	}
+	log.Printf("Sending msg: %q", msgJ)
+	peer.cdc.Send(msgJ)
+}
+
 // OnCTRLMsg handles incoming control messages
 func (peer *Peer) OnCTRLMsg(msg webrtc.DataChannelMessage) {
 	var m CTRLMessage
@@ -241,15 +278,12 @@ func (peer *Peer) OnCTRLMsg(msg webrtc.DataChannelMessage) {
 		ws.Rows = m.ResizePTY.Sy
 		log.Printf("Changing pty size for channel %v: %v", channel, ws)
 		pty.Setsize(channel.Cmd.Tty, &ws)
-		// TODO: send an ack
-		args := AckArgs{Ref: m.MessageId}
-		msg := CTRLMessage{time.Now().UnixNano(), peer.LastMsgId + 1, nil, &args, nil}
-		msgJ, err := json.Marshal(msg)
-		if err != nil {
-			log.Printf("Failed to marshal the ack msg: %e", err)
+		peer.SendAck(m)
+	} else if m.Auth != nil {
+		if peer.Authenticate(m.Auth) {
+			peer.Authenticated = true
+			peer.SendAck(m)
 		}
-		log.Printf("Sending msg: %q", msgJ)
-		peer.cdc.Send(msgJ)
 	}
 	// TODO: add more commands here: mouse, clipboard, etc.
 }
@@ -260,6 +294,12 @@ type ErrorArgs struct {
 	Desc string `json:"description"`
 	// Ref holds the message id the error refers to or 0 for system errors
 	Ref int `json:"ref"`
+}
+
+// AuthArgs is a type that holds client's authentication arguments.
+type AuthArgs struct {
+	username string
+	password string
 }
 
 // AckArgs is a type to hold the args for an Ack message
@@ -279,8 +319,9 @@ type ResizePTYArgs struct {
 type CTRLMessage struct {
 	Time      int64          `json:"time"`
 	MessageId int            `json:"message_id"`
-	ResizePTY *ResizePTYArgs `json:"resize_pty"`
 	Ack       *AckArgs       `json:"ack"`
+	ResizePTY *ResizePTYArgs `json:"resize_pty"`
+	Auth      *AuthArgs      `json:"auth"`
 	Error     *ErrorArgs     `json:"error"`
 }
 

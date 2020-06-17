@@ -11,7 +11,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pion/transport/test"
 	"github.com/pion/webrtc/v2"
 )
 
@@ -126,43 +125,75 @@ func TestSimpleEcho(t *testing.T) {
 	// to := test.TimeOut(time.Second * 3)
 	// defer to.Stop()
 	done := make(chan bool)
+	gotAuthAck := make(chan bool)
 	server, err := NewWebRTCServer()
 	if err != nil {
 		t.Fatalf("Failed to start a new server %v", err)
 	}
 	peer := server.Listen("")
-
 	client, err := webrtc.NewPeerConnection(webrtc.Configuration{})
 	if err != nil {
 		t.Fatalf("Failed to start a new server %v", err)
 	}
-	dc, err := client.CreateDataChannel("echo hello world", nil)
-	dc.OnOpen(func() {
-		fmt.Println("Channel opened")
-	})
+	cdc, err := client.CreateDataChannel("%", nil)
+	if err != nil {
+		t.Fatalf("Failed to create the control data channel: %v", err)
+	}
 	// count the incoming messages
 	count := 0
-	dc.OnMessage(func(msg webrtc.DataChannelMessage) {
-		// first get a channel Id and then a the hello world text
-		log.Printf("got message: #%d %q", count, string(msg.Data))
-		if count == 0 {
-			_, err = strconv.Atoi(string(msg.Data))
-			if err != nil {
-				t.Fatalf("Failed to cover channel it to int: %v", err)
-				done <- true
-			}
-			count++
-		} else if count == 1 {
-			if !msg.IsString && string(msg.Data) != "hello world\r\n" {
-				t.Fatalf("Got bad msg: %q", msg.Data)
-				done <- true
-			}
-			count++
+	cdc.OnOpen(func() {
+		log.Println("cdc is opened")
+		authArgs := AuthArgs{"jrandomhacker", "thejargonfile"}
+		//TODO we need something like peer.LastMsgId++ below
+		msg := CTRLMessage{time.Now().UnixNano(), 123, nil,
+			nil, &authArgs, nil}
+		authMsg, err := json.Marshal(msg)
+		if err != nil {
+			t.Fatalf("Failed to marshal the auth args: %v", err)
 		}
-	})
-	dc.OnClose(func() {
-		fmt.Println("Client Data channel closed")
-		done <- true
+		cdc.Send(authMsg)
+		cdc.OnMessage(func(msg webrtc.DataChannelMessage) {
+			// we should get an ack for the auth message
+			var cm CTRLMessage
+			log.Printf("Got a ctrl msg: %s", msg.Data)
+			err := json.Unmarshal(msg.Data, &cm)
+			if err != nil {
+				t.Fatalf("Failed to marshal the server msg: %v", err)
+			}
+			if cm.Ack != nil {
+				gotAuthAck <- true
+			}
+		})
+		<-gotAuthAck
+		dc, err := client.CreateDataChannel("echo hello world", nil)
+		if err != nil {
+			t.Fatalf("Failed to create the echo data channel: %v", err)
+		}
+		dc.OnOpen(func() {
+			log.Printf("Channel %q opened, state: %v", dc.Label(), peer.State)
+		})
+		dc.OnMessage(func(msg webrtc.DataChannelMessage) {
+			// first get a channel Id and then a the hello world text
+			log.Printf("got message: #%d %q", count, string(msg.Data))
+			if count == 0 {
+				_, err = strconv.Atoi(string(msg.Data))
+				if err != nil {
+					t.Fatalf("Failed to cover channel it to int: %v", err)
+					done <- true
+				}
+				count++
+			} else if count == 1 {
+				if !msg.IsString && string(msg.Data)[:11] != "hello world" {
+					t.Fatalf("Got bad msg: %q", msg.Data)
+					done <- true
+				}
+				count++
+			}
+		})
+		dc.OnClose(func() {
+			fmt.Println("Client Data channel closed")
+			done <- true
+		})
 	})
 	signalPair(client, peer.pc)
 	<-done
@@ -170,57 +201,9 @@ func TestSimpleEcho(t *testing.T) {
 		t.Fatalf("Expected to recieve 2 messages and got %d", count)
 	}
 }
-func TestMultiLine(t *testing.T) {
-	done := make(chan bool)
-	server, err := NewWebRTCServer()
-	if err != nil {
-		t.Fatalf("Failed to start a new server %v", err)
-	}
-	peer := server.Listen("")
-	client, err := webrtc.NewPeerConnection(webrtc.Configuration{})
-	if err != nil {
-		t.Fatalf("Failed to start a new server %v", err)
-	}
-	dc, err := client.CreateDataChannel("cat <<EOF", nil)
-	dc.OnOpen(func() {
-		// dc.Send([]byte("123\n456\nEOF\n"))
-		dc.Send([]byte("123\r\n"))
-		dc.Send([]byte("456\r\n"))
-		dc.Send([]byte("EOF\r\n"))
-		fmt.Println("Finished sending")
-	})
-	var mockedMsgs []string
-	dc.OnMessage(func(msg webrtc.DataChannelMessage) {
-		log.Printf("Got dc msg: %q", string(msg.Data))
-		data := string(msg.Data)
-		mockedMsgs = append(mockedMsgs, data)
 
-	})
-	dc.OnClose(func() {
-		fmt.Println("On closing the data channel")
-		// time.sleep(1*time.Second)
-		done <- true
-	})
-	signalPair(client, peer.pc)
-	<-done
-	server.Shutdown()
-
-	if len(mockedMsgs) != 3 {
-		t.Fatalf("Got wrong number of messages: %d", len(mockedMsgs))
-	}
-	if mockedMsgs[1] != "123\r\n" {
-		t.Fatalf("Expected a diffrent msg and got: %v", mockedMsgs[1])
-	}
-	if mockedMsgs[2] != "456\r\n" {
-		t.Fatalf("Expected a diffrent msg and got: %v", mockedMsgs[2])
-	}
-}
-
-func TestControlChannel(t *testing.T) {
-	to := test.TimeOut(time.Second * 3)
-	defer to.Stop()
-	gotAck := make(chan bool)
-	gotChannelId := make(chan bool)
+func TestUnauthincatedBlocked(t *testing.T) {
+	timeout := make(chan bool)
 	server, err := NewWebRTCServer()
 	if err != nil {
 		t.Fatalf("Failed to start a new WebRTC server %v", err)
@@ -239,52 +222,133 @@ func TestControlChannel(t *testing.T) {
 	cdc.OnOpen(func() {
 		// control channel is open let's open another one, so we'll have
 		// what to resize
+		dc, err := client.CreateDataChannel("bash", nil)
+		if err != nil {
+			t.Fatalf("failed to create the a channel: %v", err)
+		}
+		// channelId hold the ID of the channel as recieved from the server
+		dc.OnClose(func() {
+			if dc.Label() != "bash" {
+				t.Errorf("Got a close request for channel: %q", dc.Label())
+			}
+			// First message in is the server id for this channel
+		})
+	})
+
+	time.AfterFunc(1*time.Second, func() {
+		timeout <- true
+	})
+	<-timeout
+	server.Shutdown()
+}
+
+func TestAuthCommand(t *testing.T) {
+	gotAuthAck := make(chan bool)
+	server, err := NewWebRTCServer()
+	if err != nil {
+		t.Fatalf("Failed to start a new WebRTC server %v", err)
+	}
+	peer := server.Listen("")
+
+	client, err := webrtc.NewPeerConnection(webrtc.Configuration{})
+	if err != nil {
+		t.Fatalf("Failed to start a new peer connection %v", err)
+	}
+	signalPair(client, peer.pc)
+	cdc, err := client.CreateDataChannel("%", nil)
+	if err != nil {
+		t.Fatalf("failed to create the control data channel: %v", err)
+	}
+	cdc.OnMessage(func(msg webrtc.DataChannelMessage) {
+		var cm CTRLMessage
+		log.Printf("Got a ctrl msg: %s", msg.Data)
+		err := json.Unmarshal(msg.Data, &cm)
+		if err != nil {
+			t.Fatalf("Failed to marshal the server msg: %v", err)
+		}
+
+		if cm.Ack == nil {
+			t.Errorf("Got an unexpected message: %v", msg.Data)
+		}
+		if cm.Ack.Ref == 123 {
+			gotAuthAck <- true
+		}
+	})
+	cdc.OnOpen(func() {
+		log.Println("cdc is open")
+		authArgs := AuthArgs{"jrandomhacker", "thejargonfile"}
+		msg := CTRLMessage{time.Now().UnixNano(), 123, nil,
+			nil, &authArgs, nil}
+		authMsg, err := json.Marshal(msg)
+		if err != nil {
+			t.Fatalf("Failed to marshal the auth args: %v", err)
+		}
+		cdc.Send(authMsg)
+	})
+	<-gotAuthAck
+}
+
+func TestResizeCommand(t *testing.T) {
+	gotAuthAck := make(chan bool)
+	done := make(chan bool)
+	server, err := NewWebRTCServer()
+	if err != nil {
+		t.Fatalf("Failed to start a new WebRTC server %v", err)
+	}
+	peer := server.Listen("")
+
+	client, err := webrtc.NewPeerConnection(webrtc.Configuration{})
+	if err != nil {
+		t.Fatalf("Failed to start a new peer connection %v", err)
+	}
+	signalPair(client, peer.pc)
+	cdc, err := client.CreateDataChannel("%", nil)
+	if err != nil {
+		t.Fatalf("failed to create the control data channel: %v", err)
+	}
+	cdc.OnOpen(func() {
+		log.Println("cdc is opened")
+		authArgs := AuthArgs{"jrandomhacker", "thejargonfile"}
+		msg := CTRLMessage{time.Now().UnixNano(), 123, nil,
+			nil, &authArgs, nil}
+		authMsg, err := json.Marshal(msg)
+		if err != nil {
+			t.Fatalf("Failed to marshal the auth args: %v", err)
+		}
+		cdc.OnMessage(func(msg webrtc.DataChannelMessage) {
+			var cm CTRLMessage
+			log.Printf("Got a ctrl msg: %s", msg.Data)
+			err := json.Unmarshal(msg.Data, &cm)
+			if err != nil {
+				t.Fatalf("Failed to marshal the server msg: %v", err)
+			}
+
+			if cm.Ack == nil {
+				t.Errorf("Got an unexpected message: %v", msg.Data)
+			}
+			if cm.Ack.Ref == 123 {
+				gotAuthAck <- true
+			}
+			if cm.Ack.Ref == 456 {
+				done <- true
+			}
+		})
+		cdc.Send(authMsg)
+		<-gotAuthAck
+		// control channel is open let's open another one, so we'll have
+		// what to resize
 		dc, err := client.CreateDataChannel("12x34 bash", nil)
 		if err != nil {
 			t.Fatalf("failed to create the a channel: %v", err)
 		}
 		// channelId hold the ID of the channel as recieved from the server
 		var channelId int
-		count := 0
 		dc.OnOpen(func() {
-			// First message in is the server id for this channel
-			dc.OnMessage(func(msg webrtc.DataChannelMessage) {
-				/*
-					if !msg.IsString {
-						t.Errorf("Got a message that's not a string: %q", msg.Data)
-					}
-				*/
-				if count == 0 {
-					channelId, err = strconv.Atoi(string(msg.Data))
-					if err != nil {
-						t.Errorf("Expected an int id as first message: %v", err)
-					}
-					gotChannelId <- true
-					count++
-				}
-
-			})
-		})
-		cdc.OnMessage(func(msg webrtc.DataChannelMessage) {
-			var m CTRLMessage
-			log.Printf("Got a control message: %q", msg.Data)
-			json.Unmarshal(msg.Data, &m)
-			if m.Error != nil {
-				t.Errorf("Got an error messages from the client: %v",
-					m.Error.Desc)
-			}
-			if m.Ack != nil {
-				if m.Ack.Ref != 123 {
-					t.Errorf("got an Ack on a bad ref expecting %d got %d",
-						channelId, m.Ack.Ref)
-				}
-				gotAck <- true
-			}
-
-		})
-
-		<-gotChannelId
-		cdc.Send([]byte(`
+			log.Println("Data channel is open")
+			// send something to get the channel going
+			dc.Send([]byte{'#'})
+			time.AfterFunc(1*time.Minute, func() {
+				cdc.Send([]byte(`
 {
 	"time": 989898298,
 	"message_id": 123,
@@ -294,9 +358,12 @@ func TestControlChannel(t *testing.T) {
         "sy": 24
     }
 }`))
-
-		log.Printf("Test is now waiting for an Ack message")
+			})
+		})
 	})
-	<-gotAck
-	server.Shutdown()
+	time.AfterFunc(2*time.Second, func() {
+		t.Error("Failed with a timeout")
+		done <- true
+	})
+	<-done
 }
