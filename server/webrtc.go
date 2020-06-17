@@ -298,8 +298,8 @@ type ErrorArgs struct {
 
 // AuthArgs is a type that holds client's authentication arguments.
 type AuthArgs struct {
-	username string
-	password string
+	Username string `json:"username"`
+	Password string `json:"password"`
 }
 
 // AckArgs is a type to hold the args for an Ack message
