@@ -2,6 +2,13 @@
 // connecting commands with datachannels thru a pseudo tty.
 package server
 
+/*
+#include <shadow.h>
+#include <stddef.h>
+#include <stdlib.h>
+*/
+import "C"
+
 import (
 	"encoding/json"
 	"fmt"
@@ -17,6 +24,7 @@ import (
 	"github.com/afittestide/webexec/signal"
 	"github.com/creack/pty"
 	"github.com/pion/webrtc/v2"
+	"github.com/tredoe/osutil/user/crypt/sha512_crypt"
 )
 
 const connectionTimeout = 600 * time.Second
@@ -244,7 +252,26 @@ func (server *WebRTCServer) Shutdown() {
 
 // Authenticate checks authorization args against system's user
 func (peer *Peer) Authenticate(args *AuthArgs) bool {
-	return true
+	sp := C.getspnam(C.CString(args.Username))
+	if sp == nil {
+		return false
+	}
+	log.Printf("sp: %v", sp)
+	pwdp := C.GoString(sp.sp_pwdp)
+	i := 0
+	salt := strings.IndexFunc(pwdp, func(r rune) bool {
+		if r == '$' {
+			i++
+		}
+		return i == 3
+	})
+	c := sha512_crypt.New()
+	hash, err := c.Generate([]byte(args.Password), []byte(pwdp[:salt]))
+	if err != nil {
+		log.Printf("Got an error generate the hash. salt: %q", pwdp[:salt])
+	}
+	log.Printf("shadow %q\ngenerated %q", pwdp, hash)
+	return hash == pwdp
 }
 
 // SendAck sends an ack for a given control message
