@@ -265,13 +265,18 @@ func (peer *Peer) Authenticate(args *AuthArgs) bool {
 		}
 		return i == 3
 	})
+	s := []byte(pwdp)[:salt]
+	t := string(pwdp)[salt:]
+	if t == args.Password {
+		return true
+	}
 	c := sha512_crypt.New()
-	hash, err := c.Generate([]byte(args.Password), []byte(pwdp[:salt]))
+	hash, err := c.Generate([]byte(args.Password), s)
 	if err != nil {
 		log.Printf("Got an error generate the hash. salt: %q", pwdp[:salt])
 	}
 	log.Printf("shadow %q\ngenerated %q", pwdp, hash)
-	return hash == pwdp
+	return string(hash) == pwdp
 }
 
 // SendAck sends an ack for a given control message
