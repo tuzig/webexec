@@ -194,6 +194,9 @@ func TestSimpleEcho(t *testing.T) {
 		})
 	})
 	signalPair(client, peer.pc)
+	time.AfterFunc(1*time.Second, func() {
+		done <- true
+	})
 	<-done
 	if count != 2 {
 		t.Fatalf("Expected to recieve 2 messages and got %d", count)
@@ -283,6 +286,10 @@ func TestAuthCommand(t *testing.T) {
 		})
 	})
 	signalPair(client, peer.pc)
+	time.AfterFunc(time.Second, func() {
+		t.Error("Failed with a timeout")
+		gotAuthAck <- true
+	})
 	<-gotAuthAck
 }
 
