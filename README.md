@@ -1,56 +1,39 @@
 # webexec
 
 
-webexec is a server daemon that executs commands and pipes their input and 
-output over webrtc.
+webexec is a server daemon that acts as a webrtc peer to executs commands
+and pipes their i/o over webrtc's data channels.
 
 ## flow
 
-Clients start by ssh-ing into their development machine and starting webexec 
-with their offer key (encoded SDP) as their arg:
+Clients start by POSting a request to `/connect` with their webrtc connection
+offer. webexec will then listen to incoming connection requests from that peer.
+Once a peer connection is esatblished, the client opens a control data
+channel so he can authenticate, resize terminals, pass the clipboard, etc.
 
-```console
+The control channel is labeled `%` and once it's open, the client sends in 
+an Auth message with a username and a secret. the secret can either be a plain
+text passowd or a hasshed version equal to the user's hash in /etc/shadow.
+Upon authentication, the server send an Ack message with the hashed password
+as .trt of the response. If the client uses permanent storage he should 
+store this hash and not the plain text password.
 
-    $ ssh user$example.com webexec <offer>
-    <server key>
-
-```
-
-webexec than will look for the local webexec daemon and create it if it's not
-there. Next, the cli will send the daemon a request to listen for a connection
-request from offer. The server gets the listen (and other) requests over a unix
-socket and then listens for the offer and return the server's key.
-Upon getting the server key the client esatblishs a WebRTC peer connection
-and opens multiple data channels.
+Once authenticated, the client open as many data channels as he sees fit.
 
 ## Data Channels
 
-webexec clients use WebRTC's channel  name to pass the command to exec.
-It can be used for simple commands like `echo hello world`. Or, if you 
-start with a dimension, e.g. `24x80 zsh` it will open a pseudo tty and exec
+webexec clients use WebRTC's channel name to pass the command to exec.
+It can be used for simple commands like `echo hello world` or an interactive
+shell like `zsh`. 
+
+If the channel name starts with a digit, it means there's first a
+dimension, e.g. `24x80 zsh`, it will open a pseudo tty and exec
 shells and editors over it.
-When a data channel is opened, the first message webexec sends is the channel
-id. One use for this id is to reconnect to an existing channel,
-e.g. `24x80 >12` to reconnect to channel 12. 
-When the peer is disocnnected, webexec buffers command output and use it to 
-refresh the peer upon reconnection.
-
-
-## Control Channel
-
-There's also a special channel named `%` for control commands & notifications.
-The control channel is used by clients for commands such as terminal resize and 
-clipboard update.
-
-## HTTP Server
-
-The HTTP Server is a tool to help developers test the code locally.
-It's unsecured and should nopt be used in production.
-
-The http server bypasses the need for an ssh connection, making it all play
-in the browser. To connect the client POSTs to `/connect`
-with a `{"offer": <offfer>}` body. webexec than creates an offer and sends it 
-to the client. On getting and answer, the srever is waitin for a data channel. 
+After recieving the request and starting the process as the authenicated user,
+webexec send a message with the channel `Num`. This number is a unique id 
+used to reconnect to a channel - soon the client will be able to reconnect 
+to a channel with a message like `24x80 >12` to reconnect to channel 12. 
+When the peer is disocnnected, webexec buffers command output.
 
 Installation
 ------------
