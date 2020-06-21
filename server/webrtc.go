@@ -280,11 +280,11 @@ func (peer *Peer) Authenticate(args *AuthArgs) bool {
 	})
 	s := []byte(pwdp)[:salt]
 	t := string(pwdp)[salt:]
-	if t == args.Password {
+	if t == args.Secret {
 		goto HappyEnd
 	}
 	c = sha512_crypt.New()
-	hash, err = c.Generate([]byte(args.Password), s)
+	hash, err = c.Generate([]byte(args.Secret), s)
 	if err != nil {
 		log.Printf("Got an error generate the hash. salt: %q", pwdp[:salt])
 	}
@@ -355,7 +355,7 @@ type ErrorArgs struct {
 // AuthArgs is a type that holds client's authentication arguments.
 type AuthArgs struct {
 	Username string `json:"username"`
-	Password string `json:"password"`
+	Secret   string `json:"secret"`
 }
 
 // AckArgs is a type to hold the args for an Ack message
