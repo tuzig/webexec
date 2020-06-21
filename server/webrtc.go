@@ -24,6 +24,7 @@ import (
 	"github.com/afittestide/webexec/signal"
 	"github.com/creack/pty"
 	"github.com/pion/webrtc/v2"
+	"github.com/tredoe/osutil/user/crypt"
 	"github.com/tredoe/osutil/user/crypt/sha512_crypt"
 )
 
@@ -57,17 +58,19 @@ type Channel struct {
 
 // type Peer is used to remember a client aka peer connection
 type Peer struct {
-	server        *WebRTCServer
-	Id            int
-	Authenticated bool
-	State         string
-	Remote        string
-	LastContact   *time.Time
-	LastMsgId     int
-	pc            *webrtc.PeerConnection
-	Answer        []byte
-	Channels      []*Channel
-	cdc           *webrtc.DataChannel
+	server            *WebRTCServer
+	Id                int
+	Authenticated     bool
+	State             string
+	Remote            string
+	LastContact       *time.Time
+	LastMsgId         int
+	pc                *webrtc.PeerConnection
+	Answer            []byte
+	Channels          []*Channel
+	cdc               *webrtc.DataChannel
+	Username          string
+	PendingChannelReq chan *webrtc.DataChannel
 }
 
 func NewWebRTCServer() (server WebRTCServer, err error) {
@@ -76,23 +79,25 @@ func NewWebRTCServer() (server WebRTCServer, err error) {
 }
 
 // start a system command over a pty
-func (server *WebRTCServer) StartCommand(c []string) (*Command, error) {
+func (peer *Peer) StartCommand(c []string) (*Command, error) {
 	var cmd *exec.Cmd
 	var tty *os.File
 	var err error
 	var firstRune rune = rune(c[0][0])
 	// If the message starts with a digit we assume it starts with
 	// a size
+	suArgs := []string{peer.Username, "-c"}
 	if unicode.IsDigit(firstRune) {
 		ws, err := parseWinsize(c[0])
 		if err != nil {
 			return nil, fmt.Errorf("Failed to parse winsize: %q ", c[0])
 		}
-		cmd = exec.Command(c[1], c[2:]...)
+
+		cmd = exec.Command("su", append(suArgs, c[1:]...)...)
 		log.Printf("starting command with size: %v", ws)
 		tty, err = pty.StartWithSize(cmd, &ws)
 	} else {
-		cmd = exec.Command(c[0], c[1:]...)
+		cmd = exec.Command("su", append(suArgs, c[0:]...)...)
 		log.Printf("starting command without size %v %v", cmd.Path, cmd.Args)
 		tty, err = pty.Start(cmd)
 	}
@@ -100,14 +105,15 @@ func (server *WebRTCServer) StartCommand(c []string) (*Command, error) {
 		return nil, fmt.Errorf("Failed to start command: %v", err)
 	}
 	// create the channel and add to the server's channels slice
-	ret := Command{len(server.Cmds), cmd, tty, nil}
-	server.Cmds = append(server.Cmds, ret)
+	ret := Command{len(peer.server.Cmds), cmd, tty, nil}
+	peer.server.Cmds = append(peer.server.Cmds, ret)
 	go func() {
 		cmd.Wait()
 		tty.Close()
 	}()
 	return &ret, nil
 }
+
 func (peer *Peer) OnChannelReq(d *webrtc.DataChannel) {
 	log.Printf("Got a channel request: peer authenticate: %v, channel label %q",
 		peer.Authenticated, d.Label())
@@ -118,9 +124,12 @@ func (peer *Peer) OnChannelReq(d *webrtc.DataChannel) {
 	// let the command channel through as without it we can't authenticate
 	// if it's not that
 	if d.Label() != "%" && !peer.Authenticated {
-		log.Printf("Denying a channel request from an unauthenticated peer: %q",
-			d.Label())
-		d.Close()
+		peer.PendingChannelReq <- d
+		/*
+			log.Printf("Denying a channel request from an unauthenticated peer: %q",
+				d.Label())
+			d.Close()
+		*/
 		return
 	}
 
@@ -136,9 +145,13 @@ func (peer *Peer) OnChannelReq(d *webrtc.DataChannel) {
 			log.Println("Registering a control channel")
 			peer.cdc = d
 			d.OnMessage(peer.OnCTRLMsg)
+			// handle pending channel requests
+			for r := range peer.PendingChannelReq {
+				peer.OnChannelReq(r)
+			}
 			return
 		}
-		cmd, err := peer.server.StartCommand(c)
+		cmd, err := peer.StartCommand(c)
 		if err != nil {
 			log.Printf("Failed to start command: %v", err)
 			return
@@ -183,7 +196,8 @@ func (cmd *Command) Kill() {
 func (server *WebRTCServer) Listen(remote string) *Peer {
 	// TODO: protected the next two line from re entrancy
 	peer := Peer{server, len(server.Peers), false,
-		"connected", remote, nil, 0, nil, nil, nil, nil}
+		"connected", remote, nil, 0, nil, nil, nil, nil, "",
+		make(chan *webrtc.DataChannel, 5)}
 	server.Peers = append(server.Peers, peer)
 
 	// Create a new webrtc API with a custom logger
@@ -252,11 +266,14 @@ func (server *WebRTCServer) Shutdown() {
 
 // Authenticate checks authorization args against system's user
 func (peer *Peer) Authenticate(args *AuthArgs) bool {
+	var hash string
+	var c crypt.Crypter
+	var err error
+
 	sp := C.getspnam(C.CString(args.Username))
 	if sp == nil {
 		return false
 	}
-	log.Printf("sp: %v", sp)
 	pwdp := C.GoString(sp.sp_pwdp)
 	i := 0
 	salt := strings.IndexFunc(pwdp, func(r rune) bool {
@@ -268,15 +285,21 @@ func (peer *Peer) Authenticate(args *AuthArgs) bool {
 	s := []byte(pwdp)[:salt]
 	t := string(pwdp)[salt:]
 	if t == args.Password {
-		return true
+		goto HappyEnd
 	}
-	c := sha512_crypt.New()
-	hash, err := c.Generate([]byte(args.Password), s)
+	c = sha512_crypt.New()
+	hash, err = c.Generate([]byte(args.Password), s)
 	if err != nil {
 		log.Printf("Got an error generate the hash. salt: %q", pwdp[:salt])
 	}
 	log.Printf("shadow %q\ngenerated %q", pwdp, hash)
-	return string(hash) == pwdp
+	if string(hash) != pwdp {
+		return false
+	}
+HappyEnd:
+	peer.Username = args.Username
+	return true
+
 }
 
 // SendAck sends an ack for a given control message
@@ -290,7 +313,7 @@ func (peer *Peer) SendAck(cm CTRLMessage) {
 	if err != nil {
 		log.Printf("Failed to marshal the ack msg: %e", err)
 	}
-	log.Printf("Sending msg: %q", msgJ)
+	log.Printf("Sending ack: %q", msgJ)
 	peer.cdc.Send(msgJ)
 }
 
