@@ -124,10 +124,10 @@ func (peer *Peer) OnChannelReq(d *webrtc.DataChannel) {
 	// let the command channel through as without it we can't authenticate
 	// if it's not that
 	if d.Label() != "%" && !peer.Authenticated {
+		log.Printf("Bufferinga a channel request from an unauthenticated peer: %q",
+			d.Label())
 		peer.PendingChannelReq <- d
 		/*
-			log.Printf("Denying a channel request from an unauthenticated peer: %q",
-				d.Label())
 			d.Close()
 		*/
 		return
@@ -145,10 +145,6 @@ func (peer *Peer) OnChannelReq(d *webrtc.DataChannel) {
 			log.Println("Registering a control channel")
 			peer.cdc = d
 			d.OnMessage(peer.OnCTRLMsg)
-			// handle pending channel requests
-			for r := range peer.PendingChannelReq {
-				peer.OnChannelReq(r)
-			}
 			return
 		}
 		cmd, err := peer.StartCommand(c)
@@ -337,6 +333,11 @@ func (peer *Peer) OnCTRLMsg(msg webrtc.DataChannelMessage) {
 	} else if m.Auth != nil {
 		if peer.Authenticate(m.Auth) {
 			peer.Authenticated = true
+			// handle pending channel requests
+			for d := range peer.PendingChannelReq {
+				log.Printf("Handling pennding channel Req: %q", d.Label())
+				peer.OnChannelReq(d)
+			}
 			peer.SendAck(m)
 		}
 	}
