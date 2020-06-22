@@ -3,6 +3,7 @@
 package server
 
 /*
+#include <shadow.h>
 #include <stddef.h>
 #include <stdlib.h>
 */
@@ -77,7 +78,8 @@ func NewWebRTCServer() (server WebRTCServer, err error) {
 	// Register data channel creation handling
 }
 
-// start a system command over a pty
+// start a system command over a pty. The input is divided into words
+// where single quotes are escaped.
 func (peer *Peer) StartCommand(c []string) (*Command, error) {
 	var cmd *exec.Cmd
 	var tty *os.File
@@ -85,17 +87,22 @@ func (peer *Peer) StartCommand(c []string) (*Command, error) {
 	var firstRune rune = rune(c[0][0])
 	// If the message starts with a digit we assume it starts with
 	// a size
-	suArgs := []string{peer.Username, "-c"}
+	suArgs := []string{"-", peer.Username, "-c"}
+
+	lastC := len(c) - 1
+	c[lastC] = c[lastC] + "'"
+	// TODO: this if is not DRY enough. rinse.
 	if unicode.IsDigit(firstRune) {
 		ws, err := parseWinsize(c[0])
 		if err != nil {
 			return nil, fmt.Errorf("Failed to parse winsize: %q ", c[0])
 		}
-
+		c[1] = "'" + c[1]
 		cmd = exec.Command("su", append(suArgs, c[1:]...)...)
 		log.Printf("starting command with size: %v", ws)
 		tty, err = pty.StartWithSize(cmd, &ws)
 	} else {
+		c[0] = "'" + c[0]
 		cmd = exec.Command("su", append(suArgs, c[0:]...)...)
 		log.Printf("starting command without size %v %v", cmd.Path, cmd.Args)
 		tty, err = pty.Start(cmd)
@@ -288,7 +295,6 @@ func (peer *Peer) Authenticate(args *AuthArgs) bool {
 	if err != nil {
 		log.Printf("Got an error generate the hash. salt: %q", pwdp[:salt])
 	}
-	log.Printf("shadow %q\ngenerated %q", pwdp, hash)
 	if string(hash) != pwdp {
 		return false
 	}
@@ -332,13 +338,13 @@ func (peer *Peer) OnCTRLMsg(msg webrtc.DataChannelMessage) {
 		peer.SendAck(m)
 	} else if m.Auth != nil {
 		if peer.Authenticate(m.Auth) {
+			peer.SendAck(m)
 			peer.Authenticated = true
 			// handle pending channel requests
 			for d := range peer.PendingChannelReq {
 				log.Printf("Handling pennding channel Req: %q", d.Label())
 				peer.OnChannelReq(d)
 			}
-			peer.SendAck(m)
 		} else {
 			log.Printf("Authentication failed for %v", peer)
 		}
