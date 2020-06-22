@@ -78,32 +78,31 @@ func NewWebRTCServer() (server WebRTCServer, err error) {
 	// Register data channel creation handling
 }
 
-// start a system command over a pty. The input is divided into words
-// where single quotes are escaped.
-func (peer *Peer) StartCommand(c []string) (*Command, error) {
+// start a system command over a pty. If the command contains a dimension
+// in the format of 24x80 the login shell is lunched
+func (peer *Peer) StartCommand(c string) (*Command, error) {
 	var cmd *exec.Cmd
 	var tty *os.File
 	var err error
-	var firstRune rune = rune(c[0][0])
 	// If the message starts with a digit we assume it starts with
 	// a size
-	suArgs := []string{"-", peer.Username, "-c"}
 
-	lastC := len(c) - 1
-	c[lastC] = c[lastC] + "'"
-	// TODO: this if is not DRY enough. rinse.
-	if unicode.IsDigit(firstRune) {
-		ws, err := parseWinsize(c[0])
+	if unicode.IsDigit(rune(c[0])) {
+		sep := strings.IndexRune(c, ' ')
+		if sep == -1 {
+			return nil, fmt.Errorf("Failed to parse channel label: %q", c)
+		}
+		ws, err := parseWinsize(c[:sep])
 		if err != nil {
 			return nil, fmt.Errorf("Failed to parse winsize: %q ", c[0])
 		}
-		c[1] = "'" + c[1]
-		cmd = exec.Command("su", append(suArgs, c[1:]...)...)
+		suArgs := []string{"-", peer.Username}
+		cmd = exec.Command("su", suArgs...)
 		log.Printf("starting command with size: %v", ws)
 		tty, err = pty.StartWithSize(cmd, &ws)
 	} else {
-		c[0] = "'" + c[0]
-		cmd = exec.Command("su", append(suArgs, c[0:]...)...)
+		suArgs := []string{"-c", c, peer.Username}
+		cmd = exec.Command("su", suArgs...)
 		log.Printf("starting command without size %v %v", cmd.Path, cmd.Args)
 		tty, err = pty.Start(cmd)
 	}
@@ -142,18 +141,18 @@ func (peer *Peer) OnChannelReq(d *webrtc.DataChannel) {
 	d.OnOpen(func() {
 		var err error
 		l := d.Label()
-		log.Printf("New Data channel %q\n", l)
-		c := strings.Split(l, " ")
 		// We get "terminal7" in c[0] as the first channel name
 		// from a fresh client. This dc is used for as ctrl channel
-		if c[0] == "%" {
+		if l[0] == '%' {
 			//TODO: if there's an older cdc close it
-			log.Println("Registering a control channel")
+			log.Println("On open for a new control channel")
 			peer.cdc = d
 			d.OnMessage(peer.OnCTRLMsg)
 			return
+		} else {
+			log.Printf("On open for a new Data channel %q\n", l)
 		}
-		cmd, err := peer.StartCommand(c)
+		cmd, err := peer.StartCommand(l)
 		if err != nil {
 			log.Printf("Failed to start command: %v", err)
 			return
@@ -341,10 +340,13 @@ func (peer *Peer) OnCTRLMsg(msg webrtc.DataChannelMessage) {
 			peer.SendAck(m)
 			peer.Authenticated = true
 			// handle pending channel requests
-			for d := range peer.PendingChannelReq {
-				log.Printf("Handling pennding channel Req: %q", d.Label())
-				peer.OnChannelReq(d)
+			clearChan := func() {
+				for d := range peer.PendingChannelReq {
+					log.Printf("Handling pennding channel Req: %q", d.Label())
+					peer.OnChannelReq(d)
+				}
 			}
+			go clearChan()
 		} else {
 			log.Printf("Authentication failed for %v", peer)
 		}

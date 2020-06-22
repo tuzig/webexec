@@ -166,7 +166,7 @@ func TestSimpleEcho(t *testing.T) {
 			}
 		})
 		<-gotAuthAck
-		dc, err := client.CreateDataChannel("echo hello world", nil)
+		dc, err := client.CreateDataChannel("echo \"hello world\"", nil)
 		if err != nil {
 			t.Fatalf("Failed to create the echo data channel: %v", err)
 		}
@@ -349,22 +349,29 @@ func TestResizeCommand(t *testing.T) {
 			t.Fatalf("failed to create the a channel: %v", err)
 		}
 		// channelId hold the ID of the channel as recieved from the server
-		var channelId int
+		channelId := -1
 		dc.OnOpen(func() {
 			log.Println("Data channel is open")
 			// send something to get the channel going
 			// dc.Send([]byte{'#'})
 			dc.OnMessage(func(msg webrtc.DataChannelMessage) {
-				cdc.Send([]byte(`
-	{
-		"time": 989898298,
-		"message_id": 456,
-		"resize_pty": {
-			"id":` + strconv.Itoa(channelId) + `,
-			"sx": 80,
-			"sy": 24
-		}
-	}`))
+				log.Printf("Got data channel message: %q", string(msg.Data))
+				if channelId == -1 {
+					channelId, err = strconv.Atoi(string(msg.Data))
+					if err != nil {
+						t.Errorf("Got a bad first message: %q", string(msg.Data))
+					}
+					resizeArgs := ResizePTYArgs{channelId, 80, 24}
+					m := CTRLMessage{time.Now().UnixNano(), 456, nil,
+						&resizeArgs, nil, nil}
+					resizeMsg, err := json.Marshal(m)
+					if err != nil {
+						t.Errorf("failed marshilng ctrl msg: %v", msg)
+					}
+					log.Println("Sending the resize message")
+					cdc.Send(resizeMsg)
+				}
+
 			})
 		})
 	})
