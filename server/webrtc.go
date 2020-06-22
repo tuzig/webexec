@@ -3,6 +3,7 @@
 package server
 
 /*
+#include <shadow.h>
 #include <stddef.h>
 #include <stdlib.h>
 */
