@@ -267,6 +267,7 @@ func (peer *Peer) Authenticate(args *AuthArgs) bool {
 
 	sp := C.getspnam(C.CString(args.Username))
 	if sp == nil {
+		log.Printf("Failed to get user details >\nIf this happens for valid user, maybe we're not running as root")
 		return false
 	}
 	pwdp := C.GoString(sp.sp_pwdp)
