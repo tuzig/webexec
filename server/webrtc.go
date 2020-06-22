@@ -266,7 +266,8 @@ func (server *WebRTCServer) Shutdown() {
 }
 
 // Authenticate checks authorization args against system's user
-func (peer *Peer) Authenticate(args *AuthArgs) bool {
+// returns the user's token or nil if failed to authenticat
+func (peer *Peer) Authenticate(args *AuthArgs) string {
 	var hash string
 	var c crypt.Crypter
 	var err error
@@ -274,7 +275,7 @@ func (peer *Peer) Authenticate(args *AuthArgs) bool {
 	sp := C.getspnam(C.CString(args.Username))
 	if sp == nil {
 		log.Printf("Failed to get user details >\nIf this happens for valid user, maybe we're not running as root")
-		return false
+		return ""
 	}
 	pwdp := C.GoString(sp.sp_pwdp)
 	i := 0
@@ -295,17 +296,17 @@ func (peer *Peer) Authenticate(args *AuthArgs) bool {
 		log.Printf("Got an error generate the hash. salt: %q", pwdp[:salt])
 	}
 	if string(hash) != pwdp {
-		return false
+		return ""
 	}
 HappyEnd:
 	peer.Username = args.Username
-	return true
+	return t
 
 }
 
 // SendAck sends an ack for a given control message
-func (peer *Peer) SendAck(cm CTRLMessage) {
-	args := AckArgs{Ref: cm.MessageId}
+func (peer *Peer) SendAck(cm CTRLMessage, body string) {
+	args := AckArgs{Ref: cm.MessageId, Body: body}
 	// TODO: protect message counter against reentrancy
 	msg := CTRLMessage{time.Now().UnixNano(), peer.LastMsgId + 1, &args,
 		nil, nil, nil}
@@ -334,10 +335,11 @@ func (peer *Peer) OnCTRLMsg(msg webrtc.DataChannelMessage) {
 		ws.Rows = m.ResizePTY.Sy
 		log.Printf("Changing pty size for channel %v: %v", channel, ws)
 		pty.Setsize(channel.Cmd.Tty, &ws)
-		peer.SendAck(m)
+		peer.SendAck(m, "")
 	} else if m.Auth != nil {
-		if peer.Authenticate(m.Auth) {
-			peer.SendAck(m)
+		token := peer.Authenticate(m.Auth)
+		if token != "" {
+			peer.SendAck(m, token)
 			peer.Authenticated = true
 			// handle pending channel requests
 			clearChan := func() {
@@ -371,7 +373,8 @@ type AuthArgs struct {
 // AckArgs is a type to hold the args for an Ack message
 type AckArgs struct {
 	// Ref holds the message id the error refers to or 0 for system errors
-	Ref int `json:"ref"`
+	Ref  int    `json:"ref"`
+	Body string `json:"bosy"`
 }
 
 // ResizePTYArgs is a type that holds the argumnet to the resize pty command

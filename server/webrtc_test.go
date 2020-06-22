@@ -247,7 +247,9 @@ func TestUnauthincatedBlocked(t *testing.T) {
 }
 
 func TestAuthCommand(t *testing.T) {
+	var token string
 	gotAuthAck := make(chan bool)
+	gotTokenAck := make(chan bool)
 	server, err := NewWebRTCServer()
 	if err != nil {
 		t.Fatalf("Failed to start a new WebRTC server %v", err)
@@ -284,6 +286,7 @@ func TestAuthCommand(t *testing.T) {
 				t.Errorf("Got an unexpected message: %v", msg.Data)
 			}
 			if cm.Ack.Ref == 123 {
+				token = cm.Ack.Body
 				gotAuthAck <- true
 			}
 		})
@@ -292,8 +295,57 @@ func TestAuthCommand(t *testing.T) {
 	time.AfterFunc(time.Second, func() {
 		t.Error("Failed with a timeout")
 		gotAuthAck <- true
+		gotTokenAck <- true
 	})
 	<-gotAuthAck
+	// got auth ack now close the channel and start over, this time using
+	// the token
+	client.Close()
+	server.Shutdown()
+	server, err = NewWebRTCServer()
+	if err != nil {
+		t.Fatalf("Failed to start a new WebRTC server %v", err)
+	}
+	peer = server.Listen("")
+
+	client, err = webrtc.NewPeerConnection(webrtc.Configuration{})
+	if err != nil {
+		t.Fatalf("Failed to start a new peer connection %v", err)
+	}
+	cdc, err = client.CreateDataChannel("%", nil)
+	if err != nil {
+		t.Fatalf("failed to create the control data channel: %v", err)
+	}
+	cdc.OnOpen(func() {
+		log.Println("cdc is open")
+		authArgs := AuthArgs{"jrandomhacker", token}
+		msg := CTRLMessage{time.Now().UnixNano(), 124, nil,
+			nil, &authArgs, nil}
+		authMsg, err := json.Marshal(msg)
+		if err != nil {
+			t.Fatalf("Failed to marshal the auth args: %v", err)
+		}
+		cdc.Send(authMsg)
+		cdc.OnMessage(func(msg webrtc.DataChannelMessage) {
+			var cm CTRLMessage
+			log.Printf("Got a ctrl msg: %s", msg.Data)
+			err := json.Unmarshal(msg.Data, &cm)
+			if err != nil {
+				t.Fatalf("Failed to marshal the server msg: %v", err)
+			}
+
+			if cm.Ack == nil {
+				t.Errorf("Got an unexpected message: %v", msg.Data)
+			}
+			if cm.Ack.Ref == 124 {
+				token = cm.Ack.Body
+				gotTokenAck <- true
+			}
+		})
+	})
+	signalPair(client, peer.pc)
+	<-gotTokenAck
+
 }
 
 func TestResizeCommand(t *testing.T) {
