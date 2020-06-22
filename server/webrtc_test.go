@@ -98,6 +98,8 @@ func TestCat(t *testing.T) {
 		t.Fatalf("got wrong stdout: %v", r)
 	}
 }
+
+/* TODO: refactor as StartCommand is no longer a thing
 func TestStartCommand(t *testing.T) {
 	// to := test.TimeOut(time.Second * 3)
 	// defer to.Stop()
@@ -121,6 +123,7 @@ func TestStartCommand(t *testing.T) {
 		t.Errorf("Expected command output 'badwolf' got %q", b[1:8])
 	}
 }
+*/
 func TestSimpleEcho(t *testing.T) {
 	done := make(chan bool)
 	gotAuthAck := make(chan bool)

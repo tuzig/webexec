@@ -3,7 +3,6 @@
 package server
 
 /*
-#include <shadow.h>
 #include <stddef.h>
 #include <stdlib.h>
 */
@@ -316,7 +315,7 @@ func (peer *Peer) SendAck(cm CTRLMessage) {
 // OnCTRLMsg handles incoming control messages
 func (peer *Peer) OnCTRLMsg(msg webrtc.DataChannelMessage) {
 	var m CTRLMessage
-	fmt.Printf("Got a control message: %q\n", string(msg.Data))
+	log.Printf("Got a CTRLMessage: %q\n", string(msg.Data))
 	err := json.Unmarshal(msg.Data, &m)
 	if err != nil {
 		log.Printf("Failed to parse incoming control message: %v", err)
@@ -339,6 +338,8 @@ func (peer *Peer) OnCTRLMsg(msg webrtc.DataChannelMessage) {
 				peer.OnChannelReq(d)
 			}
 			peer.SendAck(m)
+		} else {
+			log.Printf("Authentication failed for %v", peer)
 		}
 	}
 	// TODO: add more commands here: mouse, clipboard, etc.
