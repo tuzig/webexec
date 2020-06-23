@@ -374,7 +374,7 @@ type AuthArgs struct {
 type AckArgs struct {
 	// Ref holds the message id the error refers to or 0 for system errors
 	Ref  int    `json:"ref"`
-	Body string `json:"bosy"`
+	Body string `json:"body"`
 }
 
 // ResizePTYArgs is a type that holds the argumnet to the resize pty command
