@@ -159,8 +159,8 @@ func (peer *Peer) OnChannelReq(d *webrtc.DataChannel) {
 		}
 		channel := Channel{d, cmd}
 		// TODO: protect from reentrancy
-		channelId := len(peer.Channels)
 		peer.Channels = append(peer.Channels, &channel)
+		channelId := len(peer.Channels)
 		log.Printf("Added a channel: id %d, num of channels: %d",
 			channelId, len(peer.Channels))
 		d.OnMessage(channel.OnMessage)
@@ -330,7 +330,12 @@ func (peer *Peer) OnCTRLMsg(msg webrtc.DataChannelMessage) {
 	}
 	if m.ResizePTY != nil {
 		var ws pty.Winsize
-		channel := peer.Channels[m.ResizePTY.ChannelId]
+		cId := m.ResizePTY.ChannelId
+		if cId == 0 {
+			log.Printf("Error: Got a resize message with no channel Id")
+			return
+		}
+		channel := peer.Channels[cId-1]
 		ws.Cols = m.ResizePTY.Sx
 		ws.Rows = m.ResizePTY.Sy
 		log.Printf("Changing pty size for channel %v: %v", channel, ws)
@@ -379,6 +384,7 @@ type AckArgs struct {
 
 // ResizePTYArgs is a type that holds the argumnet to the resize pty command
 type ResizePTYArgs struct {
+	// The ChannelID is a sequence number that starts with 1
 	ChannelId int
 	Sx        uint16
 	Sy        uint16
