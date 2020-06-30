@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"reflect"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -478,29 +479,49 @@ func TestChannelReconnect(t *testing.T) {
 			log.Printf("Channel %q opened, state: %v", dc.Label(), peer.State)
 		})
 		dc.OnMessage(func(msg webrtc.DataChannelMessage) {
-			// first get a channel Id and then a the hello world text
 			if count == 0 {
 				cId = string(msg.Data)
-				count = 1
+				log.Printf("Client got a channel id: %q", cId)
+			} else if count == 1 {
+				dc.SendText("sleep 1; echo 123456\n")
+			} else if count == 2 {
+				if !strings.Contains(string(msg.Data), "123456") {
+					t.Errorf("Didn't got the echo I was expecting: %q", string(msg.Data))
+				}
+				gotId <- true
 			}
-			gotId <- true
+			count++
 		})
 	})
 	signalPair(client, peer.pc)
 	<-gotId
 	// Now that we have a channel open, let's close the channel and reconnect
-	dc.Close()
-	dc, err = client.CreateDataChannel("24x80 >"+cId, nil)
-	dc.OnOpen(func() {
-		log.Printf("Channel %q opened, state: %v", dc.Label(), peer.State)
-	})
-	dc.OnMessage(func(msg webrtc.DataChannelMessage) {
-		if string(msg.Data) != cId {
-			t.Errorf("Got a bad channelId on reconnect, expected %q got %q",
-				cId, msg.Data)
+	dc.OnClose(func() {
+		dc2, err := client.CreateDataChannel("24x80 >"+cId, nil)
+		if err != nil {
+			t.Errorf("Failed to create the second data channel: %q", err)
 		}
-		done <- true
+		dc2.OnOpen(func() {
+			log.Printf("Channel %q opened, state: %v", dc2.Label(), peer.State)
+		})
+		count := 0
+		dc2.OnMessage(func(msg webrtc.DataChannelMessage) {
+			log.Printf("Got a message: %s", msg.Data)
+			if count == 0 {
+				if string(msg.Data) != cId {
+					t.Errorf("Got a bad channelId on reconnect, expected %q got %q",
+						cId, msg.Data)
+				}
+			} else if count == 1 {
+				if !strings.Contains(string(msg.Data), "123456") {
+					t.Errorf("Got an unexpected reply: %s", msg.Data)
+				}
+				done <- true
+			}
+			count++
+		})
 	})
 
+	dc.Close()
 	<-done
 }
