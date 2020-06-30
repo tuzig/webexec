@@ -88,7 +88,7 @@ func (peer *Peer) StartCommand(c string) (*Command, error) {
 	if unicode.IsDigit(rune(c[0])) {
 		sep := strings.IndexRune(c, ' ')
 		if sep == -1 {
-			return nil, fmt.Errorf("Failed to parse channel label: %q", c)
+			sep = len(c)
 		}
 		ws, err := parseWinsize(c[:sep])
 		if err != nil {
