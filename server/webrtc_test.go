@@ -14,6 +14,8 @@ import (
 	"github.com/pion/webrtc/v2"
 )
 
+const timeout = 3 * time.Second
+
 //TODO: move this function to a test_utils.go file
 func signalPair(pcOffer *webrtc.PeerConnection, pcAnswer *webrtc.PeerConnection) error {
 	iceGatheringState := pcOffer.ICEGatheringState()
@@ -197,7 +199,8 @@ func TestSimpleEcho(t *testing.T) {
 		})
 	})
 	signalPair(client, peer.pc)
-	time.AfterFunc(1*time.Second, func() {
+	time.AfterFunc(timeout, func() {
+		t.Error("Timeout")
 		done <- true
 	})
 	<-done
@@ -207,7 +210,7 @@ func TestSimpleEcho(t *testing.T) {
 }
 
 func TestUnauthincatedBlocked(t *testing.T) {
-	timeout := make(chan bool)
+	done := make(chan bool)
 	server, err := NewWebRTCServer()
 	if err != nil {
 		t.Fatalf("Failed to start a new WebRTC server %v", err)
@@ -239,10 +242,10 @@ func TestUnauthincatedBlocked(t *testing.T) {
 		})
 	})
 
-	time.AfterFunc(1*time.Second, func() {
-		timeout <- true
+	time.AfterFunc(timeout, func() {
+		done <- true
 	})
-	<-timeout
+	<-done
 	server.Shutdown()
 }
 
@@ -292,7 +295,7 @@ func TestAuthCommand(t *testing.T) {
 		})
 	})
 	signalPair(client, peer.pc)
-	time.AfterFunc(time.Second, func() {
+	time.AfterFunc(timeout, func() {
 		t.Error("Failed with a timeout")
 		gotAuthAck <- true
 		gotTokenAck <- true
@@ -428,7 +431,7 @@ func TestResizeCommand(t *testing.T) {
 		})
 	})
 	signalPair(client, peer.pc)
-	time.AfterFunc(time.Second, func() {
+	time.AfterFunc(timeout, func() {
 		t.Error("Failed with a timeout")
 		done <- true
 	})
