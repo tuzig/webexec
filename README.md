@@ -4,6 +4,9 @@
 webexec is a server daemon that acts as a webrtc peer to executs commands
 and pipes their i/o over webrtc's data channels.
 
+IMPORTANT: Webexec is still not ready fo darwin. It runs on the platform but
+authenticates everyone. 
+
 ## flow
 
 Clients start by POSting a request to `/connect` with their webrtc connection
