@@ -5,9 +5,8 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
-
-## [0.2.0]
+## Unreleashed 
+## [0.2.0] - 2020-06-30
 
 ### Changes
 - Authentication is based on secret which can be either a password or a hash
@@ -22,4 +21,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.1.1] - 2020-06-21
 ### Added
 
-- Authentication: A control message lets the clients authenticate
+- Authentication: A control message lets linux clients authenticate.
