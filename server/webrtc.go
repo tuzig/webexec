@@ -6,8 +6,8 @@ package server
 #include <shadow.h>
 #include <stddef.h>
 #include <stdlib.h>
-*/
 import "C"
+*/
 
 import (
 	"encoding/json"
@@ -24,8 +24,6 @@ import (
 	"github.com/afittestide/webexec/signal"
 	"github.com/creack/pty"
 	"github.com/pion/webrtc/v2"
-	"github.com/tredoe/osutil/user/crypt"
-	"github.com/tredoe/osutil/user/crypt/sha512_crypt"
 )
 
 const connectionTimeout = 600 * time.Second
@@ -132,9 +130,6 @@ func (peer *Peer) OnChannelReq(d *webrtc.DataChannel) {
 		log.Printf("Bufferinga a channel request from an unauthenticated peer: %q",
 			d.Label())
 		peer.PendingChannelReq <- d
-		/*
-			d.Close()
-		*/
 		return
 	}
 
@@ -268,36 +263,9 @@ func (server *WebRTCServer) Shutdown() {
 // Authenticate checks authorization args against system's user
 // returns the user's token or nil if failed to authenticat
 func (peer *Peer) Authenticate(args *AuthArgs) string {
-	var hash string
-	var c crypt.Crypter
-	var err error
 
-	sp := C.getspnam(C.CString(args.Username))
-	if sp == nil {
-		log.Printf("Failed to get user details >\nIf this happens for valid user, maybe we're not running as root")
-		return ""
-	}
-	pwdp := C.GoString(sp.sp_pwdp)
-	i := 0
-	salt := strings.IndexFunc(pwdp, func(r rune) bool {
-		if r == '$' {
-			i++
-		}
-		return i == 3
-	})
-	s := []byte(pwdp)[:salt]
-	t := string(pwdp)[salt:]
-	if t == args.Secret {
-		goto HappyEnd
-	}
-	c = sha512_crypt.New()
-	hash, err = c.Generate([]byte(args.Secret), s)
-	if err != nil {
-		log.Printf("Got an error generate the hash. salt: %q", pwdp[:salt])
-	}
-	if string(hash) != pwdp {
-		return ""
-	}
+	t := "atoken"
+	goto HappyEnd
 HappyEnd:
 	peer.Username = args.Username
 	return t
@@ -342,18 +310,19 @@ func (peer *Peer) OnCTRLMsg(msg webrtc.DataChannelMessage) {
 		pty.Setsize(channel.Cmd.Tty, &ws)
 		peer.SendAck(m, "")
 	} else if m.Auth != nil {
-		token := peer.Authenticate(m.Auth)
+		token := Authenticate(m.Auth)
 		if token != "" {
-			peer.SendAck(m, token)
 			peer.Authenticated = true
+			peer.Username = m.Auth.Username
+			peer.SendAck(m, token)
 			// handle pending channel requests
-			clearChan := func() {
+			handlePendingChannelRequests := func() {
 				for d := range peer.PendingChannelReq {
 					log.Printf("Handling pennding channel Req: %q", d.Label())
 					peer.OnChannelReq(d)
 				}
 			}
-			go clearChan()
+			go handlePendingChannelRequests()
 		} else {
 			log.Printf("Authentication failed for %v", peer)
 		}
