@@ -152,6 +152,9 @@ func (server *WebRTCServer) PipeCommand(c string, d *webrtc.DataChannel,
 			if err != nil {
 				return nil, fmt.Errorf("Got an error converting incoming reconnect channel id: %q", c[sep+1:])
 			}
+			if cId > len(server.Cmds) {
+				return nil, fmt.Errorf("Got a bad channelId: %d", cId)
+			}
 			ret = server.Cmds[cId-1]
 			reconnect = true
 		}
