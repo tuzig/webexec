@@ -407,9 +407,9 @@ type AckArgs struct {
 // ResizePTYArgs is a type that holds the argumnet to the resize pty command
 type ResizePTYArgs struct {
 	// The ChannelID is a sequence number that starts with 1
-	ChannelId int
-	Sx        uint16
-	Sy        uint16
+	ChannelId int    `json:"channel_id"`
+	Sx        uint16 `json:"sx"`
+	Sy        uint16 `json:"sy"`
 }
 
 // CTRLMessage type holds control messages passed over the control channel
