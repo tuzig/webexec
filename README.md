@@ -4,7 +4,7 @@
 webexec is a server daemon that acts as a webrtc peer to executs commands
 and pipes their i/o over webrtc's data channels.
 
-IMPORTANT: Webexec is still not ready fo darwin. It runs on the platform but
+IMPORTANT: Webexec is still not ready for darwin. It runs on the platform but
 authenticates everyone. 
 
 ## flow
@@ -12,16 +12,22 @@ authenticates everyone.
 Clients start by POSting a request to `/connect` with their webrtc connection
 offer. webexec will then listen to incoming connection requests from that peer.
 Once a peer connection is esatblished, the client opens a control data
-channel so he can authenticate, resize terminals, pass the clipboard, etc.
+channel. This channel is used to:
+
+- authenticate the user
+- start a command, optionally over a pseudo terminal
+- resize terminals
+- pass the clipboard
+- ...
 
 The control channel is labeled `%` and once it's open, the client sends in 
 an Auth message with a username and a secret. the secret can either be a plain
 text passowd or a hasshed version equal to the user's hash in /etc/shadow.
-Upon authentication, the server send an Ack message with the hashed password
-as .trt of the response. If the client uses permanent storage he should 
+Upon authentication, the server sends an Ack message with the hashed password
+in the response. If the client uses permanent storage he should 
 store this hash and not the plain text password.
 
-Once authenticated, the client open as many data channels as he sees fit.
+Once authenticated, the client can open as many data channels as he sees fit.
 
 ## Data Channels
 
@@ -37,15 +43,6 @@ webexec send a message with the channel `Num`. This number is a unique id
 used to reconnect to a channel - soon the client will be able to reconnect 
 to a channel with a message like `24x80 >12` to reconnect to channel 12. 
 When the peer is disocnnected, webexec buffers command output.
-
-Installation
-------------
-
-```console
-    $ go get github.com/afittestide/webexec
-    $ webexec -h
-
-```
 
 Development
 -----------

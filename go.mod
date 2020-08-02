@@ -1,4 +1,4 @@
-module github.com/afittestide/webexec
+module github.com/tuzig/webexec
 
 go 1.14
 

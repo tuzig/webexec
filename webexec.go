@@ -7,7 +7,7 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/afittestide/webexec/server"
+	"github.com/tuzig/webexec/server"
 )
 
 func attachKillHandler() {

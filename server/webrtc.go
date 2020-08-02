@@ -21,9 +21,9 @@ import (
 	"time"
 	"unicode"
 
-	"github.com/afittestide/webexec/signal"
 	"github.com/creack/pty"
 	"github.com/pion/webrtc/v2"
+	"github.com/tuzig/webexec/signal"
 )
 
 const connectionTimeout = 600 * time.Second
