@@ -109,7 +109,6 @@ func (peer *Peer) OnChannelReq(d *webrtc.DataChannel) {
 		d.OnMessage(func(msg webrtc.DataChannelMessage) {
 			p := msg.Data
 			log.Printf("< %v", p)
-			log.Printf("@ %v", cmd)
 			l, err := cmd.Tty.Write(p)
 			if err != nil {
 				log.Panicf("Stdin Write returned an error: %v", err)
@@ -216,6 +215,7 @@ func (cmd *Command) ReadLoop() {
 		for i = 0; i < len(cmd.dcs); i++ {
 			dc := cmd.dcs[i]
 			if dc.ReadyState() == webrtc.DataChannelStateOpen {
+				log.Printf("> %d: %s", l, b[:l])
 				err = dc.Send(b[:l])
 				if err != nil {
 					log.Printf("got an error when sending message: %v", err)
