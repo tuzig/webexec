@@ -2,6 +2,7 @@ package server
 
 import (
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"net/http"
@@ -29,7 +30,7 @@ func ConnectHandler() (h http.Handler, e error) {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 		offer := make([]byte, 4096)
 		l, e := r.Body.Read(offer)
-		if e != nil {
+		if e != io.EOF {
 			e = fmt.Errorf("Failed to read http request body: %q", e)
 			return
 		}
@@ -54,9 +55,9 @@ func NewHTTPListner() (l net.Listener, p int, e error) {
 func HTTPGo(address string) (e error) {
 	h, e := ConnectHandler()
 	if e != nil {
+		log.Fatal(e)
 		return
 	}
 	log.Fatal(http.ListenAndServe(address, h))
-
 	return
 }
