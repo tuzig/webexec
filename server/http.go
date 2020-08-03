@@ -1,7 +1,6 @@
 package server
 
 import (
-	"encoding/json"
 	"fmt"
 	"log"
 	"net"
@@ -14,7 +13,7 @@ type ConnectAPI struct {
 	Offer string
 }
 
-// ConnectHandler lintnes for POST requests on /connect.
+// ConnectHandler listens for POST requests on /connect.
 // A valid request should have an encoded WebRTC offer as its body.
 func ConnectHandler() (h http.Handler, e error) {
 	s, e := NewWebRTCServer()
@@ -28,15 +27,14 @@ func ConnectHandler() (h http.Handler, e error) {
 			return
 		}
 		w.Header().Set("Access-Control-Allow-Origin", "*")
-		decoder := json.NewDecoder(r.Body)
-		var c ConnectAPI
-		e := decoder.Decode(&c)
-		log.Printf("Got a valid POST request with data: %v", c)
+		offer := make([]byte, 4096)
+		l, e := r.Body.Read(offer)
 		if e != nil {
-			e = fmt.Errorf("Failed to decode client's key: %v", e)
+			e = fmt.Errorf("Failed to read http request body: %q", e)
 			return
 		}
-		peer := s.Listen(c.Offer)
+		log.Printf("Got a valid POST request with offer: %v", offer)
+		peer := s.Listen(string(offer[:l]))
 		// reply with server's key
 		w.Write(peer.Answer)
 	})
