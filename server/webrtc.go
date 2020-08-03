@@ -332,7 +332,7 @@ HappyEnd:
 func (peer *Peer) SendAck(cm CTRLMessage, body string) {
 	args := AckArgs{Ref: cm.MessageId, Body: body}
 	// TODO: protect message counter against reentrancy
-	msg := CTRLMessage{time.Now().UnixNano(), peer.LastMsgId + 1, &args,
+	msg := CTRLMessage{time.Now().UnixNano() / 1000000, peer.LastMsgId + 1, &args,
 		nil, nil, nil}
 	peer.LastMsgId += 1
 	msgJ, err := json.Marshal(msg)
