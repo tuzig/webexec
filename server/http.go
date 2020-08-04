@@ -10,10 +10,6 @@ import (
 	"github.com/rs/cors"
 )
 
-type ConnectAPI struct {
-	Offer string
-}
-
 // ConnectHandler listens for POST requests on /connect.
 // A valid request should have an encoded WebRTC offer as its body.
 func ConnectHandler() (h http.Handler, e error) {
