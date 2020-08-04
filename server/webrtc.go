@@ -126,8 +126,8 @@ func (peer *Peer) OnChannelReq(d *webrtc.DataChannel) {
 	})
 }
 
-// PipeCommand is a function that gets a data channel label, it's data channel
-// and a user name.
+// WebRTCServer.PipeCommand is a function that gets a data channel label,
+// it's data channel and a user name.
 // The function parses the label to figure out if it needs to start
 // a new process or connect to existing process, i.e. "24x80 >123" to reconnect
 // to command 123
@@ -188,7 +188,7 @@ func (server *WebRTCServer) PipeCommand(c string, d *webrtc.DataChannel,
 		}()
 		// NewCommand is up to here
 		cId = len(server.Cmds)
-		log.Printf("Added a command: id %d", cId)
+		log.Printf("Added a command: id %d tty - %q", cId, tty.Name())
 		go ret.ReadLoop()
 	} else {
 		// Add the data channel to the command
