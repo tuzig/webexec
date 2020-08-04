@@ -30,7 +30,7 @@ func ConnectHandler() (h http.Handler, e error) {
 			e = fmt.Errorf("Failed to read http request body: %q", e)
 			return
 		}
-		log.Printf("Got a valid POST request with offer: %v", offer)
+		log.Printf("Got a valid POST request with offer: %q", string(offer[:l]))
 		peer := s.Listen(string(offer[:l]))
 		// reply with server's key
 		w.Write(peer.Answer)
