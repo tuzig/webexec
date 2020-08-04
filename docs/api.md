@@ -115,8 +115,6 @@ the active layout, of there is one:
 }
 ```
 
-
-
 #### Error
 
 When the server encounters an error it sends an error message to the client:
@@ -131,4 +129,3 @@ When the server encounters an error it sends an error message to the client:
     }
 }
 ```
-
