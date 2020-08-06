@@ -1,4 +1,4 @@
-# webexec APIv1
+# webexec APIv2
 
 The webexec server lets a client exec commands on a remote server and pipe their
 input & output over a web real time communication (aka webrtc) peer connection. 
