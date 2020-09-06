@@ -1,6 +1,6 @@
 // +build darwin
 
-package server
+package main
 
 // TDOD: implment this
 func Authenticate(args *AuthArgs) string {

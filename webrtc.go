@@ -1,6 +1,6 @@
 // Package server holds the code that runs a webrtc based service
 // connecting commands with datachannels thru a pseudo tty.
-package server
+package main
 
 /*
 #include <shadow.h>
@@ -30,7 +30,7 @@ const connectionTimeout = 600 * time.Second
 const keepAliveInterval = 15 * time.Minute
 const peerBufferSize = 5000
 
-// type Command hold an executed command, it's pty and buffer
+// Command type hold an executed command, it's pty and buffer
 type Command struct {
 	Id int
 	// C holds the exectuted command
@@ -40,7 +40,7 @@ type Command struct {
 	dcs    []*webrtc.DataChannel
 }
 
-// type WebRTCServer is the singelton we use to store server globals
+// WebRTCServer type is the singelton we use to store server globals
 type WebRTCServer struct {
 	// Peers holds the connected and disconnected peers
 	Peers []Peer

@@ -12,8 +12,10 @@ import (
 
 	"github.com/urfave/cli/v2"
 
-	"github.com/tuzig/webexec/server"
+	"github.com/pion/logging"
 )
+
+var Logger logging.LeveledLogger
 
 func attachKillHandler() {
 	c := make(chan os.Signal)
@@ -70,7 +72,7 @@ func listen(c *cli.Context) error {
 		client = ""
 	}
 	log.Printf("Starting http server on port 8888 %v", client)
-	go server.HTTPGo("0.0.0.0:8888")
+	go HTTPGo("0.0.0.0:8888")
 	// TODO: make it return nil
 	select {}
 }
@@ -88,6 +90,25 @@ func main() {
 				Action:  listen,
 			}, {
 				Name:   "init",
+				Usage:  "initialize user settings",
+				Action: initUser,
+			}, {
+				Name: "token",
+				Subcommands: []*cli.Command{
+					{
+						Name:   "add",
+						Usage:  "add <token>",
+						Action: AddToken,
+					}, {
+						Name:   "delete",
+						Usage:  "delete <token>",
+						Action: DeleteToken,
+					}, {
+						Name:   "list",
+						Usage:  "list the tokens",
+						Action: DeleteToken,
+					},
+				},
 				Usage:  "initialize user settings",
 				Action: initUser,
 			},
