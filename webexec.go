@@ -76,6 +76,14 @@ func listen(c *cli.Context) error {
 	// TODO: make it return nil
 	select {}
 }
+func pasteCB(c *cli.Context) error {
+	fmt.Println("Soon, we'll be pasting data from the clipboard to STDOUT")
+	return nil
+}
+func copyCB(c *cli.Context) error {
+	fmt.Println("Soon, we'll be copying data from STDIN to the clipboard")
+	return nil
+}
 
 func main() {
 	attachKillHandler()
@@ -92,6 +100,14 @@ func main() {
 				Name:   "init",
 				Usage:  "initialize user settings",
 				Action: initUser,
+			}, {
+				Name:   "copy",
+				Usage:  "Copy data from STDIN to the clipboard",
+				Action: copyCB,
+			}, {
+				Name:   "paste",
+				Usage:  "Paste data from the clipboard to STDOUT",
+				Action: pasteCB,
 			}, {
 				Name: "token",
 				Subcommands: []*cli.Command{
