@@ -8,6 +8,7 @@ import (
 	"os/signal"
 	"os/user"
 	"path/filepath"
+	"strings"
 	"syscall"
 
 	"github.com/urfave/cli/v2"
@@ -65,14 +66,11 @@ func initUser(c *cli.Context) error {
  * listen - listens for incoming connections
  */
 func listen(c *cli.Context) error {
-	var client string
-	if c.NArg() == 1 {
-		client = c.Args().First()
-	} else {
-		client = ""
-	}
-	log.Printf("Starting http server on port 8888 %v", client)
-	go HTTPGo("0.0.0.0:8888")
+	port := c.String("port")
+	// daemon := c.Bool("d")
+	addr := strings.Join([]string{"0.0.0.0:", port}, "")
+	log.Printf("Starting http server on %q", addr)
+	go HTTPGo(addr)
 	// TODO: make it return nil
 	select {}
 }

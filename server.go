@@ -2,13 +2,6 @@
 // connecting commands with datachannels thru a pseudo tty.
 package main
 
-/*
-#include <shadow.h>
-#include <stddef.h>
-#include <stdlib.h>
-import "C"
-*/
-
 import (
 	"encoding/json"
 	"fmt"
@@ -31,7 +24,7 @@ const keepAliveInterval = 15 * time.Minute
 const peerBufferSize = 5000
 
 // Command type hold an executed command, it's pty and buffer
-type Command struct {
+type Pane struct {
 	Id int
 	// C holds the exectuted command
 	C      *exec.Cmd
@@ -40,17 +33,8 @@ type Command struct {
 	dcs    []*webrtc.DataChannel
 }
 
-// WebRTCServer type is the singelton we use to store server globals
-type WebRTCServer struct {
-	// Peers holds the connected and disconnected peers
-	Peers []Peer
-	// Cmds holds all the open channels we ever opened
-	Cmds []*Command
-}
-
 // type Peer is used to remember a client aka peer connection
 type Peer struct {
-	server            *WebRTCServer
 	Id                int
 	Authenticated     bool
 	State             string
@@ -64,10 +48,8 @@ type Peer struct {
 	PendingChannelReq chan *webrtc.DataChannel
 }
 
-func NewWebRTCServer() (server WebRTCServer, err error) {
-	return WebRTCServer{nil, nil}, nil
-	// Register data channel creation handling
-}
+var Peers []Peer
+var Panes []Pane
 
 // start a system command over a pty. If the command contains a dimension
 // in the format of 24x80 the login shell is lunched
@@ -90,18 +72,16 @@ func (peer *Peer) OnChannelReq(d *webrtc.DataChannel) {
 	d.OnOpen(func() {
 		var err error
 		l := d.Label()
-		// We get "terminal7" in c[0] as the first channel name
-		// from a fresh client. This dc is used for as ctrl channel
+		// "%" is the command & control channel - aka cdc
 		if l[0] == '%' {
 			//TODO: if there's an older cdc close it
-			log.Println("On open for a new control channel")
+			Logger.Info("Got a request to open for a new control channel")
 			peer.cdc = d
 			d.OnMessage(peer.OnCTRLMsg)
 			return
-		} else {
-			log.Printf("On open for a new Data channel %q\n", l)
 		}
-		cmd, err := peer.server.PipeCommand(l, d, peer.Username)
+		Logger.Info("Got a new data channel: %q\n", l)
+		cmd, err := peer.OnPaneReq(l, d)
 		if err != nil {
 			log.Printf("Failed to pipe command: %v", err)
 			return
@@ -131,7 +111,7 @@ func (peer *Peer) OnChannelReq(d *webrtc.DataChannel) {
 // The function parses the label to figure out if it needs to start
 // a new process or connect to existing process, i.e. "24x80 >123" to reconnect
 // to command 123
-func (server *WebRTCServer) PipeCommand(c string, d *webrtc.DataChannel,
+func (peer *Peer) OpenPane(c string, d *webrtc.DataChannel,
 	username string) (*Command, error) {
 	var cmd *exec.Cmd
 	var tty *os.File

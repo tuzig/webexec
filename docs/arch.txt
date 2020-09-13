@@ -1,0 +1,49 @@
+Simplify:
+- Server should know only on panes.
+- Client will do window managment.
+v- Server *migh* store windows/layout information for the client for reconnection
+
+You can flatten all files to a single directory. Each of them will be in package main. Since you have 10 files - it's more than OK.
+
+	Window
+	+-------+--------+
+	|  pane |        |
+	|       |        |
+	+-------+--------+
+	|       |        |
+	|       |        |
+	+-------+--------+
+
+
+
+type Pane struct {
+	/*
+		Command informaion
+		TTY
+		Data channel(s?)
+		Geometry
+	*/
+}
+
+type Window struct {
+	panes map[string]Pane // id -> pane
+	name  string
+}
+
+type Session struct {
+	window map[string]Window // name -> window
+}
+
+type Peer struct {
+	session Session
+	// peer connection
+}
+
+server
+	- session
+		- command (pane)
+		- command (pane)
+		- command (pane)
+	- session
+	- session
+
