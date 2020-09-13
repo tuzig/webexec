@@ -94,8 +94,26 @@ func main() {
 			{
 				Name:    "listen",
 				Aliases: []string{"l"},
-				Usage:   "listen for incoming connections",
-				Action:  listen,
+				Usage: `listen for incoming WebRTC connections,
+execute commands for authorized clients and pipe STDIN & STDOUT`,
+				Flags: []cli.Flag{
+					&cli.IntFlag{
+						Name:    "port",
+						Aliases: []string{"p"},
+						Usage:   "TCP port to use for http server",
+						Value:   7777,
+					},
+					&cli.BoolFlag{
+						Name:    "daemon",
+						Aliases: []string{"d"},
+						Usage:   "Run as daemon, saving PID in ~/.webexec/webexec.run",
+					},
+					&cli.BoolFlag{
+						Name:  "debug",
+						Usage: "Run in debug mode",
+					},
+				},
+				Action: listen,
 			}, {
 				Name:   "init",
 				Usage:  "initialize user settings",
@@ -109,23 +127,23 @@ func main() {
 				Usage:  "Paste data from the clipboard to STDOUT",
 				Action: pasteCB,
 			}, {
-				Name: "token",
+				Name: "tokens",
 				Subcommands: []*cli.Command{
 					{
 						Name:   "add",
 						Usage:  "add <token>",
 						Action: AddToken,
 					}, {
-						Name:   "delete",
+						Name:   "rm",
 						Usage:  "delete <token>",
 						Action: DeleteToken,
 					}, {
-						Name:   "list",
+						Name:   "ls",
 						Usage:  "list the tokens",
 						Action: DeleteToken,
 					},
 				},
-				Usage:  "initialize user settings",
+				Usage:  "Manage user tokens",
 				Action: initUser,
 			},
 		},
