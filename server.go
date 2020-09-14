@@ -15,7 +15,6 @@ import (
 	"unicode"
 
 	"github.com/creack/pty"
-	"github.com/pion/logging"
 	"github.com/pion/webrtc/v2"
 	"github.com/tuzig/webexec/signal"
 )
@@ -46,7 +45,6 @@ type Peer struct {
 	Answer            []byte
 	cdc               *webrtc.DataChannel
 	PendingChannelReq chan *webrtc.DataChannel
-	log               logging.LeveledLogger
 }
 
 var Peers []Peer
@@ -75,21 +73,21 @@ func (peer *Peer) OnChannelReq(d *webrtc.DataChannel) {
 		if pane != nil {
 			d.OnMessage(func(msg webrtc.DataChannelMessage) {
 				p := msg.Data
-				peer.log.Infof("> %q", p)
+				Logger.Infof("> %q", p)
 				l, err := pane.Tty.Write(p)
 				if err != nil {
-					peer.log.Warnf("pty of %d write failed: %v",
+					Logger.Warnf("pty of %d write failed: %v",
 						pane.Id, err)
 				}
 				if l != len(p) {
-					peer.log.Warnf("pty of %d wrote %d instead of %d bytes",
+					Logger.Warnf("pty of %d wrote %d instead of %d bytes",
 						pane.Id, l, len(p))
 				}
 			})
 			d.OnClose(func() {
 				pane.Kill()
 				// TODO: do I need to free the pane memory?
-				peer.log.Infof("Data channel closed : %q", d.Label())
+				Logger.Infof("Data channel closed : %q", label)
 			})
 		}
 	})
@@ -118,11 +116,11 @@ func (peer *Peer) NewPane(command string, ws *pty.Winsize) (*Pane, error) {
 		tty.Close()
 	}()
 	// NewCommand is up to here
-	peer.log.Infof("Added a command: id %d tty - %q", pId, tty.Name())
+	Logger.Infof("Added a command: id %d tty - %q", pId, tty.Name())
 	go pane.ReadLoop()
 	s := strconv.Itoa(pId)
 	bs := []byte(s)
-	peer.log.Infof("Added a command: id %d tty - %q id - %q", pId, tty.Name(), bs)
+	Logger.Infof("Added a command: id %d tty - %q id - %q", pId, tty.Name(), bs)
 	// TODO: send the channel in a control message
 	// d.Send(bs)
 	return pane, nil
@@ -149,18 +147,18 @@ func (peer *Peer) OnPaneReq(d *webrtc.DataChannel) *Pane {
 	// "%" is the command & control channel - aka cdc
 	if l[0] == '%' {
 		//TODO: if there's an older cdc close it
-		peer.log.Info("Got a request to open for a new control channel")
+		Logger.Info("Got a request to open for a new control channel")
 		peer.cdc = d
 		d.OnMessage(peer.OnCTRLMsg)
 		return nil
 	}
-	peer.log.Infof("Got a new data channel: %q\n", l)
+	Logger.Infof("Got a new data channel: %q\n", l)
 	// if the label starts witha digit, it needs a pty
 	if unicode.IsDigit(rune(l[0])) {
 		sep = strings.IndexRune(l, ' ')
 		// no command, use default shell
 		if sep == -1 {
-			peer.log.Errorf("Got an invalid channlel label: %q", l)
+			Logger.Errorf("Got an invalid channlel label: %q", l)
 			return nil
 		}
 		ws, err = parseWinsize(l[:sep])
@@ -169,11 +167,11 @@ func (peer *Peer) OnPaneReq(d *webrtc.DataChannel) *Pane {
 	if rune(l[sep+1]) == '>' {
 		id, err = strconv.Atoi(l[sep+2:])
 		if err != nil {
-			peer.log.Errorf("Got an error converting incoming reconnect channel : %q", l[sep+1:])
+			Logger.Errorf("Got an error converting incoming reconnect channel : %q", l[sep+1:])
 			return nil
 		}
 		if id > len(Panes) {
-			peer.log.Errorf("Got a bad channelId: %d", id)
+			Logger.Errorf("Got a bad channelId: %d", id)
 			return nil
 		}
 		pane = &Panes[id-1]
@@ -181,7 +179,7 @@ func (peer *Peer) OnPaneReq(d *webrtc.DataChannel) *Pane {
 		return pane
 	}
 	if err != nil {
-		peer.log.Errorf("Got an error parsing window size: %q", l)
+		Logger.Errorf("Got an error parsing window size: %q", l)
 	}
 	// TODO: get the default exec  the users shell or the command from the channel's name
 	pane, err = peer.NewPane("zsh", &ws)
@@ -243,7 +241,6 @@ func Listen(remote string) *Peer {
 		Answer:            nil,
 		cdc:               nil,
 		PendingChannelReq: make(chan *webrtc.DataChannel, 5),
-		log:               logging.New,
 	}
 	Peers = append(Peers, peer)
 

@@ -12,11 +12,10 @@ import (
 	"syscall"
 
 	"github.com/urfave/cli/v2"
-
-	"github.com/pion/logging"
+	"go.uber.org/zap"
 )
 
-var Logger logging.LeveledLogger
+var Logger zap.SugaredLogger
 
 func attachKillHandler() {
 	c := make(chan os.Signal)
@@ -26,6 +25,36 @@ func attachKillHandler() {
 		fmt.Println("\r- Ctrl+C pressed in Terminal")
 		os.Exit(0)
 	}()
+}
+
+/*
+** InitLogger intializes the global `Logger`
+ */
+func InitLogger() {
+	zapConf := []byte(`{
+	  "level": "debug",
+	  "encoding": "json",
+	  "outputPaths": ["stdout", "/tmp/logs"],
+	  "errorOutputPaths": ["stderr"],
+	  "initialFields": {"foo": "bar"},
+	  "encoderConfig": {
+	    "messageKey": "message",
+	    "levelKey": "level",
+	    "levelEncoder": "lowercase"
+	  }
+	}`)
+
+	var cfg zap.Config
+	if err := json.Unmarshal(zapConf, &cfg); err != nil {
+		panic(err)
+	}
+	Logger, err := cfg.Build()
+	if err != nil {
+		panic(err)
+	}
+	defer Logger.Sync()
+
+	Logger.Info("logger construction succeeded")
 }
 
 /*
@@ -85,6 +114,7 @@ func copyCB(c *cli.Context) error {
 
 func main() {
 	attachKillHandler()
+	InitLogger()
 	app := &cli.App{
 		Name:  "webexec",
 		Usage: "execute commands and pipe their stdin&stdout over webrtc",

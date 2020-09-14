@@ -12,4 +12,5 @@ require (
 	github.com/tredoe/osutil v1.0.5
 	github.com/urfave/cli v1.22.4 // indirect
 	github.com/urfave/cli/v2 v2.2.0
+	go.uber.org/zap v1.16.0
 )

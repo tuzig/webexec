@@ -128,6 +128,7 @@ func TestStartCommand(t *testing.T) {
 }
 */
 func TestSimpleEcho(t *testing.T) {
+	InitLogger()
 	done := make(chan bool)
 	gotAuthAck := make(chan bool)
 	peer := Listen("")
@@ -143,7 +144,7 @@ func TestSimpleEcho(t *testing.T) {
 	count := 0
 	cdc.OnOpen(func() {
 		log.Println("cdc is opened")
-		authArgs := AuthArgs{"jrandomhacker", "thejargonfile"}
+		authArgs := AuthArgs{"thejargonfile"}
 		//TODO we need something like peer.LastMsgId++ below
 		msg := CTRLMessage{time.Now().UnixNano(), 123, nil,
 			nil, &authArgs, nil}
@@ -203,6 +204,7 @@ func TestSimpleEcho(t *testing.T) {
 }
 
 func TestUnauthincatedBlocked(t *testing.T) {
+	InitLogger()
 	done := make(chan bool)
 	peer := Listen("")
 
@@ -239,6 +241,7 @@ func TestUnauthincatedBlocked(t *testing.T) {
 }
 
 func TestAuthCommand(t *testing.T) {
+	InitLogger()
 	var token string
 	gotAuthAck := make(chan bool)
 	gotTokenAck := make(chan bool)
@@ -254,7 +257,7 @@ func TestAuthCommand(t *testing.T) {
 	}
 	cdc.OnOpen(func() {
 		log.Println("cdc is open")
-		authArgs := AuthArgs{"jrandomhacker", "thejargonfile"}
+		authArgs := AuthArgs{"thejargonfile"}
 		msg := CTRLMessage{time.Now().UnixNano(), 123, nil,
 			nil, &authArgs, nil}
 		authMsg, err := json.Marshal(msg)
@@ -300,7 +303,7 @@ func TestAuthCommand(t *testing.T) {
 	}
 	cdc.OnOpen(func() {
 		log.Println("cdc is open")
-		authArgs := AuthArgs{"jrandomhacker", token}
+		authArgs := AuthArgs{token}
 		msg := CTRLMessage{time.Now().UnixNano(), 124, nil,
 			nil, &authArgs, nil}
 		authMsg, err := json.Marshal(msg)
@@ -331,6 +334,7 @@ func TestAuthCommand(t *testing.T) {
 }
 
 func TestResizeCommand(t *testing.T) {
+	InitLogger()
 	gotAuthAck := make(chan bool)
 	done := make(chan bool)
 	peer := Listen("")
@@ -345,7 +349,7 @@ func TestResizeCommand(t *testing.T) {
 	}
 	cdc.OnOpen(func() {
 		log.Println("cdc is opened")
-		authArgs := AuthArgs{"jrandomhacker", "thejargonfile"}
+		authArgs := AuthArgs{"thejargonfile"}
 		msg := CTRLMessage{time.Now().UnixNano(), 123, nil,
 			nil, &authArgs, nil}
 		authMsg, err := json.Marshal(msg)
@@ -410,6 +414,7 @@ func TestResizeCommand(t *testing.T) {
 }
 
 func TestChannelReconnect(t *testing.T) {
+	InitLogger()
 	var cId string
 	var dc *webrtc.DataChannel
 	done := make(chan bool)
@@ -428,7 +433,7 @@ func TestChannelReconnect(t *testing.T) {
 	count := 0
 	cdc.OnOpen(func() {
 		log.Println("cdc is opened")
-		authArgs := AuthArgs{"jrandomhacker", "thejargonfile"}
+		authArgs := AuthArgs{"thejargonfile"}
 		//TODO we need something like peer.LastMsgId++ below
 		msg := CTRLMessage{time.Now().UnixNano(), 123, nil,
 			nil, &authArgs, nil}
