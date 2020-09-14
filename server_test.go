@@ -143,7 +143,6 @@ func TestSimpleEcho(t *testing.T) {
 	// count the incoming messages
 	count := 0
 	cdc.OnOpen(func() {
-		log.Println("cdc is opened")
 		authArgs := AuthArgs{"thejargonfile"}
 		//TODO we need something like peer.LastMsgId++ below
 		msg := CTRLMessage{time.Now().UnixNano(), 123, nil,
@@ -256,7 +255,6 @@ func TestAuthCommand(t *testing.T) {
 		t.Fatalf("failed to create the control data channel: %v", err)
 	}
 	cdc.OnOpen(func() {
-		log.Println("cdc is open")
 		authArgs := AuthArgs{"thejargonfile"}
 		msg := CTRLMessage{time.Now().UnixNano(), 123, nil,
 			nil, &authArgs, nil}
@@ -302,7 +300,6 @@ func TestAuthCommand(t *testing.T) {
 		t.Fatalf("failed to create the control data channel: %v", err)
 	}
 	cdc.OnOpen(func() {
-		log.Println("cdc is open")
 		authArgs := AuthArgs{token}
 		msg := CTRLMessage{time.Now().UnixNano(), 124, nil,
 			nil, &authArgs, nil}

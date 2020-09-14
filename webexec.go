@@ -15,7 +15,7 @@ import (
 	"go.uber.org/zap"
 )
 
-var Logger zap.SugaredLogger
+var Logger *zap.SugaredLogger
 
 func attachKillHandler() {
 	c := make(chan os.Signal)
@@ -32,23 +32,24 @@ func attachKillHandler() {
  */
 func InitLogger() {
 	zapConf := []byte(`{
-	  "level": "debug",
-	  "encoding": "json",
-	  "outputPaths": ["stdout", "/tmp/logs"],
-	  "errorOutputPaths": ["stderr"],
-	  "initialFields": {"foo": "bar"},
-	  "encoderConfig": {
-	    "messageKey": "message",
-	    "levelKey": "level",
-	    "levelEncoder": "lowercase"
-	  }
-	}`)
+		  "level": "debug",
+		  "encoding": "console",
+		  "outputPaths": ["stdout", "/tmp/logs"],
+		  "errorOutputPaths": ["stderr"],
+		  "encoderConfig": {
+		    "messageKey": "message",
+		    "levelKey": "level",
+		    "levelEncoder": "lowercase"
+		  }
+		}`)
 
 	var cfg zap.Config
 	if err := json.Unmarshal(zapConf, &cfg); err != nil {
 		panic(err)
 	}
-	Logger, err := cfg.Build()
+
+	l, err := cfg.Build()
+	Logger = l.Sugar()
 	if err != nil {
 		panic(err)
 	}

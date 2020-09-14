@@ -39,6 +39,7 @@ type Peer struct {
 	Authenticated     bool
 	State             string
 	Remote            string
+	Token             string
 	LastContact       *time.Time
 	LastMsgId         int
 	pc                *webrtc.PeerConnection
@@ -57,13 +58,16 @@ func (peer *Peer) OnChannelReq(d *webrtc.DataChannel) {
 	if d.Label() == "signaling" {
 		return
 	}
-	peer.log.Infof("Got a channel request: peer authenticate: %v, channel label %q",
-		peer.Authenticated, d.Label())
+	authenticated := peer.Authenticated
+	label := d.Label()
+	Logger.Infof("Got a channel request: peer authenticate: %v, channel label %q",
+		authenticated, label)
+
 	// let the command channel through as without it we can't authenticate
-	if d.Label() != "%" && !peer.Authenticated {
-		peer.log.Infof(
+	if label != "%" && !authenticated {
+		Logger.Infof(
 			"Bufferinga a channel request from an unauthenticated peer: %q",
-			d.Label())
+			label)
 		peer.PendingChannelReq <- d
 		return
 	}
@@ -232,6 +236,7 @@ func Listen(remote string) *Peer {
 	// TODO: protected the next two line from re entrancy
 	peer := Peer{
 		Id:                len(Peers),
+		Token:             "",
 		Authenticated:     false,
 		State:             "connected",
 		Remote:            remote,
@@ -311,11 +316,8 @@ func Shutdown() {
 // Authenticate checks authorization args against system's user
 // returns the user's token or nil if failed to authenticat
 func (peer *Peer) Authenticate(args *AuthArgs) string {
-
 	t := "atoken"
-	goto HappyEnd
-HappyEnd:
-	peer.Username = args.Username
+	peer.Token = args.Token
 	return t
 
 }
@@ -363,8 +365,8 @@ func (peer *Peer) OnCTRLMsg(msg webrtc.DataChannelMessage) {
 		token := "Always autehnticated"
 		if token != "" {
 			peer.Authenticated = true
-			peer.Username = m.Auth.Username
-			peer.SendAck(m, token)
+			peer.Token = m.Auth.Token
+			peer.SendAck(m, "")
 			// handle pending channel requests
 			handlePendingChannelRequests := func() {
 				for d := range peer.PendingChannelReq {
@@ -390,8 +392,7 @@ type ErrorArgs struct {
 
 // AuthArgs is a type that holds client's authentication arguments.
 type AuthArgs struct {
-	Username string `json:"username"`
-	Secret   string `json:"secret"`
+	Token string `json:"token"`
 }
 
 // AckArgs is a type to hold the args for an Ack message
