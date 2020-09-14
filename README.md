@@ -32,16 +32,17 @@ Once authenticated, the client can open as many data channels as he sees fit.
 ## Data Channels
 
 webexec clients use WebRTC's channel name to pass the command to exec.
-It can be used for simple commands like `echo hello world` or an interactive
+The command is passed as comma seperated values.
+It can be used for simple commands like `echo,hello world` or an interactive
 shell like `zsh`. 
 
 If the channel name starts with a digit, it means there's first a
-dimension, e.g. `24x80 zsh`, it will open a pseudo tty and exec
+dimension, e.g. `24x80,zsh`, it will open a pseudo tty and exec
 shells and editors over it.
 After recieving the request and starting the process as the authenicated user,
 webexec send a message with the channel `Num`. This number is a unique id 
 used to reconnect to a channel - soon the client will be able to reconnect 
-to a channel with a message like `24x80 >12` to reconnect to channel 12. 
+to a channel with a message like `24x80,>12` to reconnect to channel 12. 
 When the peer is disocnnected, webexec buffers command output.
 
 Development

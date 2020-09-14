@@ -75,6 +75,7 @@ func (peer *Peer) OnChannelReq(d *webrtc.DataChannel) {
 	d.OnOpen(func() {
 		pane := peer.OnPaneReq(d)
 		if pane != nil {
+			go pane.ReadLoop()
 			d.OnMessage(func(msg webrtc.DataChannelMessage) {
 				p := msg.Data
 				Logger.Infof("> %q", p)
@@ -98,35 +99,34 @@ func (peer *Peer) OnChannelReq(d *webrtc.DataChannel) {
 }
 
 // Peer.NewPane opens a new pane and start its command and pty
-func (peer *Peer) NewPane(command string, ws *pty.Winsize) (*Pane, error) {
+func (peer *Peer) NewPane(command []string, d *webrtc.DataChannel,
+	ws *pty.Winsize) (*Pane, error) {
+
 	var err error
 	var tty *os.File
 	var pane *Pane
-	pId := len(Panes)
-	cmd := exec.Command(command)
-	if ws.Rows != 0 {
+	pId := len(Panes) + 1
+	cmd := exec.Command(command[0], command[1:]...)
+	if ws != nil {
 		tty, err = pty.StartWithSize(cmd, ws)
 	} else {
-		err = cmd.Start()
+		// TODO: don't use a pty, just pipe the input and output
+		tty, err = pty.Start(cmd)
 	}
 	if err != nil {
 		return nil, fmt.Errorf("Failed launching %q: %q", command, err)
 	}
 	// TODO: protect from reentrancy
-	pane = &Pane{pId, cmd, tty, nil, []*webrtc.DataChannel{}}
+	pane = &Pane{
+		Id:     pId,
+		C:      cmd,
+		Tty:    tty,
+		Buffer: nil,
+		dcs:    []*webrtc.DataChannel{d},
+	}
 	Panes = append(Panes, *pane)
-	go func() {
-		cmd.Wait()
-		tty.Close()
-	}()
 	// NewCommand is up to here
 	Logger.Infof("Added a command: id %d tty - %q", pId, tty.Name())
-	go pane.ReadLoop()
-	s := strconv.Itoa(pId)
-	bs := []byte(s)
-	Logger.Infof("Added a command: id %d tty - %q id - %q", pId, tty.Name(), bs)
-	// TODO: send the channel in a control message
-	// d.Send(bs)
 	return pane, nil
 }
 
@@ -137,17 +137,17 @@ func (peer *Peer) NewPane(command string, ws *pty.Winsize) (*Pane, error) {
 // '%' used for command & control channel.
 //
 // label examples:
-//      simple form with no pty: "cat filename.txt"
-//		to start bash: "24x80 bash"
-//		to reconnect to pane id 123: "24x80 >123"
+//      simple form with no pty: echo,"Hello world"
+//		to start bash: "24x80,bash"
+//		to reconnect to pane id 123: "24x80,>123"
 func (peer *Peer) OnPaneReq(d *webrtc.DataChannel) *Pane {
 	var err error
-	var id int
-	var sep int
+	var cmdIndex int
 	var pane *Pane
-	var ws pty.Winsize
+	var ws *pty.Winsize
 	// If the message starts with a digit we assume it starts with a size
 	l := d.Label()
+	fields := strings.Split(l, ",")
 	// "%" is the command & control channel - aka cdc
 	if l[0] == '%' {
 		//TODO: if there's an older cdc close it
@@ -159,19 +159,23 @@ func (peer *Peer) OnPaneReq(d *webrtc.DataChannel) *Pane {
 	Logger.Infof("Got a new data channel: %q\n", l)
 	// if the label starts witha digit, it needs a pty
 	if unicode.IsDigit(rune(l[0])) {
-		sep = strings.IndexRune(l, ' ')
+		cmdIndex = 1
 		// no command, use default shell
-		if sep == -1 {
+		if cmdIndex > len(fields)-1 {
 			Logger.Errorf("Got an invalid channlel label: %q", l)
 			return nil
 		}
-		ws, err = parseWinsize(l[:sep])
+		// TODO: Do I need to free this?
+		ws, err = parseWinsize(fields[0])
+		if err != nil {
+			Logger.Errorf("Failed to parse winsize: %v", err)
+		}
 	}
 	// If it's a reconnect, parse the id and connnect to the pane
-	if rune(l[sep+1]) == '>' {
-		id, err = strconv.Atoi(l[sep+2:])
+	if rune(fields[cmdIndex][0]) == '>' {
+		id, err := strconv.Atoi(fields[cmdIndex][1:])
 		if err != nil {
-			Logger.Errorf("Got an error converting incoming reconnect channel : %q", l[sep+1:])
+			Logger.Errorf("Got an error converting incoming reconnect channel : %q", fields[cmdIndex])
 			return nil
 		}
 		if id > len(Panes) {
@@ -183,29 +187,40 @@ func (peer *Peer) OnPaneReq(d *webrtc.DataChannel) *Pane {
 		return pane
 	}
 	if err != nil {
-		Logger.Errorf("Got an error parsing window size: %q", l)
+		Logger.Errorf("Got an error parsing window size: %q", err)
 	}
 	// TODO: get the default exec  the users shell or the command from the channel's name
-	pane, err = peer.NewPane("zsh", &ws)
+	pane, err = peer.NewPane(fields[cmdIndex:], d, ws)
+	if pane != nil {
+		// Send the pane id as the first message
+		s := strconv.Itoa(pane.Id)
+		bs := []byte(s)
+		// Logger.Infof("Added a command: id %d tty - %q id - %q", pId, tty.Name(), bs)
+		// TODO: send the channel in a control message
+		d.Send(bs)
+	} else {
+		Logger.Error("Failed to create new pane")
+	}
 	return pane
 }
 
 func (pane *Pane) ReadLoop() {
-	var i int
 	b := make([]byte, 4096)
+	Logger.Infof("rl 1 %v", pane)
 	for pane.C.ProcessState.String() != "killed" {
+		Logger.Info("rl 2")
 		l, err := pane.Tty.Read(b)
-		if err != nil && err != io.EOF {
-			log.Printf("Failed reading command output: %v", err)
+		Logger.Infof("> %d: %s", l, b[:l])
+		if l == 0 {
 			break
 		}
-		for i = 0; i < len(pane.dcs); i++ {
+		for i := 0; i < len(pane.dcs); i++ {
 			dc := pane.dcs[i]
 			if dc.ReadyState() == webrtc.DataChannelStateOpen {
-				log.Printf("> %d: %s", l, b[:l])
+				Logger.Infof("> %d: %s", l, b[:l])
 				err = dc.Send(b[:l])
 				if err != nil {
-					log.Printf("got an error when sending message: %v", err)
+					Logger.Errorf("got an error when sending message: %v", err)
 				}
 			}
 		}
@@ -213,20 +228,23 @@ func (pane *Pane) ReadLoop() {
 			break
 		}
 	}
-	for i = 0; i < len(pane.dcs); i++ {
-		dc := pane.dcs[i]
-		if dc.ReadyState() == webrtc.DataChannelStateOpen {
-			fmt.Printf("Closing data channel: %q", dc.Label())
-			dc.Close()
-		}
-	}
+	pane.Kill()
 }
 func (pane *Pane) Kill() {
+	Logger.Infof("killing pane %d", pane.Id)
 	if pane.C.ProcessState.String() != "killed" {
 		err := pane.C.Process.Kill()
 		if err != nil {
 			log.Printf("Failed to kill process: %v %v",
 				err, pane.C.ProcessState.String())
+		}
+	}
+	pane.Tty.Close()
+	for i := 0; i < len(pane.dcs); i++ {
+		dc := pane.dcs[i]
+		if dc.ReadyState() == webrtc.DataChannelStateOpen {
+			fmt.Printf("Closing data channel: %q", dc.Label())
+			dc.Close()
 		}
 	}
 }
@@ -349,10 +367,6 @@ func (peer *Peer) OnCTRLMsg(msg webrtc.DataChannelMessage) {
 	if m.ResizePTY != nil {
 		var ws pty.Winsize
 		cId := m.ResizePTY.ChannelId
-		if cId == 0 {
-			log.Printf("Error: Got a resize message with no channel Id")
-			return
-		}
 		cmd := Panes[cId-1]
 		ws.Cols = m.ResizePTY.Sx
 		ws.Rows = m.ResizePTY.Sy
@@ -421,17 +435,25 @@ type CTRLMessage struct {
 }
 
 // parseWinsize gets a string in the format of "24x80" and returns a Winsize
-func parseWinsize(s string) (ws pty.Winsize, err error) {
+func parseWinsize(s string) (*pty.Winsize, error) {
+	var sy int64
+	var sx int64
+	var err error
+	var ws *pty.Winsize
+	Logger.Infof("Parsing window size: %q", s)
 	dim := strings.Split(s, "x")
-	sx, err := strconv.ParseInt(dim[1], 0, 16)
-	ws = pty.Winsize{0, 0, 0, 0}
+	sx, err = strconv.ParseInt(dim[1], 10, 16)
 	if err != nil {
-		return ws, fmt.Errorf("Failed to parse number of cols: %v", err)
+		err = fmt.Errorf("Failed to parse number of rows: %v", err)
+		goto theEnd
 	}
-	sy, err := strconv.ParseInt(dim[0], 0, 16)
+	sy, err = strconv.ParseInt(dim[0], 0, 16)
 	if err != nil {
-		return ws, fmt.Errorf("Failed to parse number of rows: %v", err)
+		err = fmt.Errorf("Failed to parse number of cols: %v", err)
+		goto theEnd
 	}
-	ws = pty.Winsize{uint16(sy), uint16(sx), 0, 0}
-	return
+	ws = &pty.Winsize{uint16(sy), uint16(sx), 0, 0}
+
+theEnd:
+	return ws, err
 }

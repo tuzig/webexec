@@ -165,7 +165,7 @@ func TestSimpleEcho(t *testing.T) {
 			}
 		})
 		<-gotAuthAck
-		dc, err := client.CreateDataChannel("echo \"hello world\"", nil)
+		dc, err := client.CreateDataChannel("echo,hello world", nil)
 		if err != nil {
 			t.Fatalf("Failed to create the echo data channel: %v", err)
 		}
@@ -196,6 +196,7 @@ func TestSimpleEcho(t *testing.T) {
 		})
 	})
 	signalPair(client, peer.pc)
+	// TODO: add timeout
 	<-done
 	if count != 2 {
 		t.Fatalf("Expected to recieve 2 messages and got %d", count)
@@ -282,6 +283,7 @@ func TestAuthCommand(t *testing.T) {
 	})
 	signalPair(client, peer.pc)
 	<-gotAuthAck
+	log.Printf("Got Auth Ack")
 	// got auth ack now close the channel and start over, this time using
 	// the token
 	client.Close()
@@ -375,7 +377,7 @@ func TestResizeCommand(t *testing.T) {
 		<-gotAuthAck
 		// control channel is open let's open another one, so we'll have
 		// what to resize
-		dc, err := client.CreateDataChannel("12x34 bash", nil)
+		dc, err := client.CreateDataChannel("12x34,bash", nil)
 		if err != nil {
 			t.Fatalf("failed to create the a channel: %v", err)
 		}
@@ -452,7 +454,7 @@ func TestChannelReconnect(t *testing.T) {
 			}
 		})
 		<-gotAuthAck
-		dc, err = client.CreateDataChannel("24x80", nil)
+		dc, err = client.CreateDataChannel("24x80,bash", nil)
 		if err != nil {
 			t.Fatalf("Failed to create the echo data channel: %v", err)
 		}
@@ -478,7 +480,7 @@ func TestChannelReconnect(t *testing.T) {
 	<-gotId
 	// Now that we have a channel open, let's close the channel and reconnect
 	dc.OnClose(func() {
-		dc2, err := client.CreateDataChannel("24x80 >"+cId, nil)
+		dc2, err := client.CreateDataChannel("24x80,>"+cId, nil)
 		if err != nil {
 			t.Errorf("Failed to create the second data channel: %q", err)
 		}
