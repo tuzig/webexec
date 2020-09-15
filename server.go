@@ -90,7 +90,7 @@ func (peer *Peer) OnChannelReq(d *webrtc.DataChannel) {
 				}
 			})
 			d.OnClose(func() {
-				pane.Kill()
+				// pane.Kill()
 				// TODO: do I need to free the pane memory?
 				Logger.Infof("Data channel closed : %q", label)
 			})
@@ -199,16 +199,14 @@ func (peer *Peer) OnPaneReq(d *webrtc.DataChannel) *Pane {
 		// TODO: send the channel in a control message
 		d.Send(bs)
 	} else {
-		Logger.Error("Failed to create new pane")
+		Logger.Error("Failed to create new pane: %q", err)
 	}
 	return pane
 }
 
 func (pane *Pane) ReadLoop() {
 	b := make([]byte, 4096)
-	Logger.Infof("rl 1 %v", pane)
 	for pane.C.ProcessState.String() != "killed" {
-		Logger.Info("rl 2")
 		l, err := pane.Tty.Read(b)
 		Logger.Infof("> %d: %s", l, b[:l])
 		if l == 0 {

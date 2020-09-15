@@ -3,7 +3,7 @@ module github.com/tuzig/webexec
 go 1.14
 
 require (
-	github.com/creack/pty v1.1.9
+	github.com/creack/pty v1.1.11
 	github.com/pion/logging v0.2.2
 	github.com/pion/transport v0.10.1
 	github.com/pion/webrtc/v2 v2.2.4
