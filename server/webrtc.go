@@ -114,10 +114,10 @@ func (peer *Peer) OnChannelReq(d *webrtc.DataChannel) {
 			l, err := cmd.Tty.Write(p)
 			if err != nil {
 				// MT: Don't panic
-				log.Panicf("Stdin Write returned an error: %v", err)
+				log.Panicf("pty Write returned an error: %v", err)
 			}
 			if l != len(p) {
-				log.Panicf("stdin write wrote %d instead of %d bytes", l, len(p))
+				log.Panicf("pty wrote %d instead of %d bytes", l, len(p))
 			}
 		})
 		d.OnClose(func() {

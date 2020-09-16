@@ -125,6 +125,7 @@ func (peer *Peer) OnChannelReq(d *webrtc.DataChannel) {
 		authenticated, label)
 
 	// let the command channel through as without it we can't authenticate
+	// TODO: check if we need to track pending pane requests
 	if label != "%" && !authenticated {
 		Logger.Infof(
 			"Bufferinga a channel request from an unauthenticated peer: %q",
@@ -136,25 +137,9 @@ func (peer *Peer) OnChannelReq(d *webrtc.DataChannel) {
 	d.OnOpen(func() {
 		pane := peer.OnPaneReq(d)
 		if pane != nil {
+			d.OnMessage(pane.OnMessage)
+			d.OnClose(pane.OnClose)
 			go pane.ReadLoop()
-			d.OnMessage(func(msg webrtc.DataChannelMessage) {
-				p := msg.Data
-				Logger.Infof("> %q", p)
-				l, err := pane.Tty.Write(p)
-				if err != nil {
-					Logger.Warnf("pty of %d write failed: %v",
-						pane.Id, err)
-				}
-				if l != len(p) {
-					Logger.Warnf("pty of %d wrote %d instead of %d bytes",
-						pane.Id, l, len(p))
-				}
-			})
-			d.OnClose(func() {
-				// pane.Kill()
-				// TODO: do I need to free the pane memory?
-				Logger.Infof("Data channel closed : %d", pane.Id)
-			})
 		}
 	})
 }

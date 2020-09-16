@@ -75,3 +75,20 @@ func (pane *Pane) Kill() {
 		}
 	}
 }
+func (pane *Pane) OnClose() {
+	Logger.Infof("pane #%d: Data channel closed", pane.Id)
+}
+
+func (pane *Pane) OnMessage(msg webrtc.DataChannelMessage) {
+	p := msg.Data
+	Logger.Infof("> %q", p)
+	l, err := pane.Tty.Write(p)
+	if err != nil {
+		Logger.Warnf("pty of %d write failed: %v",
+			pane.Id, err)
+	}
+	if l != len(p) {
+		Logger.Warnf("pty of %d wrote %d instead of %d bytes",
+			pane.Id, l, len(p))
+	}
+}
