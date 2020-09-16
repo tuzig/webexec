@@ -10,12 +10,15 @@ import (
 	"path/filepath"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/urfave/cli/v2"
 	"go.uber.org/zap"
 )
 
 var Logger *zap.SugaredLogger
+
+const A_BIT = 1 * time.Millisecond
 
 func attachKillHandler() {
 	c := make(chan os.Signal, 1)

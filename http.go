@@ -40,7 +40,7 @@ func handleConnect(w http.ResponseWriter, r *http.Request) {
 	if e != io.EOF {
 		Logger.Errorf("Failed to read http request body: %q", e)
 	}
-	Logger.Infof("Got a valid POST request with offer: %q", string(offer[:l]))
+	// Logger.Infof("Got a valid POST request with offer of len: %d", l)
 	peer := NewPeer(string(offer[:l]))
 	// reply with server's key
 	w.Write(peer.Offer)
