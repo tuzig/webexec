@@ -148,9 +148,12 @@ func (peer *Peer) OnChannelReq(d *webrtc.DataChannel) {
 func (peer *Peer) NewPane(command []string, d *webrtc.DataChannel,
 	ws *pty.Winsize) (*Pane, error) {
 
-	var err error
-	var tty *os.File
-	var pane *Pane
+	var (
+		err  error
+		tty  *os.File
+		pane *Pane
+	)
+
 	pId := len(Panes) + 1
 	cmd := exec.Command(command[0], command[1:]...)
 	if ws != nil {
@@ -187,10 +190,13 @@ func (peer *Peer) NewPane(command []string, d *webrtc.DataChannel,
 //		to start bash: "24x80,bash"
 //		to reconnect to pane id 123: "24x80,>123"
 func (peer *Peer) OnPaneReq(d *webrtc.DataChannel) *Pane {
-	var err error
-	var cmdIndex int
-	var pane *Pane
-	var ws *pty.Winsize
+	var (
+		err      error
+		cmdIndex int
+		pane     *Pane
+		ws       *pty.Winsize
+	)
+
 	// If the message starts with a digit we assume it starts with a size
 	l := d.Label()
 	fields := strings.Split(l, ",")

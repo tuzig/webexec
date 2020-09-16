@@ -33,6 +33,8 @@ func (pane *Pane) SendId(dc *webrtc.DataChannel) {
 
 // pane.ReadLoop reads the tty and send data it finds to the open data channels
 func (pane *Pane) ReadLoop() {
+	// MT: io.Copy & https://golang.org/pkg/io/#MultiWriter
+	// MT: You can use SIGCHILD to know if a child process died
 	b := make([]byte, 4096)
 	for pane.C.ProcessState.String() != "killed" {
 		l, err := pane.Tty.Read(b)
