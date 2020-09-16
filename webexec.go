@@ -18,11 +18,11 @@ import (
 var Logger *zap.SugaredLogger
 
 func attachKillHandler() {
-	c := make(chan os.Signal)
+	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
 	go func() {
 		<-c
-		fmt.Println("\r- Ctrl+C pressed in Terminal")
+		Logger.Info("\r- Ctrl+C pressed in Terminal")
 		os.Exit(0)
 	}()
 }
@@ -104,16 +104,13 @@ func initUser(c *cli.Context) error {
 	return nil
 }
 
-/*
- * listen - listens for incoming connections
- */
+// listen - listens for incoming connections
 func listen(c *cli.Context) error {
 	port := c.String("port")
-	// daemon := c.Bool("d")
+	// TODO: daemon := c.Bool("d") and all it entails
 	addr := strings.Join([]string{"0.0.0.0:", port}, "")
 	log.Printf("Starting http server on %q", addr)
 	go HTTPGo(addr)
-	// TODO: make it return nil
 	select {}
 }
 func pasteCB(c *cli.Context) error {

@@ -38,7 +38,7 @@ type Peer struct {
 	LastContact       *time.Time
 	LastMsgId         int
 	pc                *webrtc.PeerConnection
-	Answer            []byte
+	Offer             []byte
 	cdc               *webrtc.DataChannel
 	PendingChannelReq chan *webrtc.DataChannel
 }
@@ -67,7 +67,7 @@ func NewPeer(remote string) *Peer {
 		LastContact:       nil,
 		LastMsgId:         0,
 		pc:                pc,
-		Answer:            nil,
+		Offer:             nil,
 		cdc:               nil,
 		PendingChannelReq: make(chan *webrtc.DataChannel, 5),
 	}
@@ -100,7 +100,7 @@ func (peer *Peer) Listen(remote string) {
 	if err != nil {
 		panic(err)
 	}
-	answer, err := peer.pc.CreateAnswer(nil)
+	answer, err := peer.pc.CreateOffer(nil)
 	if err != nil {
 		panic(err)
 	}
@@ -109,7 +109,7 @@ func (peer *Peer) Listen(remote string) {
 	if err != nil {
 		panic(err)
 	}
-	peer.Answer = []byte(signal.Encode(answer))
+	peer.Offer = []byte(signal.Encode(answer))
 }
 
 // start a system command over a pty. If the command contains a dimension
