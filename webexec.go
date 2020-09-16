@@ -58,6 +58,18 @@ func InitLogger() {
 	Logger.Info("logger construction succeeded")
 }
 
+// Shutdown is called when it's time to go.Sweet dreams.
+func Shutdown() {
+	for _, peer := range Peers {
+		if peer.pc != nil {
+			peer.pc.Close()
+		}
+	}
+	for _, p := range Panes {
+		p.C.Process.Kill()
+	}
+}
+
 /*
  * initUser - initialize the user's .webexec directory
  */

@@ -146,7 +146,7 @@ func TestSimpleEcho(t *testing.T) {
 	InitLogger()
 	done := make(chan bool)
 	gotAuthAck := make(chan bool)
-	peer := Listen("")
+	peer := NewPeer("")
 	client, err := webrtc.NewPeerConnection(webrtc.Configuration{})
 	if err != nil {
 		t.Fatalf("Failed to start a new server %v", err)
@@ -213,7 +213,7 @@ func TestSimpleEcho(t *testing.T) {
 func TestUnauthincatedBlocked(t *testing.T) {
 	InitLogger()
 	done := make(chan bool)
-	peer := Listen("")
+	peer := NewPeer("")
 
 	client, err := webrtc.NewPeerConnection(webrtc.Configuration{})
 	if err != nil {
@@ -251,7 +251,7 @@ func TestAuthCommand(t *testing.T) {
 	InitLogger()
 	gotAuthAck := make(chan bool)
 	gotTokenAck := make(chan bool)
-	peer := Listen("")
+	peer := NewPeer("")
 
 	client, err := webrtc.NewPeerConnection(webrtc.Configuration{})
 	if err != nil {
@@ -289,7 +289,7 @@ func TestAuthCommand(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to start a new WebRTC server %v", err)
 	}
-	peer = Listen("")
+	peer = NewPeer("")
 
 	client, err = webrtc.NewPeerConnection(webrtc.Configuration{})
 	if err != nil {
@@ -327,7 +327,7 @@ func TestResizeCommand(t *testing.T) {
 	InitLogger()
 	gotAuthAck := make(chan bool)
 	done := make(chan bool)
-	peer := Listen("")
+	peer := NewPeer("")
 
 	client, err := webrtc.NewPeerConnection(webrtc.Configuration{})
 	if err != nil {
@@ -402,7 +402,7 @@ func TestChannelReconnect(t *testing.T) {
 	done := make(chan bool)
 	gotAuthAck := make(chan bool)
 	gotId := make(chan bool)
-	peer := Listen("")
+	peer := NewPeer("")
 	client, err := webrtc.NewPeerConnection(webrtc.Configuration{})
 	if err != nil {
 		t.Fatalf("Failed to start a new server %v", err)
@@ -437,7 +437,7 @@ func TestChannelReconnect(t *testing.T) {
 			log.Printf("Channel %q opened, state: %v", dc.Label(), peer.State)
 		})
 		dc.OnMessage(func(msg webrtc.DataChannelMessage) {
-			log.Printf("DC Got a message: %s", msg.Data)
+			log.Printf("DC2 Got msg #%d: %s", count, msg.Data)
 			if count == 0 {
 				cId = string(msg.Data)
 				log.Printf("Client got a channel id: %q", cId)
@@ -454,24 +454,28 @@ func TestChannelReconnect(t *testing.T) {
 		t.Errorf("Failed to create the second data channel: %q", err)
 	}
 	dc2.OnOpen(func() {
-		log.Printf("Channel %q opened, state: %v", dc2.Label(), peer.State)
+		log.Printf("Second channel is open.  state: %q", peer.State)
 	})
-	count = 0
+	count2 := 0
 	dc2.OnMessage(func(msg webrtc.DataChannelMessage) {
-		log.Printf("DC2 Got a message: %s", msg.Data)
-		if count == 0 {
-			if string(msg.Data) != cId {
-				t.Errorf("Got a bad channelId on reconnect, expected %q got %q",
-					cId, msg.Data)
-			}
-		} else if count == 1 {
+		log.Printf("DC2 Got msg #%d: %s", count2, msg.Data)
+		// first message is the pane id
+		if count2 == 0 && string(msg.Data) != cId {
+			t.Errorf("Got a bad channelId on reconnect, expected %q got %q",
+				cId, msg.Data)
+		}
+		// second message should be the echo output
+		if count2 == 1 {
 			if !strings.Contains(string(msg.Data), "123456") {
 				t.Errorf("Got an unexpected reply: %s", msg.Data)
 			}
+			log.Print("I'm done")
 			done <- true
 		}
-		count++
+		count2++
 	})
-	// dc.Close()
+	log.Print("Waiting on done")
 	<-done
+	// dc.Close()
+	// dc2.Close()
 }

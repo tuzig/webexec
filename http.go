@@ -24,7 +24,7 @@ func ConnectHandler() (http.Handler, error) {
 			Logger.Errorf("Failed to read http request body: %q", e)
 		}
 		Logger.Infof("Got a valid POST request with offer: %q", string(offer[:l]))
-		peer := Listen(string(offer[:l]))
+		peer := NewPeer(string(offer[:l]))
 		// reply with server's key
 		w.Write(peer.Answer)
 	})

@@ -1,11 +1,10 @@
-// Package server holds the code that runs a webrtc based service
-// connecting commands with datachannels thru a pseudo tty.
+// This file holds the struct and code to communicate with remote peers
+// over webrtc data channels.
 package main
 
 import (
 	"encoding/json"
 	"fmt"
-	"io"
 	"log"
 	"os"
 	"os/exec"
@@ -23,15 +22,11 @@ const connectionTimeout = 600 * time.Second
 const keepAliveInterval = 15 * time.Minute
 const peerBufferSize = 5000
 
-// Command type hold an executed command, it's pty and buffer
-type Pane struct {
-	Id int
-	// C holds the exectuted command
-	C      *exec.Cmd
-	Tty    *os.File
-	Buffer [][]byte
-	dcs    []*webrtc.DataChannel
-}
+// Peers holds all the peers (connected and disconnected)
+var Peers []Peer
+
+// WebRTCAPI is the gateway to webrtc calls
+var WebRTCAPI *webrtc.API
 
 // type Peer is used to remember a client aka peer connection
 type Peer struct {
@@ -48,8 +43,74 @@ type Peer struct {
 	PendingChannelReq chan *webrtc.DataChannel
 }
 
-var Peers []Peer
-var Panes []Pane
+// NewPeer functions starts listening to incoming peer connection from a remote
+func NewPeer(remote string) *Peer {
+	if WebRTCAPI == nil {
+		s := webrtc.SettingEngine{}
+		s.SetConnectionTimeout(connectionTimeout, keepAliveInterval)
+		WebRTCAPI = webrtc.NewAPI(webrtc.WithSettingEngine(s))
+	}
+	config := webrtc.Configuration{
+		ICEServers: []webrtc.ICEServer{
+			{
+				URLs: []string{"stun:stun.l.google.com:19302"},
+			},
+		},
+	}
+	pc, err := WebRTCAPI.NewPeerConnection(config)
+	// TODO: protected the next two commands from reentrancy
+	peer := Peer{
+		Id:                len(Peers),
+		Token:             "",
+		Authenticated:     false,
+		State:             "connected",
+		LastContact:       nil,
+		LastMsgId:         0,
+		pc:                pc,
+		Answer:            nil,
+		cdc:               nil,
+		PendingChannelReq: make(chan *webrtc.DataChannel, 5),
+	}
+	Peers = append(Peers, peer)
+	if err != nil {
+		err = fmt.Errorf("Failed to open peer connection: %q", err)
+		return nil
+	}
+	// Status changes happend when the peer has connected/disconnected
+	pc.OnICEConnectionStateChange(func(connectionState webrtc.ICEConnectionState) {
+		s := connectionState.String()
+		Logger.Infof("ICE Connection State change: %s", s)
+		if s == "connected" {
+			// TODO add initialization code
+		}
+	})
+	// testing uses special signaling, so there's no remote information
+	if len(remote) > 0 {
+		peer.Listen(remote)
+	}
+	pc.OnDataChannel(peer.OnChannelReq)
+	return &peer
+}
+
+// peer.Listen get's a client offer, starts listens to it and return its offer
+func (peer *Peer) Listen(remote string) {
+	offer := webrtc.SessionDescription{}
+	signal.Decode(remote, &offer)
+	err := peer.pc.SetRemoteDescription(offer)
+	if err != nil {
+		panic(err)
+	}
+	answer, err := peer.pc.CreateAnswer(nil)
+	if err != nil {
+		panic(err)
+	}
+	// Sets the LocalDescription, and starts listning for UDP packets
+	err = peer.pc.SetLocalDescription(answer)
+	if err != nil {
+		panic(err)
+	}
+	peer.Answer = []byte(signal.Encode(answer))
+}
 
 // start a system command over a pty. If the command contains a dimension
 // in the format of 24x80 the login shell is lunched
@@ -92,7 +153,7 @@ func (peer *Peer) OnChannelReq(d *webrtc.DataChannel) {
 			d.OnClose(func() {
 				// pane.Kill()
 				// TODO: do I need to free the pane memory?
-				Logger.Infof("Data channel closed : %q", label)
+				Logger.Infof("Data channel closed : %d", pane.Id)
 			})
 		}
 	})
@@ -156,7 +217,6 @@ func (peer *Peer) OnPaneReq(d *webrtc.DataChannel) *Pane {
 		d.OnMessage(peer.OnCTRLMsg)
 		return nil
 	}
-	Logger.Infof("Got a new data channel: %q\n", l)
 	// if the label starts witha digit, it needs a pty
 	if unicode.IsDigit(rune(l[0])) {
 		cmdIndex = 1
@@ -166,7 +226,7 @@ func (peer *Peer) OnPaneReq(d *webrtc.DataChannel) *Pane {
 			return nil
 		}
 		// TODO: Do I need to free this?
-		ws, err = parseWinsize(fields[0])
+		ws, err = ParseWinsize(fields[0])
 		if err != nil {
 			Logger.Errorf("Failed to parse winsize: %v", err)
 		}
@@ -178,12 +238,14 @@ func (peer *Peer) OnPaneReq(d *webrtc.DataChannel) *Pane {
 			Logger.Errorf("Got an error converting incoming reconnect channel : %q", fields[cmdIndex])
 			return nil
 		}
+		Logger.Infof("New channel is a reconnect request to %d", id)
 		if id > len(Panes) {
 			Logger.Errorf("Got a bad channelId: %d", id)
 			return nil
 		}
 		pane = &Panes[id-1]
 		pane.dcs = append(pane.dcs, d)
+		pane.SendId(d)
 		return pane
 	}
 	if err != nil {
@@ -193,140 +255,11 @@ func (peer *Peer) OnPaneReq(d *webrtc.DataChannel) *Pane {
 	pane, err = peer.NewPane(fields[cmdIndex:], d, ws)
 	if pane != nil {
 		// Send the pane id as the first message
-		s := strconv.Itoa(pane.Id)
-		bs := []byte(s)
-		// Logger.Infof("Added a command: id %d tty - %q id - %q", pId, tty.Name(), bs)
-		// TODO: send the channel in a control message
-		d.Send(bs)
+		pane.SendId(d)
 	} else {
 		Logger.Error("Failed to create new pane: %q", err)
 	}
 	return pane
-}
-
-func (pane *Pane) ReadLoop() {
-	b := make([]byte, 4096)
-	for pane.C.ProcessState.String() != "killed" {
-		l, err := pane.Tty.Read(b)
-		Logger.Infof("> %d: %s", l, b[:l])
-		if l == 0 {
-			break
-		}
-		for i := 0; i < len(pane.dcs); i++ {
-			dc := pane.dcs[i]
-			if dc.ReadyState() == webrtc.DataChannelStateOpen {
-				Logger.Infof("> %d: %s", l, b[:l])
-				err = dc.Send(b[:l])
-				if err != nil {
-					Logger.Errorf("got an error when sending message: %v", err)
-				}
-			}
-		}
-		if err == io.EOF {
-			break
-		}
-	}
-	pane.Kill()
-}
-func (pane *Pane) Kill() {
-	Logger.Infof("killing pane %d", pane.Id)
-	if pane.C.ProcessState.String() != "killed" {
-		err := pane.C.Process.Kill()
-		if err != nil {
-			log.Printf("Failed to kill process: %v %v",
-				err, pane.C.ProcessState.String())
-		}
-	}
-	pane.Tty.Close()
-	for i := 0; i < len(pane.dcs); i++ {
-		dc := pane.dcs[i]
-		if dc.ReadyState() == webrtc.DataChannelStateOpen {
-			fmt.Printf("Closing data channel: %q", dc.Label())
-			dc.Close()
-		}
-	}
-}
-
-// Listen opens a peer connection and starts listening for the offer
-func Listen(remote string) *Peer {
-	// TODO: protected the next two line from re entrancy
-	peer := Peer{
-		Id:                len(Peers),
-		Token:             "",
-		Authenticated:     false,
-		State:             "connected",
-		Remote:            remote,
-		LastContact:       nil,
-		LastMsgId:         0,
-		pc:                nil,
-		Answer:            nil,
-		cdc:               nil,
-		PendingChannelReq: make(chan *webrtc.DataChannel, 5),
-	}
-	Peers = append(Peers, peer)
-
-	// Create a new webrtc API with a custom Logger
-	// This SettingEngine allows non-standard WebRTC behavior
-	s := webrtc.SettingEngine{}
-	s.SetConnectionTimeout(connectionTimeout, keepAliveInterval)
-	//TODO: call func (e *SettingEngine) SetEphemeralUDPPortRange(portMin, portMax uint16)
-	api := webrtc.NewAPI(webrtc.WithSettingEngine(s))
-
-	config := webrtc.Configuration{
-		ICEServers: []webrtc.ICEServer{
-			{
-				URLs: []string{"stun:stun.l.google.com:19302"},
-			},
-		},
-	}
-	pc, err := api.NewPeerConnection(config)
-	if err != nil {
-		err = fmt.Errorf("Failed to open peer connection: %q", err)
-		return nil
-	}
-	// Handling status changes will notify you when the peer has connected/disconnected
-	pc.OnICEConnectionStateChange(func(connectionState webrtc.ICEConnectionState) {
-		s := connectionState.String()
-		// Logger.Infof("ICE Connection State change: %s", s)
-		if s == "connected" {
-			// TODO add initialization code
-		}
-	})
-	// testing uses special signaling, so there's no remote information
-	if len(remote) > 0 {
-		offer := webrtc.SessionDescription{}
-		signal.Decode(remote, &offer)
-		err = pc.SetRemoteDescription(offer)
-		if err != nil {
-			panic(err)
-		}
-		answer, err := pc.CreateAnswer(nil)
-		if err != nil {
-			panic(err)
-		}
-		// Sets the LocalDescription, and starts listning for UDP packets
-		err = pc.SetLocalDescription(answer)
-		if err != nil {
-			panic(err)
-		}
-		peer.Answer = []byte(signal.Encode(answer))
-	}
-	pc.OnDataChannel(peer.OnChannelReq)
-	peer.pc = pc
-	return &peer
-}
-
-// Shutdown is called when it's time to go.
-// Sweet dreams.
-func Shutdown() {
-	for _, peer := range Peers {
-		if peer.pc != nil {
-			peer.pc.Close()
-		}
-	}
-	for _, p := range Panes {
-		p.C.Process.Kill()
-	}
 }
 
 // Authenticate checks authorization args against system's user
@@ -392,66 +325,4 @@ func (peer *Peer) OnCTRLMsg(msg webrtc.DataChannelMessage) {
 		}
 	}
 	// TODO: add more commands here: mouse, clipboard, etc.
-}
-
-// ErrorArgs is a type that holds the args for an error message
-type ErrorArgs struct {
-	// Desc hold the textual desciption of the error
-	Desc string `json:"description"`
-	// Ref holds the message id the error refers to or 0 for system errors
-	Ref int `json:"ref"`
-}
-
-// AuthArgs is a type that holds client's authentication arguments.
-type AuthArgs struct {
-	Token string `json:"token"`
-}
-
-// AckArgs is a type to hold the args for an Ack message
-type AckArgs struct {
-	// Ref holds the message id the error refers to or 0 for system errors
-	Ref  int    `json:"ref"`
-	Body string `json:"body"`
-}
-
-// ResizePTYArgs is a type that holds the argumnet to the resize pty command
-type ResizePTYArgs struct {
-	// The ChannelID is a sequence number that starts with 1
-	ChannelId int    `json:"channel_id"`
-	Sx        uint16 `json:"sx"`
-	Sy        uint16 `json:"sy"`
-}
-
-// CTRLMessage type holds control messages passed over the control channel
-type CTRLMessage struct {
-	Time      int64          `json:"time"`
-	MessageId int            `json:"message_id"`
-	Ack       *AckArgs       `json:"ack"`
-	ResizePTY *ResizePTYArgs `json:"resize_pty"`
-	Auth      *AuthArgs      `json:"auth"`
-	Error     *ErrorArgs     `json:"error"`
-}
-
-// parseWinsize gets a string in the format of "24x80" and returns a Winsize
-func parseWinsize(s string) (*pty.Winsize, error) {
-	var sy int64
-	var sx int64
-	var err error
-	var ws *pty.Winsize
-	Logger.Infof("Parsing window size: %q", s)
-	dim := strings.Split(s, "x")
-	sx, err = strconv.ParseInt(dim[1], 10, 16)
-	if err != nil {
-		err = fmt.Errorf("Failed to parse number of rows: %v", err)
-		goto theEnd
-	}
-	sy, err = strconv.ParseInt(dim[0], 0, 16)
-	if err != nil {
-		err = fmt.Errorf("Failed to parse number of cols: %v", err)
-		goto theEnd
-	}
-	ws = &pty.Winsize{uint16(sy), uint16(sx), 0, 0}
-
-theEnd:
-	return ws, err
 }
