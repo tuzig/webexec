@@ -15,7 +15,6 @@ import (
 
 	"github.com/creack/pty"
 	"github.com/pion/webrtc/v2"
-	"github.com/tuzig/webexec/signal"
 )
 
 const connectionTimeout = 600 * time.Second
@@ -37,14 +36,14 @@ type Peer struct {
 	Token             string
 	LastContact       *time.Time
 	LastMsgId         int
-	pc                *webrtc.PeerConnection
+	PC                *webrtc.PeerConnection
 	Offer             []byte
 	cdc               *webrtc.DataChannel
 	PendingChannelReq chan *webrtc.DataChannel
 }
 
 // NewPeer functions starts listening to incoming peer connection from a remote
-func NewPeer(remote string) *Peer {
+func NewPeer(remote string) (*Peer, error) {
 	if WebRTCAPI == nil {
 		s := webrtc.SettingEngine{}
 		s.SetConnectionTimeout(connectionTimeout, keepAliveInterval)
@@ -58,6 +57,9 @@ func NewPeer(remote string) *Peer {
 		},
 	}
 	pc, err := WebRTCAPI.NewPeerConnection(config)
+	if err != nil {
+		return nil, fmt.Errorf("NewPeerConnection failed")
+	}
 	// TODO: protected the next two commands from reentrancy
 	peer := Peer{
 		Id:                len(Peers),
@@ -66,15 +68,14 @@ func NewPeer(remote string) *Peer {
 		State:             "connected",
 		LastContact:       nil,
 		LastMsgId:         0,
-		pc:                pc,
+		PC:                pc,
 		Offer:             nil,
 		cdc:               nil,
 		PendingChannelReq: make(chan *webrtc.DataChannel, 5),
 	}
 	Peers = append(Peers, peer)
 	if err != nil {
-		err = fmt.Errorf("Failed to open peer connection: %q", err)
-		return nil
+		return nil, fmt.Errorf("Failed to open peer connection: %q", err)
 	}
 	// Status changes happend when the peer has connected/disconnected
 	pc.OnICEConnectionStateChange(func(connectionState webrtc.ICEConnectionState) {
@@ -86,30 +87,39 @@ func NewPeer(remote string) *Peer {
 	})
 	// testing uses special signaling, so there's no remote information
 	if len(remote) > 0 {
-		peer.Listen(remote)
+		err = peer.Listen(remote)
+		if err != nil {
+			return nil, fmt.Errorf("#%d: Failed to listen", peer.Id)
+		}
 	}
 	pc.OnDataChannel(peer.OnChannelReq)
-	return &peer
+	return &peer, nil
 }
 
 // peer.Listen get's a client offer, starts listens to it and return its offer
-func (peer *Peer) Listen(remote string) {
+func (peer *Peer) Listen(remote string) error {
 	offer := webrtc.SessionDescription{}
-	signal.Decode(remote, &offer)
-	err := peer.pc.SetRemoteDescription(offer)
+	DecodeOffer(remote, &offer)
+	err := peer.PC.SetRemoteDescription(offer)
 	if err != nil {
-		panic(err)
+		return err
 	}
-	answer, err := peer.pc.CreateOffer(nil)
+	answer, err := peer.PC.CreateOffer(nil)
 	if err != nil {
-		panic(err)
+		return err
 	}
 	// Sets the LocalDescription, and starts listning for UDP packets
-	err = peer.pc.SetLocalDescription(answer)
+	err = peer.PC.SetLocalDescription(answer)
 	if err != nil {
-		panic(err)
+		return err
 	}
-	peer.Offer = []byte(signal.Encode(answer))
+	b := make([]byte, 4096)
+	err = EncodeOffer(answer, b)
+	if err != nil {
+		return err
+	}
+	peer.Offer = b
+	return nil
 }
 
 // start a system command over a pty. If the command contains a dimension

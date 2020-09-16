@@ -41,7 +41,10 @@ func handleConnect(w http.ResponseWriter, r *http.Request) {
 		Logger.Errorf("Failed to read http request body: %q", e)
 	}
 	// Logger.Infof("Got a valid POST request with offer of len: %d", l)
-	peer := NewPeer(string(offer[:l]))
+	peer, err := NewPeer(string(offer[:l]))
+	if err != nil {
+		Logger.Errorf("NewPeer failed with: %s", err)
+	}
 	// reply with server's key
 	w.Write(peer.Offer)
 }

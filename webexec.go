@@ -64,8 +64,8 @@ func InitLogger() {
 // Shutdown is called when it's time to go.Sweet dreams.
 func Shutdown() {
 	for _, peer := range Peers {
-		if peer.pc != nil {
-			peer.pc.Close()
+		if peer.PC != nil {
+			peer.PC.Close()
 		}
 	}
 	for _, p := range Panes {

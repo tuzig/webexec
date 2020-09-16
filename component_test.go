@@ -115,11 +115,10 @@ func TestSimpleEcho(t *testing.T) {
 	InitLogger()
 	done := make(chan bool)
 	gotAuthAck := make(chan bool)
-	peer := NewPeer("")
+	peer, err := NewPeer("")
+	require.Nil(t, err, "NewPeer failed with: %s", err)
 	client, err := webrtc.NewPeerConnection(webrtc.Configuration{})
-	if err != nil {
-		t.Fatalf("Failed to start a new server %v", err)
-	}
+	require.Nil(t, err, "Failed to start a new server", err)
 	cdc, err := client.CreateDataChannel("%", nil)
 	require.Nil(t, err, "Failed to create the control data channel: %v", err)
 	// count the incoming messages
@@ -160,7 +159,7 @@ func TestSimpleEcho(t *testing.T) {
 			done <- true
 		})
 	})
-	signalPair(client, peer.pc)
+	signalPair(client, peer.PC)
 	// TODO: add timeout
 	<-done
 	require.Equal(t, count, 2, "Expected to recieve 2 messages and got %d", count)
@@ -169,11 +168,11 @@ func TestSimpleEcho(t *testing.T) {
 func TestUnauthincatedBlocked(t *testing.T) {
 	InitLogger()
 	done := make(chan bool)
-	peer := NewPeer("")
-
+	peer, err := NewPeer("")
+	require.Nil(t, err, "NewPeer failed with: %s", err)
 	client, err := webrtc.NewPeerConnection(webrtc.Configuration{})
 	require.Nil(t, err, "Failed to start a new peer connection: %q", err)
-	signalPair(client, peer.pc)
+	signalPair(client, peer.PC)
 	cdc, err := client.CreateDataChannel("%", nil)
 	require.Nil(t, err, "failed to create the control data channel: %q", err)
 	cdc.OnOpen(func() {
@@ -200,8 +199,8 @@ func TestAuthCommand(t *testing.T) {
 	InitLogger()
 	gotAuthAck := make(chan bool)
 	gotTokenAck := make(chan bool)
-	peer := NewPeer("")
-
+	peer, err := NewPeer("")
+	require.Nil(t, err, "NewPeer failed with: %s", err)
 	client, err := webrtc.NewPeerConnection(webrtc.Configuration{})
 	require.Nil(t, err, "Failed to start a new peer connection %q", err)
 	cdc, err := client.CreateDataChannel("%", nil)
@@ -221,16 +220,17 @@ func TestAuthCommand(t *testing.T) {
 			}
 		})
 	})
-	signalPair(client, peer.pc)
+	signalPair(client, peer.PC)
 	<-gotAuthAck
 	log.Printf("Got Auth Ack")
 	// got auth ack now close the channel and start over, this time using
 	// the token
+	// TODO: remove the next block of code as tokens are different
 	client.Close()
 	Shutdown()
 	require.Nil(t, err, "Failed to start a new WebRTC server %v", err)
-	peer = NewPeer("")
-
+	peer2, err := NewPeer("")
+	require.Nil(t, err, "NewPeer failed with: %s", err)
 	client, err = webrtc.NewPeerConnection(webrtc.Configuration{})
 	require.Nil(t, err, "Failed to start a new peer connection %v", err)
 	cdc, err = client.CreateDataChannel("%", nil)
@@ -249,7 +249,7 @@ func TestAuthCommand(t *testing.T) {
 			gotTokenAck <- true
 		})
 	})
-	signalPair(client, peer.pc)
+	signalPair(client, peer2.PC)
 	<-gotTokenAck
 }
 
@@ -257,8 +257,8 @@ func TestResizeCommand(t *testing.T) {
 	InitLogger()
 	gotAuthAck := make(chan bool)
 	done := make(chan bool)
-	peer := NewPeer("")
-
+	peer, err := NewPeer("")
+	require.Nil(t, err, "NewPeer failed with: %s", err)
 	client, err := webrtc.NewPeerConnection(webrtc.Configuration{})
 	require.Nil(t, err, "Failed to start a new peer connection %v", err)
 	cdc, err := client.CreateDataChannel("%", nil)
@@ -308,7 +308,7 @@ func TestResizeCommand(t *testing.T) {
 			})
 		})
 	})
-	signalPair(client, peer.pc)
+	signalPair(client, peer.PC)
 	<-done
 }
 
@@ -319,9 +319,13 @@ func TestChannelReconnect(t *testing.T) {
 	done := make(chan bool)
 	gotAuthAck := make(chan bool)
 	gotId := make(chan bool)
-	peer := NewPeer("")
+	// start the server
+	peer, err := NewPeer("")
+	require.Nil(t, err, "NewPeer failed with: %s", err)
+	// and the client
 	client, err := webrtc.NewPeerConnection(webrtc.Configuration{})
 	require.Nil(t, err, "Failed to start a new server %v", err)
+	// create the command & control data channel
 	cdc, err := client.CreateDataChannel("%", nil)
 	require.Nil(t, err, "Failed to create the control data channel: %v", err)
 	// count the incoming messages
@@ -355,7 +359,7 @@ func TestChannelReconnect(t *testing.T) {
 			count++
 		})
 	})
-	signalPair(client, peer.pc)
+	signalPair(client, peer.PC)
 	<-gotId
 	// Now that we have a channel open, let's close the channel and reconnect
 	dc2, err := client.CreateDataChannel("24x80,>"+cId, nil)
