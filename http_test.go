@@ -2,16 +2,17 @@ package main
 
 import (
 	"bytes"
-	"github.com/stretchr/testify/require"
 	"io/ioutil"
 	"net/http"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/require"
 )
 
 // MT: I use https://godoc.org/github.com/stretchr/testify/require which
 // reduces a lot of boilerplate code in testing
-func TestHTTPAPI(t *testing.T) {
+func TestHTTPEndpoint(t *testing.T) {
 	InitLogger()
 	// Start the https server
 	go func() {
