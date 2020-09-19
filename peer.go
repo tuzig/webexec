@@ -44,6 +44,7 @@ type Peer struct {
 
 // NewPeer functions starts listening to incoming peer connection from a remote
 func NewPeer(remote string) (*Peer, error) {
+	Logger.Infof("New Peer from: %s", remote)
 	if WebRTCAPI == nil {
 		s := webrtc.SettingEngine{}
 		s.SetConnectionTimeout(connectionTimeout, keepAliveInterval)
@@ -83,6 +84,9 @@ func NewPeer(remote string) (*Peer, error) {
 		Logger.Infof("ICE Connection State change: %s", s)
 		if s == "connected" {
 			// TODO add initialization code
+		}
+		if s == "failed" {
+			// TODO remove the peer from Peers
 		}
 	})
 	// testing uses special signaling, so there's no remote information
