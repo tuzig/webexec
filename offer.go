@@ -28,7 +28,7 @@ func DecodeOffer(in string, obj interface{}) error {
 	}
 	err = json.Unmarshal(b, obj)
 	if err != nil {
-		panic(err)
+		return err
 	}
 	return nil
 }
