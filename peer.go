@@ -37,7 +37,7 @@ type Peer struct {
 	LastContact       *time.Time
 	LastMsgId         int
 	PC                *webrtc.PeerConnection
-	Offer             []byte
+	Offer             string
 	cdc               *webrtc.DataChannel
 	PendingChannelReq chan *webrtc.DataChannel
 }
@@ -70,7 +70,7 @@ func NewPeer(remote string) (*Peer, error) {
 		LastContact:       nil,
 		LastMsgId:         0,
 		PC:                pc,
-		Offer:             nil,
+		Offer:             "",
 		cdc:               nil,
 		PendingChannelReq: make(chan *webrtc.DataChannel, 5),
 	}
@@ -117,12 +117,7 @@ func (peer *Peer) Listen(remote string) error {
 	if err != nil {
 		return err
 	}
-	b := make([]byte, 4096)
-	err = EncodeOffer(answer, b)
-	if err != nil {
-		return err
-	}
-	peer.Offer = b
+	peer.Offer = EncodeOffer(answer)
 	return nil
 }
 

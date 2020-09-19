@@ -3,24 +3,21 @@ package main
 import (
 	"encoding/base64"
 	"encoding/json"
-	"fmt"
 )
 
 // Offer encoding
 // Encode encodes the input in base64
-// It can optionally zip the input before encoding
-func EncodeOffer(obj interface{}, b []byte) error {
-	desc, err := json.Marshal(obj)
+func EncodeOffer(obj interface{}) string {
+	b, err := json.Marshal(obj)
 	if err != nil {
-		return fmt.Errorf("Failed to json marshal offer: %v", obj)
+		Logger.Errorf("Failed to encode offer: %q", err)
+		return ""
 	}
 
-	base64.StdEncoding.Encode(desc, b)
-	return nil
+	return base64.StdEncoding.EncodeToString(b)
 }
 
 // Decode decodes the input from base64
-// It can optionally unzip the input after decoding
 func DecodeOffer(in string, obj interface{}) error {
 	b, err := base64.StdEncoding.DecodeString(in)
 	if err != nil {

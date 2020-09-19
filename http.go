@@ -46,5 +46,6 @@ func handleConnect(w http.ResponseWriter, r *http.Request) {
 		Logger.Errorf("NewPeer failed with: %s", err)
 	}
 	// reply with server's key
-	w.Write(peer.Offer)
+	payload := []byte(peer.Offer)
+	w.Write(payload)
 }
