@@ -37,7 +37,7 @@ type Peer struct {
 	LastContact       *time.Time
 	LastMsgId         int
 	PC                *webrtc.PeerConnection
-	Offer             string
+	Answer            string
 	cdc               *webrtc.DataChannel
 	PendingChannelReq chan *webrtc.DataChannel
 }
@@ -70,7 +70,7 @@ func NewPeer(remote string) (*Peer, error) {
 		LastContact:       nil,
 		LastMsgId:         0,
 		PC:                pc,
-		Offer:             "",
+		Answer:            "",
 		cdc:               nil,
 		PendingChannelReq: make(chan *webrtc.DataChannel, 5),
 	}
@@ -91,10 +91,12 @@ func NewPeer(remote string) (*Peer, error) {
 	})
 	// testing uses special signaling, so there's no remote information
 	if len(remote) > 0 {
-		err = peer.Listen(remote)
+		err := peer.Listen(remote)
 		if err != nil {
 			return nil, fmt.Errorf("#%d: Failed to listen", peer.Id)
 		}
+	} else {
+		Logger.Error("Got a connect request with empty an offer")
 	}
 	pc.OnDataChannel(peer.OnChannelReq)
 	return &peer, nil
@@ -106,9 +108,9 @@ func (peer *Peer) Listen(remote string) error {
 	DecodeOffer(remote, &offer)
 	err := peer.PC.SetRemoteDescription(offer)
 	if err != nil {
-		return err
+		return fmt.Errorf("Failed to set remote description: %s", err)
 	}
-	answer, err := peer.PC.CreateOffer(nil)
+	answer, err := peer.PC.CreateAnswer(nil)
 	if err != nil {
 		return err
 	}
@@ -117,7 +119,7 @@ func (peer *Peer) Listen(remote string) error {
 	if err != nil {
 		return err
 	}
-	peer.Offer = EncodeOffer(answer)
+	peer.Answer = EncodeOffer(answer)
 	return nil
 }
 
