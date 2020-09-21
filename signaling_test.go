@@ -13,7 +13,7 @@ import (
 
 // MT: I use https://godoc.org/github.com/stretchr/testify/require which
 // reduces a lot of boilerplate code in testing
-func TestHTTPConnect(t *testing.T) {
+func TestConnect(t *testing.T) {
 	InitLogger()
 	done := make(chan bool)
 	offerChan := make(chan webrtc.SessionDescription, 1)
