@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -43,7 +44,10 @@ func handleConnect(w http.ResponseWriter, r *http.Request) {
 	// Logger.Infof("Got a valid POST request with offer of len: %d", l)
 	peer, err := NewPeer(string(offer[:l]))
 	if err != nil {
-		Logger.Errorf("NewPeer failed with: %s", err)
+		msg := fmt.Sprintf("NewPeer failed with: %s", err)
+		Logger.Error(msg)
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Write([]byte(msg))
 	}
 	// reply with server's key
 	payload := []byte(peer.Answer)

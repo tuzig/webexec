@@ -93,7 +93,7 @@ func NewPeer(remote string) (*Peer, error) {
 	if len(remote) > 0 {
 		err := peer.Listen(remote)
 		if err != nil {
-			return nil, fmt.Errorf("#%d: Failed to listen", peer.Id)
+			return nil, fmt.Errorf("#%d: Failed to listen: %s", peer.Id, err)
 		}
 	} else {
 		Logger.Error("Got a connect request with empty an offer")
@@ -106,6 +106,7 @@ func NewPeer(remote string) (*Peer, error) {
 func (peer *Peer) Listen(remote string) error {
 	offer := webrtc.SessionDescription{}
 	DecodeOffer(remote, &offer)
+	Logger.Infof("Listening to: %q\n%v", remote, offer)
 	err := peer.PC.SetRemoteDescription(offer)
 	if err != nil {
 		return fmt.Errorf("Failed to set remote description: %s", err)
@@ -120,6 +121,7 @@ func (peer *Peer) Listen(remote string) error {
 		return err
 	}
 	peer.Answer = EncodeOffer(answer)
+	Logger.Infof("Got an answer %q into %q", answer, peer.Answer)
 	return nil
 }
 
