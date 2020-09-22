@@ -14,8 +14,7 @@ func HTTPGo(address string) error {
 		return e
 	}
 
-	return http.ListenAndServeTLS(address, GetPath("cert.pem"),
-		GetPath("key.pem"), h)
+	return http.ListenAndServe(address, h)
 }
 
 // ConnectHandler listens for POST requests on /connect.

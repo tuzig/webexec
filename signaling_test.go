@@ -1,8 +1,6 @@
 package main
 
 import (
-	"crypto/tls"
-	"crypto/x509"
 	"io/ioutil"
 	"net/http"
 	"strings"
@@ -54,22 +52,7 @@ func TestConnect(t *testing.T) {
 		var sd webrtc.SessionDescription
 		cob := EncodeOffer(&offer)
 		offerReader := strings.NewReader(cob)
-		caCert, err := ioutil.ReadFile(GetPath("cert.pem"))
-		if err != nil {
-			t.Errorf("failed to read ~/.webexc/cert.peb: %s", err)
-		}
-		caCertPool := x509.NewCertPool()
-		caCertPool.AppendCertsFromPEM(caCert)
-
-		httpClient := &http.Client{
-			Transport: &http.Transport{
-				TLSClientConfig: &tls.Config{
-					RootCAs: caCertPool,
-				},
-			},
-		}
-
-		r, err := httpClient.Post("https://localhost:7778/connect", "application/json",
+		r, err := http.Post("http://127.0.0.1:7778/connect", "application/json",
 			offerReader)
 		require.Nil(t, err, "Failed sending a post request: %q", err)
 		defer r.Body.Close()
