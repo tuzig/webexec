@@ -105,9 +105,12 @@ func NewPeer(remote string) (*Peer, error) {
 // peer.Listen get's a client offer, starts listens to it and return its offer
 func (peer *Peer) Listen(remote string) error {
 	offer := webrtc.SessionDescription{}
-	DecodeOffer(remote, &offer)
+	err := DecodeOffer(remote, &offer)
+	if err != nil {
+		return fmt.Errorf("Failed to decode offer: %s", err)
+	}
 	Logger.Infof("Listening to: %q\n%v", remote, offer)
-	err := peer.PC.SetRemoteDescription(offer)
+	err = peer.PC.SetRemoteDescription(offer)
 	if err != nil {
 		return fmt.Errorf("Failed to set remote description: %s", err)
 	}
