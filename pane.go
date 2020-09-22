@@ -2,6 +2,7 @@
 package main
 
 import (
+	"github.com/creack/pty"
 	"github.com/pion/webrtc/v2"
 	"io"
 	"os"
@@ -19,6 +20,7 @@ type Pane struct {
 	Tty    *os.File
 	Buffer [][]byte
 	dcs    []*webrtc.DataChannel
+	Ws     *pty.Winsize
 }
 
 // pane.SendId sends the pane id as a message on the channel
@@ -92,5 +94,16 @@ func (pane *Pane) OnMessage(msg webrtc.DataChannelMessage) {
 	if l != len(p) {
 		Logger.Warnf("pty of %d wrote %d instead of %d bytes",
 			pane.Id, l, len(p))
+	}
+}
+
+// pane.Resize is used to resize the pane's tty.
+// the function does nothing if it's given a nil size or the current size
+func (pane *Pane) Resize(ws *pty.Winsize) {
+	if ws != nil && (ws.Rows != pane.Ws.Rows || ws.Cols != pane.Ws.Cols) {
+		Logger.Infof("Changing pty size for pane %d: %v", pane.Id, ws)
+		pane.Ws = ws
+		pty.Setsize(pane.Tty, ws)
+		// TODO: send resize message to all connected dcs
 	}
 }

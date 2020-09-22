@@ -53,7 +53,6 @@ func ParseWinsize(s string) (*pty.Winsize, error) {
 	var sy int64
 	var sx int64
 	var err error
-	var ws *pty.Winsize
 	Logger.Infof("Parsing window size: %q", s)
 	dim := strings.Split(s, "x")
 	sx, err = strconv.ParseInt(dim[1], 10, 16)
@@ -65,6 +64,5 @@ func ParseWinsize(s string) (*pty.Winsize, error) {
 	if err != nil {
 		return nil, fmt.Errorf("Failed to parse number of cols: %v", err)
 	}
-	ws = &pty.Winsize{uint16(sy), uint16(sx), 0, 0}
-	return ws, err
+	return &pty.Winsize{uint16(sy), uint16(sx), 0, 0}, nil
 }

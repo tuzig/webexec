@@ -188,6 +188,7 @@ func (peer *Peer) NewPane(command []string, d *webrtc.DataChannel,
 		Tty:    tty,
 		Buffer: nil,
 		dcs:    []*webrtc.DataChannel{d},
+		Ws:     ws,
 	}
 	Panes = append(Panes, *pane)
 	// NewCommand is up to here
@@ -251,6 +252,7 @@ func (peer *Peer) OnPaneReq(d *webrtc.DataChannel) *Pane {
 			return nil
 		}
 		pane = &Panes[id-1]
+		pane.Resize(ws)
 		pane.dcs = append(pane.dcs, d)
 		pane.SendId(d)
 		return pane
@@ -303,13 +305,13 @@ func (peer *Peer) OnCTRLMsg(msg webrtc.DataChannelMessage) {
 		return
 	}
 	if m.ResizePTY != nil {
-		var ws pty.Winsize
 		cId := m.ResizePTY.ChannelId
-		cmd := Panes[cId-1]
+		pane := Panes[cId-1]
+
+		var ws pty.Winsize
 		ws.Cols = m.ResizePTY.Sx
 		ws.Rows = m.ResizePTY.Sy
-		log.Printf("Changing pty size for channel %v: %v", cmd, ws)
-		pty.Setsize(cmd.Tty, &ws)
+		pane.Resize(&ws)
 		peer.SendAck(m, "")
 	} else if m.Auth != nil {
 		// TODO:
