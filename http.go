@@ -2,18 +2,16 @@ package main
 
 import (
 	"fmt"
-	"io"
-	"log"
+	"io/ioutil"
 	"net/http"
 
 	"github.com/rs/cors"
 )
 
-func HTTPGo(address string) (e error) {
+func HTTPGo(address string) error {
 	h, e := ConnectHandler()
 	if e != nil {
-		log.Fatal(e)
-		return
+		return e
 	}
 
 	return http.ListenAndServe(address, h)
@@ -36,13 +34,12 @@ func handleConnect(w http.ResponseWriter, r *http.Request) {
 		Logger.Infof("Got an http request with bad method %q\n", r.Method)
 	}
 	w.Header().Set("Access-Control-Allow-Origin", "*")
-	offer := make([]byte, 4096)
-	l, e := r.Body.Read(offer)
-	if e != io.EOF {
-		Logger.Errorf("Failed to read http request body: %q", e)
+	offer, e := ioutil.ReadAll(r.Body)
+	if e != nil {
+		Logger.Errorf("Failed to read http request body: %s", e)
 	}
 	// Logger.Infof("Got a valid POST request with offer of len: %d", l)
-	peer, err := NewPeer(string(offer[:l]))
+	peer, err := NewPeer(string(offer))
 	if err != nil {
 		msg := fmt.Sprintf("NewPeer failed with: %s", err)
 		Logger.Error(msg)
