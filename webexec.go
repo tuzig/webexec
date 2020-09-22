@@ -73,6 +73,11 @@ func Shutdown() {
 	}
 }
 
+func GetPath(path string) string {
+	usr, _ := user.Current()
+	return filepath.Join(usr.HomeDir, ".webexec", path)
+}
+
 /*
  * initUser - initialize the user's .webexec directory
  */

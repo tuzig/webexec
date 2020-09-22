@@ -8,14 +8,14 @@ import (
 	"github.com/rs/cors"
 )
 
-func HTTPGo(address string) (e error) {
+func HTTPGo(address string) error {
 	h, e := ConnectHandler()
 	if e != nil {
-		log.Fatal(e)
-		return
+		return e
 	}
 
-	return http.ListenAndServe(address, h)
+	return http.ListenAndServeTLS(address, GetPath("cert.pem"),
+		GetPath("key.pem"), h)
 }
 
 // ConnectHandler listens for POST requests on /connect.
