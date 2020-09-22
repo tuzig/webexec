@@ -180,7 +180,6 @@ func TestUnauthincatedBlocked(t *testing.T) {
 		// what to resize
 		dc, err := client.CreateDataChannel("bash", nil)
 		require.Nil(t, err, "failed to create the a channel: %q", err)
-		// channelId hold the ID of the channel as recieved from the server
 		dc.OnClose(func() {
 			require.Equal(t, dc.Label(), "bash",
 				"Got a close request for channel: %q", dc.Label())
@@ -285,18 +284,18 @@ func TestResizeCommand(t *testing.T) {
 		// what to resize
 		dc, err := client.CreateDataChannel("12x34,bash", nil)
 		require.Nil(t, err, "failed to create the a channel: %v", err)
-		// channelId hold the ID of the channel as recieved from the server
-		channelId := -1
+		// paneID hold the ID of the channel as recieved from the server
+		paneID := -1
 		dc.OnOpen(func() {
 			log.Println("Data channel is open")
 			// send something to get the channel going
 			// dc.Send([]byte{'#'})
 			dc.OnMessage(func(msg webrtc.DataChannelMessage) {
 				log.Printf("Got data channel message: %q", string(msg.Data))
-				if channelId == -1 {
-					channelId, err = strconv.Atoi(string(msg.Data))
+				if paneID == -1 {
+					paneID, err = strconv.Atoi(string(msg.Data))
 					require.Nil(t, err, "Got a bad first message: %q", string(msg.Data))
-					resizeArgs := ResizePTYArgs{channelId, 80, 24}
+					resizeArgs := ResizePTYArgs{paneID, 80, 24}
 					m := CTRLMessage{time.Now().UnixNano(), 456, nil,
 						&resizeArgs, nil, nil}
 					resizeMsg, err := json.Marshal(m)
@@ -372,7 +371,7 @@ func TestChannelReconnect(t *testing.T) {
 		log.Printf("DC2 Got msg #%d: %s", count2, msg.Data)
 		// first message is the pane id
 		if count2 == 0 && string(msg.Data) != cId {
-			t.Errorf("Got a bad channelId on reconnect, expected %q got %q",
+			t.Errorf("Got a bad pane ID on reconnect, expected %q got %q",
 				cId, msg.Data)
 		}
 		// second message should be the echo output

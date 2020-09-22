@@ -248,7 +248,7 @@ func (peer *Peer) OnPaneReq(d *webrtc.DataChannel) *Pane {
 		}
 		Logger.Infof("New channel is a reconnect request to %d", id)
 		if id > len(Panes) {
-			Logger.Errorf("Got a bad channelId: %d", id)
+			Logger.Errorf("Got a bad pane id: %d", id)
 			return nil
 		}
 		pane = &Panes[id-1]
@@ -305,7 +305,7 @@ func (peer *Peer) OnCTRLMsg(msg webrtc.DataChannelMessage) {
 		return
 	}
 	if m.ResizePTY != nil {
-		cId := m.ResizePTY.ChannelId
+		cId := m.ResizePTY.PaneID
 		pane := Panes[cId-1]
 
 		var ws pty.Winsize
