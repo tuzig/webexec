@@ -386,6 +386,10 @@ func TestChannelReconnect(t *testing.T) {
 		count2++
 	})
 	log.Print("Waiting on done")
+	time.AfterFunc(3*time.Second, func() {
+		t.Error("Timeout waiting for dat ain reconnected pane")
+		done <- true
+	})
 	<-done
 	// dc.Close()
 	// dc2.Close()
