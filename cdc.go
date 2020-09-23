@@ -31,6 +31,12 @@ type AckArgs struct {
 	Body json.RawMessage `json:"body"`
 }
 
+// SetPayloadArgs is a type to hold the args for a set_payload type of a message
+type SetPayloadArgs struct {
+	// Ref holds the message id the error refers to or 0 for system errors
+	Payload json.RawMessage `json:"payload"`
+}
+
 // ResizeArgs is a type that holds the argumnet to the resize pty command
 type ResizeArgs struct {
 	PaneID int    `json:"pane_id"`

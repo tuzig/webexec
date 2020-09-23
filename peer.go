@@ -286,13 +286,15 @@ func (peer *Peer) Authenticate(args *AuthArgs) string {
 // SendAck sends an ack for a given control message
 func (peer *Peer) SendAck(cm CTRLMessage, body []byte) {
 	args := AckArgs{Ref: cm.MessageId, Body: body}
+
 	// TODO: protect message counter against reentrancy
 	msg := CTRLMessage{time.Now().UnixNano() / 1000000, peer.LastMsgId + 1,
 		"ack", &args}
 	peer.LastMsgId += 1
 	msgJ, err := json.Marshal(msg)
 	if err != nil {
-		Logger.Errorf("Failed to marshal the ack msg: %e", err)
+		Logger.Errorf("Failed to marshal the ack msg: %e\n   msg == %q", err, msg)
+		return
 	}
 	log.Printf("Sending ack: %q", msgJ)
 	peer.cdc.Send(msgJ)
@@ -346,6 +348,14 @@ func (peer *Peer) OnCTRLMsg(msg webrtc.DataChannelMessage) {
 		} else {
 			log.Printf("Authentication failed for %v", peer)
 		}
+	case "get_payload":
+		peer.SendAck(m, Payload)
+	case "set_payload":
+		var payloadArgs SetPayloadArgs
+		err = json.Unmarshal(raw, &payloadArgs)
+		Logger.Infof("Setting payload to: %q", payloadArgs.Payload)
+		Payload = payloadArgs.Payload
+		peer.SendAck(m, Payload)
 	default:
 		Logger.Errorf("Got a control message with unknown type: %q", m.Type)
 	}

@@ -14,6 +14,7 @@ import (
 )
 
 const timeout = 3 * time.Second
+const ACK_REF = 123
 
 func parseAck(t *testing.T, msg webrtc.DataChannelMessage) AckArgs {
 	var args json.RawMessage
@@ -36,7 +37,7 @@ func sendAuth(cdc *webrtc.DataChannel, token string) {
 	msg := CTRLMessage{
 		Time:      time.Now().UnixNano(),
 		Type:      "auth",
-		MessageId: 123,
+		MessageId: ACK_REF,
 		Args:      AuthArgs{token},
 	}
 	authMsg, err := json.Marshal(msg)
@@ -227,8 +228,8 @@ func TestAuthCommand(t *testing.T) {
 		go sendAuth(cdc, "thejargonfile")
 		cdc.OnMessage(func(msg webrtc.DataChannelMessage) {
 			ackArgs := parseAck(t, msg)
-			require.Equal(t, ackArgs.Ref, 123,
-				"Expeted ack ref to equal 123 and got: ", ackArgs.Ref)
+			require.Equal(t, ackArgs.Ref, ACK_REF,
+				"Expeted ack ref to equal %d and got: ", ACK_REF, ackArgs.Ref)
 			gotAuthAck <- true
 		})
 
@@ -278,7 +279,7 @@ func TestResizeCommand(t *testing.T) {
 		go sendAuth(cdc, "thejargonfile")
 		cdc.OnMessage(func(msg webrtc.DataChannelMessage) {
 			ack := parseAck(t, msg)
-			if ack.Ref == 123 {
+			if ack.Ref == ACK_REF {
 				gotAuthAck <- true
 			}
 			if ack.Ref == 456 {
@@ -399,4 +400,56 @@ func TestChannelReconnect(t *testing.T) {
 	<-done
 	// dc.Close()
 	// dc2.Close()
+}
+func TestPayloadOperations(t *testing.T) {
+	InitLogger()
+	done := make(chan bool)
+	gotAuthAck := make(chan bool)
+	peer, err := NewPeer("")
+	require.Nil(t, err, "NewPeer failed with: %s", err)
+	client, err := webrtc.NewPeerConnection(webrtc.Configuration{})
+	require.Nil(t, err, "Failed to start a new server", err)
+	cdc, err := client.CreateDataChannel("%", nil)
+	require.Nil(t, err, "Failed to create the control data channel: %v", err)
+	Payload = []byte("[\"This is a simple payload\"]")
+	payload2 := []byte("[\"Better payload\"]")
+	cdc.OnOpen(func() {
+		// there's only one payload
+		// TODO: support sessions and multi payloads
+		go sendAuth(cdc, "thejargonfile")
+		cdc.OnMessage(func(msg webrtc.DataChannelMessage) {
+			// we should get an ack for the auth message and the get payload
+			log.Printf("Got a ctrl msg: %s", msg.Data)
+			args := parseAck(t, msg)
+			var payload []byte
+			err = json.Unmarshal(args.Body, &payload)
+			if args.Ref == ACK_REF {
+				require.Equal(t, []byte(args.Body), Payload,
+					"Got the wrong payload: %q", args.Body)
+				gotAuthAck <- true
+			}
+			if args.Ref == 777 {
+				require.Equal(t, []byte(args.Body), payload2,
+					"Got the wrong payload: %q", args.Body)
+				done <- true
+			}
+		})
+	})
+	time.AfterFunc(3*time.Second, func() {
+		t.Error("Timeout waiting for an ack")
+		done <- true
+	})
+	signalPair(client, peer.PC)
+	<-gotAuthAck
+	args := SetPayloadArgs{payload2}
+	setPayload := CTRLMessage{time.Now().UnixNano(), 777,
+		"set_payload", &args}
+	getMsg, err := json.Marshal(setPayload)
+	if err != nil {
+		log.Printf("Failed to marshal the auth args: %v", err)
+	} else {
+		log.Print("Test is sending an auth message")
+		cdc.Send(getMsg)
+	}
+	<-done
 }
