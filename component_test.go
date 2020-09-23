@@ -15,12 +15,30 @@ import (
 
 const timeout = 3 * time.Second
 
+func parseAck(t *testing.T, msg webrtc.DataChannelMessage) AckArgs {
+	var args json.RawMessage
+	var ackArgs AckArgs
+	env := CTRLMessage{
+		Args: &args,
+	}
+	err := json.Unmarshal(msg.Data, &env)
+	require.Nil(t, err, "failed to unmarshal cdc message: %q", err)
+	require.Equal(t, env.Type, "ack",
+		"Expected an ack message and got %q", env.Type)
+	err = json.Unmarshal(args, &ackArgs)
+	require.Nil(t, err, "failed to unmarshal ack args: %q", err)
+	return ackArgs
+}
+
 func sendAuth(cdc *webrtc.DataChannel, token string) {
 	time.Sleep(10 * time.Millisecond)
-	authArgs := AuthArgs{token}
 	//TODO we need something like peer.LastMsgId++ below
-	msg := CTRLMessage{time.Now().UnixNano(), 123, nil,
-		nil, &authArgs, nil}
+	msg := CTRLMessage{
+		Time:      time.Now().UnixNano(),
+		Type:      "auth",
+		MessageId: 123,
+		Args:      AuthArgs{token},
+	}
 	authMsg, err := json.Marshal(msg)
 	if err != nil {
 		log.Printf("Failed to marshal the auth args: %v", err)
@@ -131,7 +149,7 @@ func TestSimpleEcho(t *testing.T) {
 			log.Printf("Got a ctrl msg: %s", msg.Data)
 			err := json.Unmarshal(msg.Data, &cm)
 			require.Nil(t, err, "Failed to marshal the server msg: %v", err)
-			if cm.Ack != nil {
+			if cm.Type == "ack" {
 				gotAuthAck <- true
 			}
 		})
@@ -208,16 +226,12 @@ func TestAuthCommand(t *testing.T) {
 	cdc.OnOpen(func() {
 		go sendAuth(cdc, "thejargonfile")
 		cdc.OnMessage(func(msg webrtc.DataChannelMessage) {
-			var cm CTRLMessage
-			log.Printf("Got a ctrl msg: %s", msg.Data)
-			err := json.Unmarshal(msg.Data, &cm)
-			require.Nil(t, err, "Failed to marshal the server msg: %v", err)
-			require.NotNil(t,
-				cm.Ack, "Expeted an Ack message and got: %v", msg.Data)
-			if cm.Ack.Ref == 123 {
-				gotAuthAck <- true
-			}
+			ackArgs := parseAck(t, msg)
+			require.Equal(t, ackArgs.Ref, 123,
+				"Expeted ack ref to equal 123 and got: ", ackArgs.Ref)
+			gotAuthAck <- true
 		})
+
 	})
 	signalPair(client, peer.PC)
 	<-gotAuthAck
@@ -241,10 +255,8 @@ func TestAuthCommand(t *testing.T) {
 			log.Printf("Got a ctrl msg: %s", msg.Data)
 			err := json.Unmarshal(msg.Data, &cm)
 			require.Nil(t, err, "Failed to marshal the server msg: %v", err)
-			require.NotNil(t,
-				cm.Ack, "Expeted an Ack message and got: %v", msg.Data)
-			require.Equal(t,
-				cm.Ack.Ref, 123, "Got a bad ack ref: %d", cm.Ack.Ref)
+			require.Equal(t, cm.Type, "ack",
+				"Expeted an Ack message and got: %v", msg.Data)
 			gotTokenAck <- true
 		})
 	})
@@ -265,17 +277,11 @@ func TestResizeCommand(t *testing.T) {
 	cdc.OnOpen(func() {
 		go sendAuth(cdc, "thejargonfile")
 		cdc.OnMessage(func(msg webrtc.DataChannelMessage) {
-			var cm CTRLMessage
-			log.Printf("Got a ctrl msg: %s", msg.Data)
-			err := json.Unmarshal(msg.Data, &cm)
-			require.Nil(t, err, "Failed to marshal the server msg: %v", err)
-
-			require.NotNil(t,
-				cm.Ack, "Got an unexpected message: %v", msg.Data)
-			if cm.Ack.Ref == 123 {
+			ack := parseAck(t, msg)
+			if ack.Ref == 123 {
 				gotAuthAck <- true
 			}
-			if cm.Ack.Ref == 456 {
+			if ack.Ref == 456 {
 				done <- true
 			}
 		})
@@ -294,10 +300,11 @@ func TestResizeCommand(t *testing.T) {
 				log.Printf("Got data channel message: %q", string(msg.Data))
 				if paneID == -1 {
 					paneID, err = strconv.Atoi(string(msg.Data))
-					require.Nil(t, err, "Got a bad first message: %q", string(msg.Data))
-					resizeArgs := ResizePTYArgs{paneID, 80, 24}
-					m := CTRLMessage{time.Now().UnixNano(), 456, nil,
-						&resizeArgs, nil, nil}
+					require.Nil(t, err,
+						"Got a bad first message: %q", string(msg.Data))
+					resizeArgs := ResizeArgs{paneID, 80, 24}
+					m := CTRLMessage{time.Now().UnixNano(), 456, "resize",
+						&resizeArgs}
 					resizeMsg, err := json.Marshal(m)
 					require.Nil(t, err, "failed marshilng ctrl msg: %v", msg)
 					log.Println("Sending the resize message")
@@ -338,7 +345,7 @@ func TestChannelReconnect(t *testing.T) {
 			log.Printf("Got a ctrl msg: %s", msg.Data)
 			err := json.Unmarshal(msg.Data, &cm)
 			require.Nil(t, err, "Failed to marshal the server msg: %v", err)
-			if cm.Ack != nil {
+			if cm.Type == "ack" {
 				gotAuthAck <- true
 			}
 		})

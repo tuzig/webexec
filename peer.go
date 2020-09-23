@@ -24,6 +24,9 @@ const peerBufferSize = 5000
 // Peers holds all the peers (connected and disconnected)
 var Peers []Peer
 
+// Payload holds the client's payload
+var Payload []byte
+
 // WebRTCAPI is the gateway to webrtc calls
 var WebRTCAPI *webrtc.API
 
@@ -42,7 +45,7 @@ type Peer struct {
 	PendingChannelReq chan *webrtc.DataChannel
 }
 
-// NewPeer functions starts listening to incoming peer connection from a remote
+// NewPeer funcions starts listening to incoming peer connection from a remote
 func NewPeer(remote string) (*Peer, error) {
 	Logger.Infof("New Peer from: %s", remote)
 	if WebRTCAPI == nil {
@@ -281,15 +284,15 @@ func (peer *Peer) Authenticate(args *AuthArgs) string {
 }
 
 // SendAck sends an ack for a given control message
-func (peer *Peer) SendAck(cm CTRLMessage, body string) {
+func (peer *Peer) SendAck(cm CTRLMessage, body []byte) {
 	args := AckArgs{Ref: cm.MessageId, Body: body}
 	// TODO: protect message counter against reentrancy
-	msg := CTRLMessage{time.Now().UnixNano() / 1000000, peer.LastMsgId + 1, &args,
-		nil, nil, nil}
+	msg := CTRLMessage{time.Now().UnixNano() / 1000000, peer.LastMsgId + 1,
+		"ack", &args}
 	peer.LastMsgId += 1
 	msgJ, err := json.Marshal(msg)
 	if err != nil {
-		log.Printf("Failed to marshal the ack msg: %e", err)
+		Logger.Errorf("Failed to marshal the ack msg: %e", err)
 	}
 	log.Printf("Sending ack: %q", msgJ)
 	peer.cdc.Send(msgJ)
@@ -297,30 +300,41 @@ func (peer *Peer) SendAck(cm CTRLMessage, body string) {
 
 // OnCTRLMsg handles incoming control messages
 func (peer *Peer) OnCTRLMsg(msg webrtc.DataChannelMessage) {
-	var m CTRLMessage
+	var raw json.RawMessage
+	m := CTRLMessage{
+		Args: &raw,
+	}
 	log.Printf("Got a CTRLMessage: %q\n", string(msg.Data))
 	err := json.Unmarshal(msg.Data, &m)
 	if err != nil {
 		log.Printf("Failed to parse incoming control message: %v", err)
 		return
 	}
-	if m.ResizePTY != nil {
-		cId := m.ResizePTY.PaneID
+	switch m.Type {
+	case "resize":
+		var resizeArgs ResizeArgs
+		err = json.Unmarshal(raw, &resizeArgs)
+		if err != nil {
+			log.Printf("Failed to parse incoming control message: %v", err)
+			return
+		}
+		cId := resizeArgs.PaneID
 		pane := Panes[cId-1]
-
 		var ws pty.Winsize
-		ws.Cols = m.ResizePTY.Sx
-		ws.Rows = m.ResizePTY.Sy
+		ws.Cols = resizeArgs.Sx
+		ws.Rows = resizeArgs.Sy
 		pane.Resize(&ws)
-		peer.SendAck(m, "")
-	} else if m.Auth != nil {
+		peer.SendAck(m, nil)
+	case "auth":
 		// TODO:
 		// token := Authenticate(m.Auth)
+		var authArgs AuthArgs
 		token := "Always autehnticated"
 		if token != "" {
 			peer.Authenticated = true
-			peer.Token = m.Auth.Token
-			peer.SendAck(m, "")
+			err = json.Unmarshal(raw, &authArgs)
+			peer.Token = authArgs.Token
+			peer.SendAck(m, Payload)
 			// handle pending channel requests
 			handlePendingChannelRequests := func() {
 				for d := range peer.PendingChannelReq {
@@ -332,6 +346,8 @@ func (peer *Peer) OnCTRLMsg(msg webrtc.DataChannelMessage) {
 		} else {
 			log.Printf("Authentication failed for %v", peer)
 		}
+	default:
+		Logger.Errorf("Got a control message with unknown type: %q", m.Type)
 	}
 	// TODO: add more commands here: mouse, clipboard, etc.
 }

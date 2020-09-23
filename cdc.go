@@ -4,6 +4,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"github.com/creack/pty"
 	"strconv"
@@ -26,12 +27,12 @@ type AuthArgs struct {
 // AckArgs is a type to hold the args for an Ack message
 type AckArgs struct {
 	// Ref holds the message id the error refers to or 0 for system errors
-	Ref  int    `json:"ref"`
-	Body string `json:"body"`
+	Ref  int             `json:"ref"`
+	Body json.RawMessage `json:"body"`
 }
 
-// ResizePTYArgs is a type that holds the argumnet to the resize pty command
-type ResizePTYArgs struct {
+// ResizeArgs is a type that holds the argumnet to the resize pty command
+type ResizeArgs struct {
 	PaneID int    `json:"pane_id"`
 	Sx     uint16 `json:"sx"`
 	Sy     uint16 `json:"sy"`
@@ -39,12 +40,10 @@ type ResizePTYArgs struct {
 
 // CTRLMessage type holds control messages passed over the control channel
 type CTRLMessage struct {
-	Time      int64          `json:"time"`
-	MessageId int            `json:"message_id"`
-	Ack       *AckArgs       `json:"ack"`
-	ResizePTY *ResizePTYArgs `json:"resize_pty"`
-	Auth      *AuthArgs      `json:"auth"`
-	Error     *ErrorArgs     `json:"error"`
+	Time      int64 `json:"time"`
+	MessageId int   `json:"message_id"`
+	Type      string
+	Args      interface{} `json:"args"`
 }
 
 // parseWinsize gets a string in the format of "24x80" and returns a Winsize

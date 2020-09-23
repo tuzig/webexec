@@ -34,76 +34,78 @@ To better track performance and identify disconnection each message includes a
 {
     "time" : 1257894000000, 
     "message_id": 123,
-    "auth": {
+    "type": "auth",
+    "args": {
         "token" : "l;sdfjkghqop3i5utqiowrdhjfklasdjfhopqwi9rtujipw"
     }
 }
 ```
 
 If the token exists in `~/.webexec/autherized_tokens` webexec replies with 
-a an ack that include the latest layout:
+a an ack that include the latest payload:
 
 ```json
 {
     "time" : 1257894000000, 
     "message_id": 123,
-    "ack": {
+    "type": "ack"
+    "args": {
         "ref": 12,
-        "layout": { "tab 1": "238x54,0,0{119x54,0,0,14,118x54,120,0[118x27,120,0,17,118x26,120,28,18]}",
-                    "root": "238x54,0,0,TBD"
-                  }
+        "body": <payload>
     }
 }
 ```
 
-### Layout
+### Payload
 
-On startup and whenever the client layout is changed, the client sends this
-message to the server. The server stores keeps the last layout and sends it
-back to the client after authentication.
+Webexec saves and restore a payload for the client so it can synchoronize with
+the other connected clients. Clients can use the payload to store information
+about screen layout, window tabs, etc. 
 
 ```json
 {
     "time" : 1257894000000, 
     "message_id": 456,
-    "layout": {"tab 1": "80x24,0,0,1",
-               "tab 2": "238x54,0,0{119x54,0,0,14,118x54,120,0, 15}"
-              }
+    "type": "get_payload",
+    "args": {}
 }
 ```
-`layout` is an object where every tab name is a key whose value is the 
-window's layout format. The format is copied from the `window_layout` 
-formating variable in the great tmux.
-For example a classic ` |-` three pane layout on a 238x54 terminal is: 
 
-`238x54,0,0{119x54,0,0,14,118x54,120,0[118x27,120,0,17,118x26,120,28,18]}`
+To which the server replies with an Ack that looks just like the Auth ack:
 
-The string is made up from cells of two type: layouts and panes. Layouts are
-non-visible containers used to hold panes of the same alignment 
-while panes are the terminal themselves.
-Both cells begin with a dimension as in: `80x24`, followed by a comma sperated 
-X offest and Y offset. For panes, the offset are followed by the channel's label 
-or `TBD` for a newly cerated channel.
+```json
+{
+    "time" : 1257894000000, 
+    "message_id": 678,
+    "type": "ack"
+    "args": {
+        "ref": 456,
+        "body": <payload>
+    }
+}
+```
 
-If the cell is a layout the Y offset is followed by either 
-`{<cell 1>, <cell 2>, ..}` or `[<cell 1>, <cell 2>, ...]`.
-The first is used for a vertical layout and the second for a horizontal one.
+To change the payload the client can send a set payload message"
 
-Each json string amy can contain one pane with `TBD` as it's label. If it does,
-the server will start a new shell and open a new data channel to connect the 
-shell's pseduo terminal with the client.
-set to the new pane id. The client should close this channel when the user's 
-closes the pane. The server 
+```json
+{
+    "time" : 1257894000000, 
+    "message_id": 456,
+    "type": "set_payload",
+    "args": {
+        "payload": <client payload>
+    }
+}
+```
 
-## Error
 
 When the server encounters an error it sends an error message to the client:
 
 ```json
-{
     "time" : 1257894000000,
     "message_id": 124,
-    "error": {
+    "type": "nack",
+    "args": {
         "ref": 12,
         "description": "Stack Overflow"
     }
