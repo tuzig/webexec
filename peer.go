@@ -285,6 +285,10 @@ func (peer *Peer) OnCTRLMsg(msg webrtc.DataChannelMessage) {
 			return
 		}
 		cId := resizeArgs.PaneID
+		if cId < 1 || cId > len(Panes) {
+			Logger.Error("Failed to parse resize message pane_id out of range")
+			return
+		}
 		pane := Panes[cId-1]
 		var ws pty.Winsize
 		ws.Cols = resizeArgs.Sx
