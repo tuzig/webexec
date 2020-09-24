@@ -131,7 +131,7 @@ func TestStartCommand(t *testing.T) {
 }
 */
 func TestSimpleEcho(t *testing.T) {
-	InitLogger()
+	InitDevLogger()
 	done := make(chan bool)
 	gotAuthAck := make(chan bool)
 	peer, err := NewPeer("")
@@ -185,7 +185,7 @@ func TestSimpleEcho(t *testing.T) {
 }
 
 func TestUnauthincatedBlocked(t *testing.T) {
-	InitLogger()
+	InitDevLogger()
 	done := make(chan bool)
 	peer, err := NewPeer("")
 	require.Nil(t, err, "NewPeer failed with: %s", err)
@@ -214,7 +214,7 @@ func TestUnauthincatedBlocked(t *testing.T) {
 }
 
 func TestAuthCommand(t *testing.T) {
-	InitLogger()
+	InitDevLogger()
 	gotAuthAck := make(chan bool)
 	gotTokenAck := make(chan bool)
 	peer, err := NewPeer("")
@@ -266,7 +266,7 @@ func TestAuthCommand(t *testing.T) {
 }
 
 func TestResizeCommand(t *testing.T) {
-	InitLogger()
+	InitDevLogger()
 	gotAuthAck := make(chan bool)
 	done := make(chan bool)
 	peer, err := NewPeer("")
@@ -320,7 +320,7 @@ func TestResizeCommand(t *testing.T) {
 }
 
 func TestChannelReconnect(t *testing.T) {
-	InitLogger()
+	InitDevLogger()
 	var cId string
 	var dc *webrtc.DataChannel
 	done := make(chan bool)
@@ -402,7 +402,7 @@ func TestChannelReconnect(t *testing.T) {
 	// dc2.Close()
 }
 func TestPayloadOperations(t *testing.T) {
-	InitLogger()
+	InitDevLogger()
 	done := make(chan bool)
 	gotAuthAck := make(chan bool)
 	peer, err := NewPeer("")

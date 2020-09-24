@@ -7,7 +7,7 @@ import (
 )
 
 func TestEncodeDecodeStringArray(t *testing.T) {
-	InitLogger()
+	InitDevLogger()
 
 	a := []string{"Hello", "World"}
 	b := EncodeOffer(a)
