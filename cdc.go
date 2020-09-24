@@ -46,9 +46,9 @@ type ResizeArgs struct {
 
 // CTRLMessage type holds control messages passed over the control channel
 type CTRLMessage struct {
-	Time      int64 `json:"time"`
-	MessageId int   `json:"message_id"`
-	Type      string
+	Time      int64       `json:"time"`
+	MessageId int         `json:"message_id"`
+	Type      string      `json:"type"`
 	Args      interface{} `json:"args"`
 }
 
