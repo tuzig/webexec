@@ -6,8 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
-	"os"
-	"os/exec"
 	"strconv"
 	"strings"
 	"time"
@@ -157,47 +155,12 @@ func (peer *Peer) OnChannelReq(d *webrtc.DataChannel) {
 		pane := peer.OnPaneReq(d)
 		if pane != nil {
 			d.OnMessage(pane.OnMessage)
-			d.OnClose(pane.OnClose)
-			go pane.ReadLoop()
+			d.OnClose(pane.OnCloseDC)
 		}
 	})
 }
 
 // Peer.NewPane opens a new pane and start its command and pty
-func (peer *Peer) NewPane(command []string, d *webrtc.DataChannel,
-	ws *pty.Winsize) (*Pane, error) {
-
-	var (
-		err  error
-		tty  *os.File
-		pane *Pane
-	)
-
-	pId := len(Panes) + 1
-	cmd := exec.Command(command[0], command[1:]...)
-	if ws != nil {
-		tty, err = pty.StartWithSize(cmd, ws)
-	} else {
-		// TODO: don't use a pty, just pipe the input and output
-		tty, err = pty.Start(cmd)
-	}
-	if err != nil {
-		return nil, fmt.Errorf("Failed launching %q: %q", command, err)
-	}
-	// TODO: protect from reentrancy
-	pane = &Pane{
-		Id:     pId,
-		C:      cmd,
-		Tty:    tty,
-		Buffer: nil,
-		dcs:    []*webrtc.DataChannel{d},
-		Ws:     ws,
-	}
-	Panes = append(Panes, *pane)
-	// NewCommand is up to here
-	Logger.Infof("Added a command: id %d tty - %q", pId, tty.Name())
-	return pane, nil
-}
 
 // OnPaneReqs gets a data channel request and creates the pane
 // The function parses the label to figure out what it needs to exec:
@@ -236,7 +199,6 @@ func (peer *Peer) OnPaneReq(d *webrtc.DataChannel) *Pane {
 			Logger.Errorf("Got an invalid channlel label: %q", l)
 			return nil
 		}
-		// TODO: Do I need to free this?
 		ws, err = ParseWinsize(fields[0])
 		if err != nil {
 			Logger.Errorf("Failed to parse winsize: %v", err)
@@ -257,6 +219,7 @@ func (peer *Peer) OnPaneReq(d *webrtc.DataChannel) *Pane {
 		pane = &Panes[id-1]
 		pane.Resize(ws)
 		pane.dcs = append(pane.dcs, d)
+		Logger.Infof("Added dc to pane %v for a total of %d", pane, len(pane.dcs))
 		pane.SendId(d)
 		return pane
 	}
@@ -264,14 +227,16 @@ func (peer *Peer) OnPaneReq(d *webrtc.DataChannel) *Pane {
 		Logger.Errorf("Got an error parsing window size: %q", err)
 	}
 	// TODO: get the default exec  the users shell or the command from the channel's name
-	pane, err = peer.NewPane(fields[cmdIndex:], d, ws)
+	pane, err = NewPane(fields[cmdIndex:], d, ws)
 	if pane != nil {
 		// Send the pane id as the first message
 		pane.SendId(d)
+		go pane.ReadLoop()
+		return pane
 	} else {
 		Logger.Error("Failed to create new pane: %q", err)
+		return nil
 	}
-	return pane
 }
 
 // Authenticate checks authorization args against system's user

@@ -2,6 +2,7 @@
 package main
 
 import (
+	"fmt"
 	"github.com/creack/pty"
 	"github.com/pion/webrtc/v2"
 	"io"
@@ -23,6 +24,39 @@ type Pane struct {
 	Ws     *pty.Winsize
 }
 
+func NewPane(command []string, d *webrtc.DataChannel,
+	ws *pty.Winsize) (*Pane, error) {
+
+	var (
+		err error
+		tty *os.File
+	)
+
+	pId := len(Panes) + 1
+	cmd := exec.Command(command[0], command[1:]...)
+	if ws != nil {
+		tty, err = pty.StartWithSize(cmd, ws)
+	} else {
+		// TODO: don't use a pty, just pipe the input and output
+		tty, err = pty.Start(cmd)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("Failed launching %q: %q", command, err)
+	}
+	// TODO: protect from reentrancy
+	pane := Pane{
+		Id:     pId,
+		C:      cmd,
+		Tty:    tty,
+		Buffer: nil,
+		dcs:    []*webrtc.DataChannel{d},
+		Ws:     ws,
+	}
+	Panes = append(Panes, pane)
+	// NewCommand is up to here
+	return &pane, nil
+}
+
 // pane.SendId sends the pane id as a message on the channel
 // In APIv1 the client expects this message as the first in the channel
 func (pane *Pane) SendId(dc *webrtc.DataChannel) {
@@ -40,14 +74,12 @@ func (pane *Pane) ReadLoop() {
 	b := make([]byte, 4096)
 	for pane.C.ProcessState.String() != "killed" {
 		l, err := pane.Tty.Read(b)
-		Logger.Infof("> %d: %s", l, b[:l])
 		if l == 0 {
 			break
 		}
 		for i := 0; i < len(pane.dcs); i++ {
 			dc := pane.dcs[i]
 			if dc.ReadyState() == webrtc.DataChannelStateOpen {
-				Logger.Infof("> %d: %s", l, b[:l])
 				err = dc.Send(b[:l])
 				if err != nil {
 					Logger.Errorf("got an error when sending message: %v", err)
@@ -79,13 +111,13 @@ func (pane *Pane) Kill() {
 		}
 	}
 }
-func (pane *Pane) OnClose() {
+func (pane *Pane) OnCloseDC() {
+	// TODO: remove the dc from the slice
 	Logger.Infof("pane #%d: Data channel closed", pane.Id)
 }
 
 func (pane *Pane) OnMessage(msg webrtc.DataChannelMessage) {
 	p := msg.Data
-	Logger.Infof("> %q", p)
 	l, err := pane.Tty.Write(p)
 	if err != nil {
 		Logger.Warnf("pty of %d write failed: %v",

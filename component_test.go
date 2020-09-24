@@ -357,10 +357,11 @@ func TestChannelReconnect(t *testing.T) {
 			log.Printf("Channel %q opened, state: %v", dc.Label(), peer.State)
 		})
 		dc.OnMessage(func(msg webrtc.DataChannelMessage) {
-			log.Printf("DC2 Got msg #%d: %s", count, msg.Data)
+			log.Printf("DC Got msg #%d: %s", count, msg.Data)
 			if count == 0 {
 				cId = string(msg.Data)
 				log.Printf("Client got a channel id: %q", cId)
+				dc.Close()
 				gotId <- true
 			}
 			count++
