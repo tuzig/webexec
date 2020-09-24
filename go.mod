@@ -4,6 +4,7 @@ go 1.14
 
 require (
 	github.com/creack/pty v1.1.11
+	github.com/kardianos/osext v0.0.0-20190222173326-2bc1f35cddc0
 	github.com/pion/logging v0.2.2
 	github.com/pion/transport v0.10.1
 	github.com/pion/webrtc/v2 v2.2.4

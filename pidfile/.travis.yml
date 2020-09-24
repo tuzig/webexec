@@ -1,0 +1,20 @@
+language: go
+
+os:
+  - linux
+  - osx
+  - windows
+
+go:
+  - "1.12.x"
+
+env:
+  - GO111MODULE=on
+
+before_script:
+  - go version
+  - go clean ./...
+
+script:
+  - go test 
+  - go build .
