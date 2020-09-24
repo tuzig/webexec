@@ -195,9 +195,11 @@ func start(c *cli.Context) error {
 		signal.Notify(gotExit, os.Interrupt, syscall.SIGTERM)
 	} else {
 		signal.Notify(gotExit, syscall.SIGINT)
-		Logger.Info("Exiting on SIGINT")
 	}
 	<-gotExit
+	if !debug {
+		Logger.Info("Exiting on SIGINT")
+	}
 
 	return nil
 }
