@@ -48,10 +48,27 @@ a an ack that include the latest payload:
 {
     "time" : 1257894000000, 
     "message_id": 123,
-    "type": "ack"
+    "type": "ack",
     "args": {
         "ref": 12,
         "body": <payload>
+    }
+}
+```
+
+### Resize
+
+Panes that started with dimensions pipe the data through a pseudo terminal.
+The resize message lets the client change the dimensions of a pane.
+
+```json
+{
+    "time" : 1257894000000, 
+    "message_id": 123,
+    "type": "resize",
+    "args": {
+        "sx": 123,
+        "sy": 45
     }
 }
 ```
@@ -98,8 +115,9 @@ To change the payload the client can send a set payload message"
 }
 ```
 
+## Nack
 
-When the server encounters an error it sends an error message to the client:
+When the server encounters an error it sends a nack message to the client:
 
 ```json
     "time" : 1257894000000,
