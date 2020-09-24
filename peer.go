@@ -5,7 +5,6 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"log"
 	"strconv"
 	"strings"
 	"time"
@@ -261,7 +260,7 @@ func (peer *Peer) SendAck(cm CTRLMessage, body []byte) {
 		Logger.Errorf("Failed to marshal the ack msg: %e\n   msg == %q", err, msg)
 		return
 	}
-	log.Printf("Sending ack: %q", msgJ)
+	Logger.Infof("Sending ack: %q", msgJ)
 	peer.cdc.Send(msgJ)
 }
 
@@ -271,10 +270,10 @@ func (peer *Peer) OnCTRLMsg(msg webrtc.DataChannelMessage) {
 	m := CTRLMessage{
 		Args: &raw,
 	}
-	log.Printf("Got a CTRLMessage: %q\n", string(msg.Data))
+	Logger.Infof("Got a CTRLMessage: %q\n", string(msg.Data))
 	err := json.Unmarshal(msg.Data, &m)
 	if err != nil {
-		log.Printf("Failed to parse incoming control message: %v", err)
+		Logger.Infof("Failed to parse incoming control message: %v", err)
 		return
 	}
 	switch m.Type {
@@ -282,7 +281,7 @@ func (peer *Peer) OnCTRLMsg(msg webrtc.DataChannelMessage) {
 		var resizeArgs ResizeArgs
 		err = json.Unmarshal(raw, &resizeArgs)
 		if err != nil {
-			log.Printf("Failed to parse incoming control message: %v", err)
+			Logger.Infof("Failed to parse incoming control message: %v", err)
 			return
 		}
 		cId := resizeArgs.PaneID
@@ -305,13 +304,13 @@ func (peer *Peer) OnCTRLMsg(msg webrtc.DataChannelMessage) {
 			// handle pending channel requests
 			handlePendingChannelRequests := func() {
 				for d := range peer.PendingChannelReq {
-					log.Printf("Handling pennding channel Req: %q", d.Label())
+					Logger.Infof("Handling pennding channel Req: %q", d.Label())
 					peer.OnChannelReq(d)
 				}
 			}
 			go handlePendingChannelRequests()
 		} else {
-			log.Printf("Authentication failed for %v", peer)
+			Logger.Infof("Authentication failed for %v", peer)
 		}
 	case "get_payload":
 		peer.SendAck(m, Payload)
