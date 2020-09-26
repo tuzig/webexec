@@ -237,15 +237,6 @@ func (peer *Peer) OnPaneReq(d *webrtc.DataChannel) *Pane {
 	}
 }
 
-// Authenticate checks authorization args against system's user
-// returns the user's token or nil if failed to authenticat
-func (peer *Peer) Authenticate(args *AuthArgs) string {
-	t := "atoken"
-	peer.Token = args.Token
-	return t
-
-}
-
 // SendAck sends an ack for a given control message
 func (peer *Peer) SendAck(cm CTRLMessage, body []byte) {
 	args := AckArgs{Ref: cm.MessageId, Body: body}
@@ -260,6 +251,23 @@ func (peer *Peer) SendAck(cm CTRLMessage, body []byte) {
 		return
 	}
 	Logger.Infof("Sending ack: %q", msgJ)
+	peer.cdc.Send(msgJ)
+}
+
+// SendNAck sends an nack for a given control message
+func (peer *Peer) SendNAck(cm CTRLMessage, desc string) {
+	args := NAckArgs{Ref: cm.MessageId, Desc: desc}
+
+	// TODO: protect message counter against reentrancy
+	msg := CTRLMessage{time.Now().UnixNano() / 1000000, peer.LastMsgId + 1,
+		"nack", &args}
+	peer.LastMsgId += 1
+	msgJ, err := json.Marshal(msg)
+	if err != nil {
+		Logger.Errorf("Failed to marshal the ack msg: %e\n   msg == %q", err, msg)
+		return
+	}
+	Logger.Infof("Sending nack: %q", msgJ)
 	peer.cdc.Send(msgJ)
 }
 
@@ -298,8 +306,8 @@ func (peer *Peer) OnCTRLMsg(msg webrtc.DataChannelMessage) {
 		// TODO:
 		// token := Authenticate(m.Auth)
 		var authArgs AuthArgs
-		token := "Always autehnticated"
-		if token != "" {
+		err = json.Unmarshal(raw, &authArgs)
+		if IsAuthorized(authArgs.Token) {
 			peer.Authenticated = true
 			err = json.Unmarshal(raw, &authArgs)
 			peer.Token = authArgs.Token
@@ -313,7 +321,8 @@ func (peer *Peer) OnCTRLMsg(msg webrtc.DataChannelMessage) {
 			}
 			go handlePendingChannelRequests()
 		} else {
-			Logger.Infof("Authentication failed for %v", peer)
+			Logger.Infof("Authentication failed")
+			peer.SendNAck(m, "Unknown token")
 		}
 	case "get_payload":
 		peer.SendAck(m, Payload)

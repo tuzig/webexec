@@ -11,10 +11,12 @@ import (
 	"strings"
 )
 
+var authorizedTokens []string
+
 // ErrorArgs is a type that holds the args for an error message
-type ErrorArgs struct {
+type NAckArgs struct {
 	// Desc hold the textual desciption of the error
-	Desc string `json:"description"`
+	Desc string `json:"desc"`
 	// Ref holds the message id the error refers to or 0 for system errors
 	Ref int `json:"ref"`
 }
@@ -50,6 +52,20 @@ type CTRLMessage struct {
 	MessageId int         `json:"message_id"`
 	Type      string      `json:"type"`
 	Args      interface{} `json:"args"`
+}
+
+// IsAuthorized checks authorization args against system's user
+// returns the user's token or nil if failed to authenticat
+func IsAuthorized(token string) bool {
+	if authorizedTokens == nil {
+		authorizedTokens = []string{"THEoneANDonlyTOKEN"}
+	}
+	for _, at := range authorizedTokens {
+		if token == at {
+			return true
+		}
+	}
+	return false
 }
 
 // parseWinsize gets a string in the format of "24x80" and returns a Winsize

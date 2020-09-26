@@ -17,7 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Tests
 
 ### Changes
-- Removed "/etc/passwd" based auth
+- Replaced "/etc/passwd" based auth with a single token: "THEoneANDonlyTOKEN"
 - Source tree is now flat but for a pidfile package we copied
 - Control message schema has changed. It now has the "type" and "args" keys
 - Improved HTTP server error handling

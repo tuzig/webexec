@@ -16,6 +16,15 @@ import (
 const timeout = 3 * time.Second
 const ACK_REF = 123
 
+const AValidToken = "THEoneANDonlyTOKEN"
+
+func getType(t *testing.T, msg webrtc.DataChannelMessage) string {
+	env := CTRLMessage{}
+	err := json.Unmarshal(msg.Data, &env)
+	require.Nil(t, err, "failed to unmarshal cdc message: %q", err)
+	return env.Type
+
+}
 func parseAck(t *testing.T, msg webrtc.DataChannelMessage) AckArgs {
 	var args json.RawMessage
 	var ackArgs AckArgs
@@ -143,7 +152,7 @@ func TestSimpleEcho(t *testing.T) {
 	// count the incoming messages
 	count := 0
 	cdc.OnOpen(func() {
-		go sendAuth(cdc, "thejargonfile")
+		go sendAuth(cdc, AValidToken)
 		cdc.OnMessage(func(msg webrtc.DataChannelMessage) {
 			// we should get an ack for the auth message
 			var cm CTRLMessage
@@ -213,7 +222,7 @@ func TestUnauthincatedBlocked(t *testing.T) {
 	Shutdown()
 }
 
-func TestAuthCommand(t *testing.T) {
+func TestAuthorization(t *testing.T) {
 	InitDevLogger()
 	gotAuthAck := make(chan bool)
 	gotTokenAck := make(chan bool)
@@ -225,7 +234,7 @@ func TestAuthCommand(t *testing.T) {
 	require.Nil(t, err, "failed to create the control data channel: %q", err)
 
 	cdc.OnOpen(func() {
-		go sendAuth(cdc, "thejargonfile")
+		go sendAuth(cdc, AValidToken)
 		cdc.OnMessage(func(msg webrtc.DataChannelMessage) {
 			ackArgs := parseAck(t, msg)
 			require.Equal(t, ackArgs.Ref, ACK_REF,
@@ -250,7 +259,7 @@ func TestAuthCommand(t *testing.T) {
 	cdc, err = client.CreateDataChannel("%", nil)
 	require.Nil(t, err, "failed to create the control data channel: %v", err)
 	cdc.OnOpen(func() {
-		go sendAuth(cdc, "thejargonfile")
+		go sendAuth(cdc, AValidToken)
 		cdc.OnMessage(func(msg webrtc.DataChannelMessage) {
 			var cm CTRLMessage
 			log.Printf("Got a ctrl msg: %s", msg.Data)
@@ -265,6 +274,29 @@ func TestAuthCommand(t *testing.T) {
 	<-gotTokenAck
 }
 
+func TestBadToken(t *testing.T) {
+	InitDevLogger()
+	gotNAck := make(chan bool)
+	peer, err := NewPeer("")
+	require.Nil(t, err, "NewPeer failed with: %s", err)
+	client, err := webrtc.NewPeerConnection(webrtc.Configuration{})
+	require.Nil(t, err, "Failed to start a new peer connection %q", err)
+	cdc, err := client.CreateDataChannel("%", nil)
+	require.Nil(t, err, "failed to create the control data channel: %q", err)
+
+	cdc.OnOpen(func() {
+		go sendAuth(cdc, "BADWOLF")
+		cdc.OnMessage(func(msg webrtc.DataChannelMessage) {
+			msgType := getType(t, msg)
+			require.Equal(t, msgType, "nack",
+				"Expected a nack and got a %q", msgType)
+			gotNAck <- true
+		})
+	})
+	signalPair(client, peer.PC)
+	<-gotNAck
+}
+
 func TestResizeCommand(t *testing.T) {
 	InitDevLogger()
 	gotAuthAck := make(chan bool)
@@ -276,7 +308,7 @@ func TestResizeCommand(t *testing.T) {
 	cdc, err := client.CreateDataChannel("%", nil)
 	require.Nil(t, err, "failed to create the control data channel: %v", err)
 	cdc.OnOpen(func() {
-		go sendAuth(cdc, "thejargonfile")
+		go sendAuth(cdc, AValidToken)
 		cdc.OnMessage(func(msg webrtc.DataChannelMessage) {
 			ack := parseAck(t, msg)
 			if ack.Ref == ACK_REF {
@@ -339,7 +371,7 @@ func TestChannelReconnect(t *testing.T) {
 	count := 0
 	cdc.OnOpen(func() {
 		log.Println("cdc is opened")
-		go sendAuth(cdc, "thejargonfile")
+		go sendAuth(cdc, AValidToken)
 		cdc.OnMessage(func(msg webrtc.DataChannelMessage) {
 			// we should get an ack for the auth message
 			var cm CTRLMessage
@@ -417,7 +449,7 @@ func TestPayloadOperations(t *testing.T) {
 	cdc.OnOpen(func() {
 		// there's only one payload
 		// TODO: support sessions and multi payloads
-		go sendAuth(cdc, "thejargonfile")
+		go sendAuth(cdc, AValidToken)
 		cdc.OnMessage(func(msg webrtc.DataChannelMessage) {
 			// we should get an ack for the auth message and the get payload
 			log.Printf("Got a ctrl msg: %s", msg.Data)
