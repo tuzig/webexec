@@ -6,6 +6,31 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## Unreleashed 
+
+### Adds 
+- Ability to run as an agent
+- Added sub command - start, stop, status, restart, init, help
+- Added sub command placeholders - copy, paste, auth
+- Zap logger
+- API documentation
+- Support for client payload
+- Tests
+
+### Changes
+- Removed "/etc/passwd" based auth
+- Source tree is now flat but for a pidfile package we copied
+- Control message schema has changed. It now has the "type" and "args" keys
+- Improved HTTP server error handling
+- Removing panics
+
+
+## [0.2.1] - 2020-08-02
+
+### Fixes
+
+- resize message
+- Improved reconnect support
+
 ## [0.2.0] - 2020-06-30
 
 ### Changes
