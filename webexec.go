@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -19,14 +20,17 @@ import (
 	"go.uber.org/zap/zapcore"
 )
 
+var ErrAgentNotRunning = errors.New("agent is not running")
+
+// global logger
 var Logger *zap.SugaredLogger
 
 var gotExitSignal chan bool
 
+// short period of time, used to let the current run it's course
 const A_BIT = 1 * time.Millisecond
 
-// InitAgent intializes the global `Logger` with agent's settings
-// and starts listening for signals
+// InitAgentLogger intializes the global `Logger` with agent's settings
 func InitAgentLogger() {
 	cfg := zap.Config{
 		Level:       zap.NewAtomicLevelAt(zap.DebugLevel),
@@ -48,7 +52,7 @@ func InitAgentLogger() {
 	defer Logger.Sync()
 }
 
-// InitDev intializes the global `Logger` and capture the system signals
+// InitDevLogger intializes the global `Logger` for development
 func InitDevLogger() {
 	zapConf := []byte(`{
 		  "level": "debug",
@@ -86,17 +90,15 @@ func Shutdown() {
 	}
 }
 
-//onfPath returns the full path of a configuration file
+// ConfPath returns the full path of a configuration file
 func ConfPath(suffix string) string {
 	usr, _ := user.Current()
 	// TODO: make it configurable
 	return filepath.Join(usr.HomeDir, ".webexec", suffix)
 }
 
-/*
- * initUser - initialize the user's .webexec directory
- */
-func initUser(c *cli.Context) error {
+// init - initialize the user's .webexec directory
+func initCMD(c *cli.Context) error {
 	var contact string
 
 	usr, _ := user.Current()
@@ -132,13 +134,13 @@ func stop(c *cli.Context) error {
 
 	pidf, err := pidfile.Open(ConfPath("agent.pid"))
 	if os.IsNotExist(err) {
-		return fmt.Errorf("agent is not runnin")
+		return ErrAgentNotRunning
 	}
 	if err != nil {
 		return err
 	}
 	if !pidf.Running() {
-		return fmt.Errorf("agent is not runnin")
+		return ErrAgentNotRunning
 	}
 	pid, err := pidf.Read()
 	if err != nil {
@@ -174,7 +176,12 @@ func start(c *cli.Context) error {
 			}
 			defer pid.Remove()
 		} else {
-			// start the agent and exit
+			pidf, err := pidfile.Open(ConfPath("agent.pid"))
+			if !os.IsNotExist(err) && pidf.Running() {
+				fmt.Println("agent is already running, doing nothing")
+				return nil
+			}
+			// start the agent process and exit
 			execPath, err := osext.Executable()
 			if err != nil {
 				return fmt.Errorf("Failed to find the executable: %s", err)
@@ -184,6 +191,8 @@ func start(c *cli.Context) error {
 			if err != nil {
 				return fmt.Errorf("agent failed to start :%q", err)
 			}
+			time.Sleep(100 * time.Millisecond)
+			fmt.Printf("agent started as process #%d\n", cmd.Process.Pid)
 			return nil
 		}
 	}
@@ -203,12 +212,42 @@ func start(c *cli.Context) error {
 
 	return nil
 }
-func pasteCB(c *cli.Context) error {
+func paste(c *cli.Context) error {
 	fmt.Println("Soon, we'll be pasting data from the clipboard to STDOUT")
 	return nil
 }
-func copyCB(c *cli.Context) error {
+func copyCMD(c *cli.Context) error {
 	fmt.Println("Soon, we'll be copying data from STDIN to the clipboard")
+	return nil
+}
+
+// restart function restarts the agent or starts it if it is stopped
+func restart(c *cli.Context) error {
+	err := stop(c)
+	if err != nil && err != ErrAgentNotRunning {
+		return err
+	}
+	// wait for the process to stop
+	time.Sleep(1 * time.Second)
+	return start(c)
+}
+
+// status function prints the status of the agent
+func status(c *cli.Context) error {
+	pidf, err := pidfile.Open(ConfPath("agent.pid"))
+	if os.IsNotExist(err) {
+		fmt.Println("agent is not running")
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if !pidf.Running() {
+		fmt.Println("agent is not running and pid is stale")
+		return nil
+	}
+	pid, err := pidf.Read()
+	fmt.Printf("agent is running with process id %d\n", pid)
 	return nil
 }
 
@@ -218,10 +257,21 @@ func main() {
 		Usage: "execute commands and pipe their stdin&stdout over webrtc",
 		Commands: []*cli.Command{
 			{
+				Name:   "copy",
+				Usage:  "Copy data from STDIN to the clipboard",
+				Action: copyCMD,
+			}, {
+				Name:   "paste",
+				Usage:  "Paste data from the clipboard to STDOUT",
+				Action: paste,
+			}, {
+				Name:   "restart",
+				Usage:  "restarts the agent",
+				Action: restart,
+			}, {
 				Name:    "start",
 				Aliases: []string{"l"},
-
-				Usage: "Spawns a backgroung http server & webrtc peer",
+				Usage:   "Spawns a backgroung http server & webrtc peer",
 				Flags: []cli.Flag{
 					&cli.StringFlag{
 						Name:    "address",
@@ -240,21 +290,17 @@ func main() {
 				},
 				Action: start,
 			}, {
+				Name:   "status",
+				Usage:  "webexec agent's status",
+				Action: status,
+			}, {
 				Name:   "stop",
 				Usage:  "stop the user's agent",
 				Action: stop,
 			}, {
 				Name:   "init",
 				Usage:  "initialize user settings",
-				Action: initUser,
-			}, {
-				Name:   "copy",
-				Usage:  "Copy data from STDIN to the clipboard",
-				Action: copyCB,
-			}, {
-				Name:   "paste",
-				Usage:  "Paste data from the clipboard to STDOUT",
-				Action: pasteCB,
+				Action: initCMD,
 			}, {
 				Name: "tokens",
 				Subcommands: []*cli.Command{
@@ -272,8 +318,7 @@ func main() {
 						Action: DeleteToken,
 					},
 				},
-				Usage:  "Manage user tokens",
-				Action: initUser,
+				Usage: "Manage user tokens",
 			},
 		},
 	}
