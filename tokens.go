@@ -9,9 +9,13 @@ import (
 func AddToken(c *cli.Context) error {
 	return nil
 }
+
+// DeleteToken is a command that deletes a client token
 func DeleteToken(c *cli.Context) error {
 	return nil
 }
+
+// List is a command that list the authorized token
 func ListTokens(c *cli.Context) error {
 	return nil
 }
