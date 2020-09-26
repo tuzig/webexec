@@ -72,13 +72,16 @@ func (pane *Pane) ReadLoop() {
 	// MT: io.Copy & https://golang.org/pkg/io/#MultiWriter
 	// MT: You can use SIGCHILD to know if a child process died
 	b := make([]byte, 4096)
+	id := pane.Id
 	for pane.C.ProcessState.String() != "killed" {
 		l, err := pane.Tty.Read(b)
 		if l == 0 {
 			break
 		}
-		for i := 0; i < len(pane.dcs); i++ {
-			dc := pane.dcs[i]
+		// We need to get the dcs from Panes or we don't get an updated version
+		dcs := Panes[id-1].dcs
+		for i := 0; i < len(dcs); i++ {
+			dc := dcs[i]
 			if dc.ReadyState() == webrtc.DataChannelStateOpen {
 				err = dc.Send(b[:l])
 				if err != nil {

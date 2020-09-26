@@ -187,6 +187,11 @@ func start(c *cli.Context) error {
 				return fmt.Errorf("Failed to find the executable: %s", err)
 			}
 			cmd := exec.Command(execPath, "start", "--agent")
+			logfile, err := os.Open(ConfPath("agent.err"))
+			if err != nil {
+				return fmt.Errorf("failed to open the log file :%q", err)
+			}
+			cmd.Stderr = logfile
 			err = cmd.Start()
 			if err != nil {
 				return fmt.Errorf("agent failed to start :%q", err)
