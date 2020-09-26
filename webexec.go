@@ -188,8 +188,20 @@ func start(c *cli.Context) error {
 			}
 			cmd := exec.Command(execPath, "start", "--agent")
 			logfile, err := os.Open(ConfPath("agent.err"))
+			if errors.Is(err, os.ErrNotExist) {
+				// TODO: make it configurable
+				logfile, err = os.Create(ConfPath("agent.err"))
+				if errors.Is(err, os.ErrNotExist) {
+					return fmt.Errorf(`
+	Seems like ~/.webexec is missing.\n
+	Have you ran "%s init"?`, execPath)
+				}
+				if err != nil {
+					return fmt.Errorf("failed to create agent.err:%q", err)
+				}
+			}
 			if err != nil {
-				return fmt.Errorf("failed to open the log file :%q", err)
+				return fmt.Errorf("failed to open agent.err :%s", err)
 			}
 			cmd.Stderr = logfile
 			err = cmd.Start()
