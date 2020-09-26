@@ -319,23 +319,23 @@ func main() {
 				Usage:  "initialize user settings",
 				Action: initCMD,
 			}, {
-				Name: "tokens",
+				Name:  "auth",
+				Usage: "token based authorization",
 				Subcommands: []*cli.Command{
+					{
+						Name:   "ls",
+						Usage:  "list the authorized tokens",
+						Action: DeleteToken,
+					},
 					{
 						Name:   "add",
 						Usage:  "add <token>",
 						Action: AddToken,
 					}, {
 						Name:   "rm",
-						Usage:  "delete <token>",
+						Usage:  "rm <token>",
 						Action: DeleteToken,
-					}, {
-						Name:   "ls",
-						Usage:  "list the tokens",
-						Action: DeleteToken,
-					},
-				},
-				Usage: "Manage user tokens",
+					}},
 			},
 		},
 	}
