@@ -2,8 +2,8 @@ package main
 
 import (
 	"encoding/json"
+	"io/ioutil"
 	"log"
-	"os"
 	"testing"
 	"time"
 
@@ -116,8 +116,9 @@ func TestBadToken(t *testing.T) {
 }
 func TestIsAuthorized(t *testing.T) {
 	// create the token file and test good & bad tokens
-	file, err := os.Create(TokensFilePath)
-	require.Nil(t, err, "Failed to create tokens file: %s", err)
+	file, err := ioutil.TempFile("", "authorized_tokens")
+	TokensFilePath = file.Name()
+	require.Nil(t, err, "Failed to create a temp tokens file: %s", err)
 	file.WriteString("GOODTOKEN\nANOTHERGOODTOKEN\n")
 	file.Close()
 	require.True(t, IsAuthorized("GOODTOKEN"))
