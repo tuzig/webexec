@@ -11,7 +11,7 @@ import (
 	"strings"
 )
 
-var authorizedTokens []string
+const AValidTokenForTests = "THEoneANDonlyTOKEN"
 
 // ErrorArgs is a type that holds the args for an error message
 type NAckArgs struct {
@@ -54,13 +54,13 @@ type CTRLMessage struct {
 	Args      interface{} `json:"args"`
 }
 
-// IsAuthorized checks authorization args against system's user
-// returns the user's token or nil if failed to authenticat
+// IsAuthorized checks whether a client token is authorized
 func IsAuthorized(token string) bool {
-	if authorizedTokens == nil {
-		authorizedTokens = []string{"THEoneANDonlyTOKEN"}
+	tokens, err := ReadAuthorizedTokens()
+	if err != nil {
+		Logger.Error(err)
 	}
-	for _, at := range authorizedTokens {
+	for _, at := range tokens {
 		if token == at {
 			return true
 		}

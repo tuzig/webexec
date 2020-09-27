@@ -21,6 +21,9 @@ import (
 )
 
 var ErrAgentNotRunning = errors.New("agent is not running")
+var ErrHomePathMissing = `
+Seems like ~/.webexec is missing.\n
+Have you ran "%s init"?`
 
 // global logger
 var Logger *zap.SugaredLogger
@@ -192,9 +195,7 @@ func start(c *cli.Context) error {
 				// TODO: make it configurable
 				logfile, err = os.Create(ConfPath("agent.err"))
 				if errors.Is(err, os.ErrNotExist) {
-					return fmt.Errorf(`
-	Seems like ~/.webexec is missing.\n
-	Have you ran "%s init"?`, execPath)
+					return fmt.Errorf(ErrHomePathMissing, execPath)
 				}
 				if err != nil {
 					return fmt.Errorf("failed to create agent.err:%q", err)
@@ -325,7 +326,7 @@ func main() {
 					{
 						Name:   "ls",
 						Usage:  "list the authorized tokens",
-						Action: DeleteToken,
+						Action: ListTokens,
 					},
 					{
 						Name:   "add",

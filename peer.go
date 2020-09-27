@@ -5,6 +5,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -307,7 +308,9 @@ func (peer *Peer) OnCTRLMsg(msg webrtc.DataChannelMessage) {
 		// token := Authenticate(m.Auth)
 		var authArgs AuthArgs
 		err = json.Unmarshal(raw, &authArgs)
-		if IsAuthorized(authArgs.Token) {
+		// if we're running a test. authorzied only the test token
+		// next line copied from: https://stackoverflow.com/a/45913089/66595
+		if strings.HasSuffix(os.Args[0], ".test") && authArgs.Token == AValidTokenForTests || IsAuthorized(authArgs.Token) {
 			peer.Authenticated = true
 			err = json.Unmarshal(raw, &authArgs)
 			peer.Token = authArgs.Token

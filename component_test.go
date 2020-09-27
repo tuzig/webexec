@@ -14,105 +14,6 @@ import (
 )
 
 const timeout = 3 * time.Second
-const ACK_REF = 123
-
-const AValidToken = "THEoneANDonlyTOKEN"
-
-func getType(t *testing.T, msg webrtc.DataChannelMessage) string {
-	env := CTRLMessage{}
-	err := json.Unmarshal(msg.Data, &env)
-	require.Nil(t, err, "failed to unmarshal cdc message: %q", err)
-	return env.Type
-
-}
-func parseAck(t *testing.T, msg webrtc.DataChannelMessage) AckArgs {
-	var args json.RawMessage
-	var ackArgs AckArgs
-	env := CTRLMessage{
-		Args: &args,
-	}
-	err := json.Unmarshal(msg.Data, &env)
-	require.Nil(t, err, "failed to unmarshal cdc message: %q", err)
-	require.Equal(t, env.Type, "ack",
-		"Expected an ack message and got %q", env.Type)
-	err = json.Unmarshal(args, &ackArgs)
-	require.Nil(t, err, "failed to unmarshal ack args: %q", err)
-	return ackArgs
-}
-
-func sendAuth(cdc *webrtc.DataChannel, token string) {
-	time.Sleep(10 * time.Millisecond)
-	//TODO we need something like peer.LastMsgId++ below
-	msg := CTRLMessage{
-		Time:      time.Now().UnixNano(),
-		Type:      "auth",
-		MessageId: ACK_REF,
-		Args:      AuthArgs{token},
-	}
-	authMsg, err := json.Marshal(msg)
-	if err != nil {
-		log.Printf("Failed to marshal the auth args: %v", err)
-	} else {
-		log.Print("Test is sending an auth message")
-		cdc.Send(authMsg)
-	}
-}
-
-//TODO: move this function to a test_utils.go file
-func signalPair(pcOffer *webrtc.PeerConnection, pcAnswer *webrtc.PeerConnection) error {
-	iceGatheringState := pcOffer.ICEGatheringState()
-	offerChan := make(chan webrtc.SessionDescription, 1)
-
-	if iceGatheringState != webrtc.ICEGatheringStateComplete {
-		pcOffer.OnICECandidate(func(candidate *webrtc.ICECandidate) {
-			if candidate == nil {
-				offerChan <- *pcOffer.PendingLocalDescription()
-			}
-		})
-	}
-	// Note(albrow): We need to create a data channel in order to trigger ICE
-	// candidate gathering in the background for the JavaScript/Wasm bindings. If
-	// we don't do this, the complete offer including ICE candidates will never be
-	// generated.
-	if _, err := pcOffer.CreateDataChannel("signaling", nil); err != nil {
-		return err
-	}
-
-	offer, err := pcOffer.CreateOffer(nil)
-	if err != nil {
-		return err
-	}
-	if err := pcOffer.SetLocalDescription(offer); err != nil {
-		return err
-	}
-
-	if iceGatheringState == webrtc.ICEGatheringStateComplete {
-		offerChan <- offer
-	}
-	select {
-	case <-time.After(3 * time.Second):
-		return fmt.Errorf("timed mockedMsgs waiting to receive offer")
-	case offer := <-offerChan:
-		if err := pcAnswer.SetRemoteDescription(offer); err != nil {
-			return err
-		}
-
-		answer, err := pcAnswer.CreateAnswer(nil)
-		if err != nil {
-			return err
-		}
-
-		if err = pcAnswer.SetLocalDescription(answer); err != nil {
-			return err
-		}
-
-		err = pcOffer.SetRemoteDescription(answer)
-		if err != nil {
-			return err
-		}
-		return nil
-	}
-}
 
 /* TODO: refactor as StartCommand is no longer a thing
 func TestStartCommand(t *testing.T) {
@@ -152,7 +53,7 @@ func TestSimpleEcho(t *testing.T) {
 	// count the incoming messages
 	count := 0
 	cdc.OnOpen(func() {
-		go sendAuth(cdc, AValidToken)
+		go SendAuth(cdc, AValidTokenForTests)
 		cdc.OnMessage(func(msg webrtc.DataChannelMessage) {
 			// we should get an ack for the auth message
 			var cm CTRLMessage
@@ -187,7 +88,7 @@ func TestSimpleEcho(t *testing.T) {
 			done <- true
 		})
 	})
-	signalPair(client, peer.PC)
+	SignalPair(client, peer.PC)
 	// TODO: add timeout
 	<-done
 	require.Equal(t, count, 2, "Expected to recieve 2 messages and got %d", count)
@@ -200,7 +101,7 @@ func TestUnauthincatedBlocked(t *testing.T) {
 	require.Nil(t, err, "NewPeer failed with: %s", err)
 	client, err := webrtc.NewPeerConnection(webrtc.Configuration{})
 	require.Nil(t, err, "Failed to start a new peer connection: %q", err)
-	signalPair(client, peer.PC)
+	SignalPair(client, peer.PC)
 	cdc, err := client.CreateDataChannel("%", nil)
 	require.Nil(t, err, "failed to create the control data channel: %q", err)
 	cdc.OnOpen(func() {
@@ -234,16 +135,16 @@ func TestAuthorization(t *testing.T) {
 	require.Nil(t, err, "failed to create the control data channel: %q", err)
 
 	cdc.OnOpen(func() {
-		go sendAuth(cdc, AValidToken)
+		go SendAuth(cdc, AValidTokenForTests)
 		cdc.OnMessage(func(msg webrtc.DataChannelMessage) {
-			ackArgs := parseAck(t, msg)
-			require.Equal(t, ackArgs.Ref, ACK_REF,
-				"Expeted ack ref to equal %d and got: ", ACK_REF, ackArgs.Ref)
+			ackArgs := ParseAck(t, msg)
+			require.Equal(t, ackArgs.Ref, TEST_ACK_REF,
+				"Expeted ack ref to equal %d and got: ", TEST_ACK_REF, ackArgs.Ref)
 			gotAuthAck <- true
 		})
 
 	})
-	signalPair(client, peer.PC)
+	SignalPair(client, peer.PC)
 	<-gotAuthAck
 	log.Printf("Got Auth Ack")
 	// got auth ack now close the channel and start over, this time using
@@ -259,7 +160,7 @@ func TestAuthorization(t *testing.T) {
 	cdc, err = client.CreateDataChannel("%", nil)
 	require.Nil(t, err, "failed to create the control data channel: %v", err)
 	cdc.OnOpen(func() {
-		go sendAuth(cdc, AValidToken)
+		go SendAuth(cdc, AValidTokenForTests)
 		cdc.OnMessage(func(msg webrtc.DataChannelMessage) {
 			var cm CTRLMessage
 			log.Printf("Got a ctrl msg: %s", msg.Data)
@@ -270,7 +171,7 @@ func TestAuthorization(t *testing.T) {
 			gotTokenAck <- true
 		})
 	})
-	signalPair(client, peer2.PC)
+	SignalPair(client, peer2.PC)
 	<-gotTokenAck
 }
 
@@ -285,15 +186,15 @@ func TestBadToken(t *testing.T) {
 	require.Nil(t, err, "failed to create the control data channel: %q", err)
 
 	cdc.OnOpen(func() {
-		go sendAuth(cdc, "BADWOLF")
+		go SendAuth(cdc, "BADWOLF")
 		cdc.OnMessage(func(msg webrtc.DataChannelMessage) {
-			msgType := getType(t, msg)
+			msgType := GetMsgType(t, msg)
 			require.Equal(t, msgType, "nack",
 				"Expected a nack and got a %q", msgType)
 			gotNAck <- true
 		})
 	})
-	signalPair(client, peer.PC)
+	SignalPair(client, peer.PC)
 	<-gotNAck
 }
 
@@ -308,10 +209,10 @@ func TestResizeCommand(t *testing.T) {
 	cdc, err := client.CreateDataChannel("%", nil)
 	require.Nil(t, err, "failed to create the control data channel: %v", err)
 	cdc.OnOpen(func() {
-		go sendAuth(cdc, AValidToken)
+		go SendAuth(cdc, AValidTokenForTests)
 		cdc.OnMessage(func(msg webrtc.DataChannelMessage) {
-			ack := parseAck(t, msg)
-			if ack.Ref == ACK_REF {
+			ack := ParseAck(t, msg)
+			if ack.Ref == TEST_ACK_REF {
 				gotAuthAck <- true
 			}
 			if ack.Ref == 456 {
@@ -347,7 +248,7 @@ func TestResizeCommand(t *testing.T) {
 			})
 		})
 	})
-	signalPair(client, peer.PC)
+	SignalPair(client, peer.PC)
 	<-done
 }
 
@@ -371,7 +272,7 @@ func TestChannelReconnect(t *testing.T) {
 	count := 0
 	cdc.OnOpen(func() {
 		log.Println("cdc is opened")
-		go sendAuth(cdc, AValidToken)
+		go SendAuth(cdc, AValidTokenForTests)
 		cdc.OnMessage(func(msg webrtc.DataChannelMessage) {
 			// we should get an ack for the auth message
 			var cm CTRLMessage
@@ -399,7 +300,7 @@ func TestChannelReconnect(t *testing.T) {
 			count++
 		})
 	})
-	signalPair(client, peer.PC)
+	SignalPair(client, peer.PC)
 	<-gotId
 	// Now that we have a channel open, let's close the channel and reconnect
 	dc2, err := client.CreateDataChannel("24x80,>"+cId, nil)
@@ -449,14 +350,14 @@ func TestPayloadOperations(t *testing.T) {
 	cdc.OnOpen(func() {
 		// there's only one payload
 		// TODO: support sessions and multi payloads
-		go sendAuth(cdc, AValidToken)
+		go SendAuth(cdc, AValidTokenForTests)
 		cdc.OnMessage(func(msg webrtc.DataChannelMessage) {
 			// we should get an ack for the auth message and the get payload
 			log.Printf("Got a ctrl msg: %s", msg.Data)
-			args := parseAck(t, msg)
+			args := ParseAck(t, msg)
 			var payload []byte
 			err = json.Unmarshal(args.Body, &payload)
-			if args.Ref == ACK_REF {
+			if args.Ref == TEST_ACK_REF {
 				require.Equal(t, []byte(args.Body), Payload,
 					"Got the wrong payload: %q", args.Body)
 				gotAuthAck <- true
@@ -472,7 +373,7 @@ func TestPayloadOperations(t *testing.T) {
 		t.Error("Timeout waiting for an ack")
 		done <- true
 	})
-	signalPair(client, peer.PC)
+	SignalPair(client, peer.PC)
 	<-gotAuthAck
 	args := SetPayloadArgs{payload2}
 	setPayload := CTRLMessage{time.Now().UnixNano(), 777,
