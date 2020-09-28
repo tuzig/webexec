@@ -1,4 +1,5 @@
-# webexec APIv2
+# webexec API
+
 
 The webexec server lets a client run commands on a remote server and pipe their
 input & output over a web real time communication (aka webrtc) connection. 

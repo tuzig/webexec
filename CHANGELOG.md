@@ -8,9 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Unreleashed 
 
 ### Adds 
-- Ability to run as an agent
-- Added sub command - start, stop, status, restart, init, help
-- Added sub command placeholders - copy, paste, auth
+- An agent that runs in the backgroung and managed by sub commands
+- Sub commands - help, auth, start, stop, status, restart, init
+- Added sub command placeholders - copy, paste
 - Zap logger
 - API documentation
 - Support for client payload
