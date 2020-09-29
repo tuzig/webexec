@@ -1,5 +1,11 @@
 // +build windows
 
+/* MT: According to the doc - FindProcess works cross platform and on *nix it
+always succeed (that's why you do the kill(0) to check).
+
+IMO here you can use it without the check and it'll work as expected.
+*/
+
 package pidfile
 
 import (

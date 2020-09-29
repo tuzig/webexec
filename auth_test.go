@@ -12,6 +12,9 @@ import (
 )
 
 func TestUnauthincatedBlocked(t *testing.T) {
+	/* MT: Add a test logger that won't spam stdout but will log
+	to t.Logger. Logs will only with -v or when there's an
+	error */
 	InitDevLogger()
 	done := make(chan bool)
 	peer, err := NewPeer("")
@@ -33,6 +36,7 @@ func TestUnauthincatedBlocked(t *testing.T) {
 		})
 	})
 
+	// MT: Why do we do this code?
 	time.AfterFunc(3*time.Second, func() {
 		done <- true
 	})

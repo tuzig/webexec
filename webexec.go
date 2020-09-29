@@ -21,6 +21,8 @@ import (
 )
 
 var ErrAgentNotRunning = errors.New("agent is not running")
+
+// MT: Ideally there should be good defaults that "just work"™
 var ErrHomePathMissing = `
 Seems like ~/.webexec is missing.\n
 Have you ran "%s init"?`
@@ -31,10 +33,12 @@ var Logger *zap.SugaredLogger
 var gotExitSignal chan bool
 
 // short period of time, used to let the current run it's course
+// MT: Naming conventions: ABit. Also - unused
 const A_BIT = 1 * time.Millisecond
 
 // InitAgentLogger intializes the global `Logger` with agent's settings
 func InitAgentLogger() {
+	// MT: I don't know how, but rotate logs
 	cfg := zap.Config{
 		Level:       zap.NewAtomicLevelAt(zap.DebugLevel),
 		Encoding:    "console",
@@ -56,6 +60,7 @@ func InitAgentLogger() {
 }
 
 // InitDevLogger intializes the global `Logger` for development
+// MT: Why not read a YAML/JSON file from the config directory
 func InitDevLogger() {
 	zapConf := []byte(`{
 		  "level": "debug",
@@ -85,10 +90,12 @@ func InitDevLogger() {
 func Shutdown() {
 	for _, peer := range Peers {
 		if peer.PC != nil {
+			// MT: Check for error
 			peer.PC.Close()
 		}
 	}
 	for _, p := range Panes {
+		// MT: Check for error
 		p.C.Process.Kill()
 	}
 }
@@ -159,13 +166,16 @@ func stop(c *cli.Context) error {
 }
 
 // start - start the user's agent
+// MT: Why did you choose the cli package?
 func start(c *cli.Context) error {
+	// MT: Chis function is too complex, refactor
 	address := c.String("address")
 	// TODO: daemon := c.Bool("d") and all it entails
 	debug := c.Bool("debug")
 	if debug {
 		InitDevLogger()
 	} else {
+		// MT: Too much code in if/else
 		if c.Bool("agent") {
 			InitAgentLogger()
 			pidPath := ConfPath("agent.pid")
@@ -217,6 +227,8 @@ func start(c *cli.Context) error {
 	Logger.Infof("Serving http on %q", address)
 	go HTTPGo(address)
 	// signal handling
+	// MT: Make the channel buffered
+	// gotExit := make(chan os.Signal, 1)
 	gotExit := make(chan os.Signal)
 	if debug {
 		signal.Notify(gotExit, os.Interrupt, syscall.SIGTERM)
@@ -231,10 +243,12 @@ func start(c *cli.Context) error {
 	return nil
 }
 func paste(c *cli.Context) error {
+	// MT: Switch to log
 	fmt.Println("Soon, we'll be pasting data from the clipboard to STDOUT")
 	return nil
 }
 func copyCMD(c *cli.Context) error {
+	// MT: Switch to log
 	fmt.Println("Soon, we'll be copying data from STDIN to the clipboard")
 	return nil
 }
@@ -246,6 +260,8 @@ func restart(c *cli.Context) error {
 		return err
 	}
 	// wait for the process to stop
+	// MT: I prefer to do a for loop with short sleeps and check the process
+	// status. Error if a timeout reached
 	time.Sleep(1 * time.Second)
 	return start(c)
 }
@@ -275,6 +291,7 @@ func main() {
 		Usage: "execute commands and pipe their stdin&stdout over webrtc",
 		Commands: []*cli.Command{
 			{
+				// MT: Don't expose to user until ready
 				Name:   "copy",
 				Usage:  "Copy data from STDIN to the clipboard",
 				Action: copyCMD,
@@ -342,6 +359,7 @@ func main() {
 	}
 	err := app.Run(os.Args)
 	if err != nil {
+		// MT: Use logger?
 		log.Fatal(err)
 	}
 }

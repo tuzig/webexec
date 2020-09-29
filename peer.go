@@ -19,6 +19,14 @@ const connectionTimeout = 600 * time.Second
 const keepAliveInterval = 15 * time.Minute
 const peerBufferSize = 5000
 
+/* MT: Group vars in ()
+var (
+	Peers []Peer
+	Payload []byte
+	WebRTCAPI *webrtc.API
+)
+*/
+
 // Peers holds all the peers (connected and disconnected)
 var Peers []Peer
 
@@ -30,8 +38,16 @@ var WebRTCAPI *webrtc.API
 
 // type Peer is used to remember a client aka peer connection
 type Peer struct {
-	Id                int
-	Authenticated     bool
+	Id            int
+	Authenticated bool
+	/* MT: Make a Type state with allowed states
+	type State string
+	const (
+		Connected State = "connected"
+		...
+	)
+	*/
+
 	State             string
 	Remote            string
 	Token             string
@@ -46,6 +62,7 @@ type Peer struct {
 // NewPeer funcions starts listening to incoming peer connection from a remote
 func NewPeer(remote string) (*Peer, error) {
 	Logger.Infof("New Peer from: %s", remote)
+	// MT: Guard WebRTCAPI with sync.Mutex
 	if WebRTCAPI == nil {
 		s := webrtc.SettingEngine{}
 		s.SetConnectionTimeout(connectionTimeout, keepAliveInterval)
@@ -75,6 +92,7 @@ func NewPeer(remote string) (*Peer, error) {
 		cdc:               nil,
 		PendingChannelReq: make(chan *webrtc.DataChannel, 5),
 	}
+	// MT: Guard with sync.Mutex
 	Peers = append(Peers, peer)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to open peer connection: %q", err)
@@ -182,8 +200,10 @@ func (peer *Peer) OnPaneReq(d *webrtc.DataChannel) *Pane {
 
 	// If the message starts with a digit we assume it starts with a size
 	l := d.Label()
+	// MT: For each case, add a comment with example input
 	fields := strings.Split(l, ",")
 	// "%" is the command & control channel - aka cdc
+	// MT: Might panic if d.Label() starts with ","
 	if l[0] == '%' {
 		//TODO: if there's an older cdc close it
 		Logger.Info("Got a request to open for a new control channel")
@@ -212,6 +232,7 @@ func (peer *Peer) OnPaneReq(d *webrtc.DataChannel) *Pane {
 			return nil
 		}
 		Logger.Infof("New channel is a reconnect request to %d", id)
+		// MT: Check for < 0
 		if id > len(Panes) {
 			Logger.Errorf("Got a bad pane id: %d", id)
 			return nil
@@ -245,11 +266,11 @@ func (peer *Peer) SendAck(cm CTRLMessage, body []byte) {
 	// TODO: protect message counter against reentrancy
 	msg := CTRLMessage{time.Now().UnixNano() / 1000000, peer.LastMsgId + 1,
 		"ack", &args}
-	peer.LastMsgId += 1
+	peer.LastMsgId += 1 // MT: peer.LastMsgId++ before the previous line?
 	msgJ, err := json.Marshal(msg)
 	if err != nil {
 		Logger.Errorf("Failed to marshal the ack msg: %e\n   msg == %q", err, msg)
-		return
+		return // MT: Why not return error?
 	}
 	Logger.Infof("Sending ack: %q", msgJ)
 	peer.cdc.Send(msgJ)
@@ -271,6 +292,22 @@ func (peer *Peer) SendNAck(cm CTRLMessage, desc string) {
 	Logger.Infof("Sending nack: %q", msgJ)
 	peer.cdc.Send(msgJ)
 }
+
+/* MT
+You can avoid of the types in cdc.go and use anonymouns struct
+
+	data := []byte(`{"x": 1, "y": 2}`)
+	var point struct { // point is an anonymouns struct
+		X int
+		Y int
+	}
+
+	if err := json.Unmarshal(data, &point); err != nil {
+		fmt.Println("ERROR:", err)
+	} else {
+		fmt.Printf("point: %+v\n", point)
+	}
+*/
 
 // OnCTRLMsg handles incoming control messages
 func (peer *Peer) OnCTRLMsg(msg webrtc.DataChannelMessage) {

@@ -5,6 +5,9 @@ import (
 	"encoding/json"
 )
 
+// MT: Why do we need this? encoding/json can work with
+// []byte over JSON (using base64)
+
 // Offer encoding
 // Encode encodes the input in base64
 func EncodeOffer(obj interface{}) string {
