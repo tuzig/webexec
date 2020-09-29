@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -23,6 +22,9 @@ import (
 var ErrAgentNotRunning = errors.New("agent is not running")
 
 // MT: Ideally there should be good defaults that "just work"™
+// BD: Not sure I can be that light. I added the init command because
+//     the agent needs a way to get the user's approval for new clients.
+//     I guess an alternative will be use ssh and run "webexec auth <token>"
 var ErrHomePathMissing = `
 Seems like ~/.webexec is missing.\n
 Have you ran "%s init"?`
@@ -32,13 +34,10 @@ var Logger *zap.SugaredLogger
 
 var gotExitSignal chan bool
 
-// short period of time, used to let the current run it's course
-// MT: Naming conventions: ABit. Also - unused
-const A_BIT = 1 * time.Millisecond
-
 // InitAgentLogger intializes the global `Logger` with agent's settings
 func InitAgentLogger() {
 	// MT: I don't know how, but rotate logs
+	// BD: https://github.com/tuzig/webexec/issues/16
 	cfg := zap.Config{
 		Level:       zap.NewAtomicLevelAt(zap.DebugLevel),
 		Encoding:    "console",
@@ -61,6 +60,8 @@ func InitAgentLogger() {
 
 // InitDevLogger intializes the global `Logger` for development
 // MT: Why not read a YAML/JSON file from the config directory
+// BD: We'll still need this function when the user runs `webexec start --debug`
+//     but for the agent's: https://github.com/tuzig/webexec/issues/17
 func InitDevLogger() {
 	zapConf := []byte(`{
 		  "level": "debug",
@@ -88,15 +89,20 @@ func InitDevLogger() {
 
 // Shutdown is called when it's time to go.Sweet dreams.
 func Shutdown() {
+	var err error
 	for _, peer := range Peers {
 		if peer.PC != nil {
-			// MT: Check for error
-			peer.PC.Close()
+			err = peer.PC.Close()
+			if err != nil {
+				Logger.Error("Failed closing peer connection: %w", err)
+			}
 		}
 	}
 	for _, p := range Panes {
-		// MT: Check for error
-		p.C.Process.Kill()
+		err = p.C.Process.Kill()
+		if err != nil {
+			Logger.Error("Failed closing a process: %w", err)
+		}
 	}
 }
 
@@ -107,7 +113,7 @@ func ConfPath(suffix string) string {
 	return filepath.Join(usr.HomeDir, ".webexec", suffix)
 }
 
-// init - initialize the user's .webexec directory
+// initCMD - initialize the user's .webexec directory
 func initCMD(c *cli.Context) error {
 	var contact string
 
@@ -165,71 +171,83 @@ func stop(c *cli.Context) error {
 	return err
 }
 
+func agentStart() error {
+	// InitAgentLogger()
+	InitDevLogger()
+	Logger.Info("1")
+	pidPath := ConfPath("agent.pid")
+	_, err := pidfile.New(pidPath)
+	Logger.Info("2")
+	if err == pidfile.ErrProcessRunning {
+		Logger.Info("agent is already running, doing nothing")
+		return fmt.Errorf("agent is already running, doing nothing")
+	}
+	if err != nil {
+		return fmt.Errorf("pid file creation failed: %q", err)
+	}
+	return nil
+}
+
+func launchAgent() error {
+	pidf, err := pidfile.Open(ConfPath("agent.pid"))
+	if !os.IsNotExist(err) && pidf.Running() {
+		fmt.Println("agent is already running, doing nothing")
+		return nil
+	}
+	// start the agent process and exit
+	execPath, err := osext.Executable()
+	if err != nil {
+		return fmt.Errorf("Failed to find the executable: %s", err)
+	}
+	cmd := exec.Command(execPath, "start", "--agent")
+	logfile, err := os.Open(ConfPath("agent.err"))
+	if errors.Is(err, os.ErrNotExist) {
+		// TODO: make it configurable
+		logfile, err = os.Create(ConfPath("agent.err"))
+		if errors.Is(err, os.ErrNotExist) {
+			return fmt.Errorf(ErrHomePathMissing, execPath)
+		}
+		if err != nil {
+			return fmt.Errorf("failed to create agent.err:%q", err)
+		}
+	}
+	if err != nil {
+		return fmt.Errorf("failed to open agent.err :%s", err)
+	}
+	cmd.Stderr = logfile
+	err = cmd.Start()
+	if err != nil {
+		return fmt.Errorf("agent failed to start :%q", err)
+	}
+	time.Sleep(100 * time.Millisecond)
+	fmt.Printf("agent started as process #%d\n", cmd.Process.Pid)
+	return nil
+}
+
 // start - start the user's agent
 // MT: Why did you choose the cli package?
+// BD: Did a bit of research and it seemed like a simple and very active package
 func start(c *cli.Context) error {
-	// MT: Chis function is too complex, refactor
 	address := c.String("address")
-	// TODO: daemon := c.Bool("d") and all it entails
 	debug := c.Bool("debug")
 	if debug {
 		InitDevLogger()
 	} else {
 		// MT: Too much code in if/else
 		if c.Bool("agent") {
-			InitAgentLogger()
-			pidPath := ConfPath("agent.pid")
-			pid, err := pidfile.New(pidPath)
-			if err == pidfile.ErrProcessRunning {
-				Logger.Info("agent is already running, doing nothing")
-				return fmt.Errorf("agent is already running, doing nothing")
-			}
+			err := agentStart()
 			if err != nil {
-				return fmt.Errorf("pid file creation failed: %q", err)
+				return fmt.Errorf("Failed to start as agent: %w", err)
 			}
-			defer pid.Remove()
 		} else {
-			pidf, err := pidfile.Open(ConfPath("agent.pid"))
-			if !os.IsNotExist(err) && pidf.Running() {
-				fmt.Println("agent is already running, doing nothing")
-				return nil
-			}
-			// start the agent process and exit
-			execPath, err := osext.Executable()
-			if err != nil {
-				return fmt.Errorf("Failed to find the executable: %s", err)
-			}
-			cmd := exec.Command(execPath, "start", "--agent")
-			logfile, err := os.Open(ConfPath("agent.err"))
-			if errors.Is(err, os.ErrNotExist) {
-				// TODO: make it configurable
-				logfile, err = os.Create(ConfPath("agent.err"))
-				if errors.Is(err, os.ErrNotExist) {
-					return fmt.Errorf(ErrHomePathMissing, execPath)
-				}
-				if err != nil {
-					return fmt.Errorf("failed to create agent.err:%q", err)
-				}
-			}
-			if err != nil {
-				return fmt.Errorf("failed to open agent.err :%s", err)
-			}
-			cmd.Stderr = logfile
-			err = cmd.Start()
-			if err != nil {
-				return fmt.Errorf("agent failed to start :%q", err)
-			}
-			time.Sleep(100 * time.Millisecond)
-			fmt.Printf("agent started as process #%d\n", cmd.Process.Pid)
-			return nil
+			return launchAgent()
 		}
 	}
+	// the code below runs for --debug and --agent
 	Logger.Infof("Serving http on %q", address)
 	go HTTPGo(address)
 	// signal handling
-	// MT: Make the channel buffered
-	// gotExit := make(chan os.Signal, 1)
-	gotExit := make(chan os.Signal)
+	gotExit := make(chan os.Signal, 1)
 	if debug {
 		signal.Notify(gotExit, os.Interrupt, syscall.SIGTERM)
 	} else {
@@ -244,6 +262,8 @@ func start(c *cli.Context) error {
 }
 func paste(c *cli.Context) error {
 	// MT: Switch to log
+	// BD: I'm not sure. IMO, the logger is for the agent to use, CLI output
+	//     should just print to stdout without level, time, etc.
 	fmt.Println("Soon, we'll be pasting data from the clipboard to STDOUT")
 	return nil
 }
@@ -262,6 +282,7 @@ func restart(c *cli.Context) error {
 	// wait for the process to stop
 	// MT: I prefer to do a for loop with short sleeps and check the process
 	// status. Error if a timeout reached
+	// BD: right. https://github.com/tuzig/webexec/issues/18
 	time.Sleep(1 * time.Second)
 	return start(c)
 }
@@ -290,8 +311,8 @@ func main() {
 		Name:  "webexec",
 		Usage: "execute commands and pipe their stdin&stdout over webrtc",
 		Commands: []*cli.Command{
+			/* TODO: Add clipboard commands
 			{
-				// MT: Don't expose to user until ready
 				Name:   "copy",
 				Usage:  "Copy data from STDIN to the clipboard",
 				Action: copyCMD,
@@ -299,7 +320,8 @@ func main() {
 				Name:   "paste",
 				Usage:  "Paste data from the clipboard to STDOUT",
 				Action: paste,
-			}, {
+			},*/
+			{
 				Name:   "restart",
 				Usage:  "restarts the agent",
 				Action: restart,
@@ -359,7 +381,6 @@ func main() {
 	}
 	err := app.Run(os.Args)
 	if err != nil {
-		// MT: Use logger?
-		log.Fatal(err)
+		fmt.Println(err)
 	}
 }

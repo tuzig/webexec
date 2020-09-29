@@ -7,6 +7,8 @@ import (
 
 // MT: Why do we need this? encoding/json can work with
 // []byte over JSON (using base64)
+// BT: not sure, it's code copied from pion/webrtc example, if there's a better
+//     way to code this, LMK
 
 // Offer encoding
 // Encode encodes the input in base64

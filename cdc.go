@@ -7,17 +7,20 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/creack/pty"
-	"strconv"
-	"strings"
 )
 
 // MT: "Regular" code should know about tests
+// BD: I guess you mean "shouldn't know" and I agree.
+//     But practicalicy beats purity and this is the most elegant solution
+//     I found.
 const AValidTokenForTests = "THEoneANDonlyTOKEN"
 
 /* MT:
 - Why JSON? There are many serialization formats out there
+-- BD: Because webexec one & only front end is javascript.
 - Maybe we can try and decouple the code from the serialization so we can
-	switch serialization without much trouble
+	swMyitch serialization without much trouble
+-- Good idea, but i'd rather wait till when we non-js client
 */
 
 // ErrorArgs is a type that holds the args for an error message
@@ -26,10 +29,6 @@ type NAckArgs struct {
 	Desc string `json:"desc"`
 	// Ref holds the message id the error refers to or 0 for system errors
 	Ref int `json:"ref"`
-	/* MT: For simple case you don't need struct tags.
-	The JSON encoder will know to map "ref" in the JSON document to the "Ref"
-	field. If you want to lower case when marshaling - keep it.
-	*/
 }
 
 // AuthArgs is a type that holds client's authentication arguments.
@@ -116,6 +115,7 @@ type ResizeArgs struct {
 type CTRLMessage struct {
 	// MT: Why time.Time? It knows how to un/marshal from/to JSON
 	// MT: Document is it msec or sec since epoch
+	// Time is in msec since EPOCH
 	Time      int64       `json:"time"`
 	MessageId int         `json:"message_id"`
 	Type      string      `json:"type"`
@@ -127,7 +127,7 @@ func IsAuthorized(token string) bool {
 	tokens, err := ReadAuthorizedTokens()
 	if err != nil {
 		Logger.Error(err)
-		// MT: return false?
+		return false
 	}
 	for _, at := range tokens {
 		if token == at {
@@ -139,30 +139,10 @@ func IsAuthorized(token string) bool {
 
 // parseWinsize gets a string in the format of "24x80" and returns a Winsize
 func ParseWinsize(s string) (*pty.Winsize, error) {
-	var sy int64
-	var sx int64
-	var err error
-	/* MT: You can use fmt.Sscanf here, you'll be able to use uint16 directly
-	msg := "40x80"
-	var x, y uint16
-	if _, err := fmt.Sscanf(msg, "%dx%d", &x, &y); err != nil {
-		fmt.Println("ERROR:", err)
-	} else {
-		fmt.Println(x, y)
-	}
-	*/
+	var sx, sy uint16
 	Logger.Infof("Parsing window size: %q", s)
-	dim := strings.Split(s, "x")
-	sx, err = strconv.ParseInt(dim[1], 10, 16)
-	if err != nil {
-		return nil, fmt.Errorf("Failed to parse number of rows: %v", err)
-
+	if _, err := fmt.Sscanf(s, "%dx%d", &sy, &sx); err != nil {
+		return nil, fmt.Errorf("Failed to parse terminal dimensions: %s", err)
 	}
-	sy, err = strconv.ParseInt(dim[0], 0, 16)
-	if err != nil {
-		return nil, fmt.Errorf("Failed to parse number of cols: %v", err)
-	}
-	// MT: "go vet" complains on this (I recommend running "golangci-lint" on
-	// the code)
-	return &pty.Winsize{uint16(sy), uint16(sx), 0, 0}, nil
+	return &pty.Winsize{Rows: uint16(sy), Cols: uint16(sx)}, nil
 }

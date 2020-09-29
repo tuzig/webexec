@@ -9,13 +9,16 @@ import (
 
 	"github.com/pion/webrtc/v2"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap/zaptest"
 )
 
 func TestUnauthincatedBlocked(t *testing.T) {
 	/* MT: Add a test logger that won't spam stdout but will log
-	to t.Logger. Logs will only with -v or when there's an
-	error */
-	InitDevLogger()
+	to t.Logger. Logs will only with -v or when there's an.Sugar()
+	error
+	  BD: Thanks, I ended up using zaptest
+	*/
+	Logger = zaptest.NewLogger(t).Sugar()
 	done := make(chan bool)
 	peer, err := NewPeer("")
 	require.Nil(t, err, "NewPeer failed with: %s", err)
@@ -37,6 +40,9 @@ func TestUnauthincatedBlocked(t *testing.T) {
 	})
 
 	// MT: Why do we do this code?
+	// Because when the test fails, somtimes it hangs for too long.
+	// I found a "-timeout" command line option but no other way of controlling
+	// the timeout
 	time.AfterFunc(3*time.Second, func() {
 		done <- true
 	})
@@ -45,7 +51,7 @@ func TestUnauthincatedBlocked(t *testing.T) {
 }
 
 func TestAuthorization(t *testing.T) {
-	InitDevLogger()
+	Logger = zaptest.NewLogger(t).Sugar()
 	gotAuthAck := make(chan bool)
 	gotTokenAck := make(chan bool)
 	peer, err := NewPeer("")
@@ -97,7 +103,7 @@ func TestAuthorization(t *testing.T) {
 }
 
 func TestBadToken(t *testing.T) {
-	InitDevLogger()
+	Logger = zaptest.NewLogger(t).Sugar()
 	gotNAck := make(chan bool)
 	peer, err := NewPeer("")
 	require.Nil(t, err, "NewPeer failed with: %s", err)

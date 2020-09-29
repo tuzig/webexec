@@ -9,12 +9,11 @@ import (
 
 	"github.com/pion/webrtc/v2"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap/zaptest"
 )
 
-// MT: I use https://godoc.org/github.com/stretchr/testify/require which
-// reduces a lot of boilerplate code in testing
 func TestConnect(t *testing.T) {
-	InitDevLogger()
+	Logger = zaptest.NewLogger(t).Sugar()
 	done := make(chan bool)
 	offerChan := make(chan webrtc.SessionDescription, 1)
 	// Start the https server

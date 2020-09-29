@@ -8,6 +8,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 	"unicode"
 
@@ -19,36 +20,21 @@ const connectionTimeout = 600 * time.Second
 const keepAliveInterval = 15 * time.Minute
 const peerBufferSize = 5000
 
-/* MT: Group vars in ()
 var (
+	// Peers holds all the peers (connected and disconnected)
 	Peers []Peer
+	// Payload holds the client's payload
 	Payload []byte
+	// WebRTCAPI is the gateway to webrtc calls
 	WebRTCAPI *webrtc.API
 )
-*/
 
-// Peers holds all the peers (connected and disconnected)
-var Peers []Peer
-
-// Payload holds the client's payload
-var Payload []byte
-
-// WebRTCAPI is the gateway to webrtc calls
-var WebRTCAPI *webrtc.API
-
-// type Peer is used to remember a client aka peer connection
+// type Peer is used to remember a client.
+// a peer can be either authenticated or not. When not a peer can only accept
+// an auth msg over the control data channel - `cdc`
 type Peer struct {
-	Id            int
-	Authenticated bool
-	/* MT: Make a Type state with allowed states
-	type State string
-	const (
-		Connected State = "connected"
-		...
-	)
-	*/
-
-	State             string
+	Id                int
+	Authenticated     bool
 	Remote            string
 	Token             string
 	LastContact       *time.Time
@@ -61,13 +47,16 @@ type Peer struct {
 
 // NewPeer funcions starts listening to incoming peer connection from a remote
 func NewPeer(remote string) (*Peer, error) {
+	var m sync.Mutex
+
 	Logger.Infof("New Peer from: %s", remote)
-	// MT: Guard WebRTCAPI with sync.Mutex
+	m.Lock()
 	if WebRTCAPI == nil {
 		s := webrtc.SettingEngine{}
 		s.SetConnectionTimeout(connectionTimeout, keepAliveInterval)
 		WebRTCAPI = webrtc.NewAPI(webrtc.WithSettingEngine(s))
 	}
+	m.Unlock()
 	config := webrtc.Configuration{
 		ICEServers: []webrtc.ICEServer{
 			{
@@ -79,12 +68,11 @@ func NewPeer(remote string) (*Peer, error) {
 	if err != nil {
 		return nil, fmt.Errorf("NewPeerConnection failed")
 	}
-	// TODO: protected the next two commands from reentrancy
+	m.Lock()
 	peer := Peer{
 		Id:                len(Peers),
 		Token:             "",
 		Authenticated:     false,
-		State:             "connected",
 		LastContact:       nil,
 		LastMsgId:         0,
 		PC:                pc,
@@ -92,21 +80,12 @@ func NewPeer(remote string) (*Peer, error) {
 		cdc:               nil,
 		PendingChannelReq: make(chan *webrtc.DataChannel, 5),
 	}
-	// MT: Guard with sync.Mutex
 	Peers = append(Peers, peer)
-	if err != nil {
-		return nil, fmt.Errorf("Failed to open peer connection: %q", err)
-	}
+	m.Unlock()
 	// Status changes happend when the peer has connected/disconnected
 	pc.OnICEConnectionStateChange(func(connectionState webrtc.ICEConnectionState) {
 		s := connectionState.String()
 		Logger.Infof("ICE Connection State change: %s", s)
-		if s == "connected" {
-			// TODO add initialization code
-		}
-		if s == "failed" {
-			// TODO remove the peer from Peers
-		}
 	})
 	// testing uses special signaling, so there's no remote information
 	if len(remote) > 0 {
@@ -199,11 +178,11 @@ func (peer *Peer) OnPaneReq(d *webrtc.DataChannel) *Pane {
 	)
 
 	// If the message starts with a digit we assume it starts with a size
+	// i.e. "24x80,echo,Hello World"
 	l := d.Label()
 	// MT: For each case, add a comment with example input
 	fields := strings.Split(l, ",")
 	// "%" is the command & control channel - aka cdc
-	// MT: Might panic if d.Label() starts with ","
 	if l[0] == '%' {
 		//TODO: if there's an older cdc close it
 		Logger.Info("Got a request to open for a new control channel")
@@ -214,16 +193,23 @@ func (peer *Peer) OnPaneReq(d *webrtc.DataChannel) *Pane {
 	// if the label starts witha digit, it needs a pty
 	if unicode.IsDigit(rune(l[0])) {
 		cmdIndex = 1
-		// no command, use default shell
+		// no command, don't create the pane
 		if cmdIndex > len(fields)-1 {
-			Logger.Errorf("Got an invalid channlel label: %q", l)
+			Logger.Errorf("Got an invalid pane label: %q", l)
 			return nil
 		}
 		ws, err = ParseWinsize(fields[0])
 		if err != nil {
 			Logger.Errorf("Failed to parse winsize: %v", err)
+			return nil
 		}
 	}
+	// MT: Might panic if d.Label() starts with ","
+	if len(fields[cmdIndex]) < 2 {
+		Logger.Errorf("Command is too short")
+		return nil
+	}
+
 	// If it's a reconnect, parse the id and connnect to the pane
 	if rune(fields[cmdIndex][0]) == '>' {
 		id, err := strconv.Atoi(fields[cmdIndex][1:])
@@ -232,8 +218,7 @@ func (peer *Peer) OnPaneReq(d *webrtc.DataChannel) *Pane {
 			return nil
 		}
 		Logger.Infof("New channel is a reconnect request to %d", id)
-		// MT: Check for < 0
-		if id > len(Panes) {
+		if id > len(Panes) || id < 0 {
 			Logger.Errorf("Got a bad pane id: %d", id)
 			return nil
 		}
@@ -253,31 +238,31 @@ func (peer *Peer) OnPaneReq(d *webrtc.DataChannel) *Pane {
 		pane.SendId(d)
 		go pane.ReadLoop()
 		return pane
-	} else {
-		Logger.Error("Failed to create new pane: %q", err)
-		return nil
 	}
+	Logger.Error("Failed to create new pane: %q", err)
+	return nil
 }
 
 // SendAck sends an ack for a given control message
-func (peer *Peer) SendAck(cm CTRLMessage, body []byte) {
+func (peer *Peer) SendAck(cm CTRLMessage, body []byte) error {
+	var m sync.Mutex
 	args := AckArgs{Ref: cm.MessageId, Body: body}
 
-	// TODO: protect message counter against reentrancy
+	m.Lock()
 	msg := CTRLMessage{time.Now().UnixNano() / 1000000, peer.LastMsgId + 1,
 		"ack", &args}
 	peer.LastMsgId += 1 // MT: peer.LastMsgId++ before the previous line?
+	m.Unlock()
 	msgJ, err := json.Marshal(msg)
 	if err != nil {
-		Logger.Errorf("Failed to marshal the ack msg: %e\n   msg == %q", err, msg)
-		return // MT: Why not return error?
+		return fmt.Errorf("Failed to marshal the ack msg: %e\n   msg == %q", err, msg)
 	}
 	Logger.Infof("Sending ack: %q", msgJ)
-	peer.cdc.Send(msgJ)
+	return peer.cdc.Send(msgJ)
 }
 
 // SendNAck sends an nack for a given control message
-func (peer *Peer) SendNAck(cm CTRLMessage, desc string) {
+func (peer *Peer) SendNAck(cm CTRLMessage, desc string) error {
 	args := NAckArgs{Ref: cm.MessageId, Desc: desc}
 
 	// TODO: protect message counter against reentrancy
@@ -286,11 +271,10 @@ func (peer *Peer) SendNAck(cm CTRLMessage, desc string) {
 	peer.LastMsgId += 1
 	msgJ, err := json.Marshal(msg)
 	if err != nil {
-		Logger.Errorf("Failed to marshal the ack msg: %e\n   msg == %q", err, msg)
-		return
+		return fmt.Errorf("Failed to marshal the ack msg: %e\n   msg == %q", err, msg)
 	}
 	Logger.Infof("Sending nack: %q", msgJ)
-	peer.cdc.Send(msgJ)
+	return peer.cdc.Send(msgJ)
 }
 
 /* MT
@@ -307,6 +291,9 @@ You can avoid of the types in cdc.go and use anonymouns struct
 	} else {
 		fmt.Printf("point: %+v\n", point)
 	}
+
+BD Good to know but I prefer not to. While what I have now is more verbose,
+it is the API and I'd rather have a separate type for the args
 */
 
 // OnCTRLMsg handles incoming control messages
@@ -339,7 +326,11 @@ func (peer *Peer) OnCTRLMsg(msg webrtc.DataChannelMessage) {
 		ws.Cols = resizeArgs.Sx
 		ws.Rows = resizeArgs.Sy
 		pane.Resize(&ws)
-		peer.SendAck(m, nil)
+		err = peer.SendAck(m, nil)
+		if err != nil {
+			Logger.Errorf("#%d: Failed to send a resize ack: %v", peer.Id, err)
+			return
+		}
 	case "auth":
 		// TODO:
 		// token := Authenticate(m.Auth)
@@ -347,11 +338,12 @@ func (peer *Peer) OnCTRLMsg(msg webrtc.DataChannelMessage) {
 		err = json.Unmarshal(raw, &authArgs)
 		// if we're running a test. authorzied only the test token
 		// next line copied from: https://stackoverflow.com/a/45913089/66595
-		if strings.HasSuffix(os.Args[0], ".test") && authArgs.Token == AValidTokenForTests || IsAuthorized(authArgs.Token) {
+		if strings.HasSuffix(os.Args[0], ".test") &&
+			authArgs.Token == AValidTokenForTests ||
+			IsAuthorized(authArgs.Token) {
 			peer.Authenticated = true
 			err = json.Unmarshal(raw, &authArgs)
 			peer.Token = authArgs.Token
-			peer.SendAck(m, Payload)
 			// handle pending channel requests
 			handlePendingChannelRequests := func() {
 				for d := range peer.PendingChannelReq {
@@ -360,20 +352,25 @@ func (peer *Peer) OnCTRLMsg(msg webrtc.DataChannelMessage) {
 				}
 			}
 			go handlePendingChannelRequests()
+			err = peer.SendAck(m, Payload)
 		} else {
 			Logger.Infof("Authentication failed")
-			peer.SendNAck(m, "Unknown token")
+			err = peer.SendNAck(m, "Unknown token")
 		}
 	case "get_payload":
-		peer.SendAck(m, Payload)
+		err = peer.SendAck(m, Payload)
 	case "set_payload":
 		var payloadArgs SetPayloadArgs
 		err = json.Unmarshal(raw, &payloadArgs)
 		Logger.Infof("Setting payload to: %q", payloadArgs.Payload)
 		Payload = payloadArgs.Payload
-		peer.SendAck(m, Payload)
+		err = peer.SendAck(m, Payload)
+	// TODO: add more commands here: mouse, copy, paste, etc.
 	default:
 		Logger.Errorf("Got a control message with unknown type: %q", m.Type)
 	}
-	// TODO: add more commands here: mouse, clipboard, etc.
+	if err != nil {
+		Logger.Errorf("#%d: Failed to send auth [n]ack: %v", peer.Id, err)
+		return
+	}
 }

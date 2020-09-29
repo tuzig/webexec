@@ -70,7 +70,10 @@ func (pane *Pane) SendId(dc *webrtc.DataChannel) {
 // pane.ReadLoop reads the tty and send data it finds to the open data channels
 func (pane *Pane) ReadLoop() {
 	// MT: io.Copy & https://golang.org/pkg/io/#MultiWriter
+	// BD: turns out the data channel does not implement the Write interface
 	// MT: You can use SIGCHILD to know if a child process died
+	// BD: Readability wise, I prefer the code as is. Is there any advatage to
+	//      using SIGCHILD?
 	b := make([]byte, 4096)
 	id := pane.Id
 	for pane.C.ProcessState.String() != "killed" {

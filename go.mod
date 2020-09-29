@@ -1,4 +1,3 @@
-// MT: Ran "go mod tidy"
 module github.com/tuzig/webexec
 
 go 1.14

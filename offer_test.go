@@ -4,10 +4,11 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap/zaptest"
 )
 
 func TestEncodeDecodeStringArray(t *testing.T) {
-	InitDevLogger()
+	Logger = zaptest.NewLogger(t).Sugar()
 
 	a := []string{"Hello", "World"}
 	b := EncodeOffer(a)

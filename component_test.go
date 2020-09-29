@@ -11,6 +11,7 @@ import (
 
 	"github.com/pion/webrtc/v2"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap/zaptest"
 )
 
 const timeout = 3 * time.Second
@@ -41,7 +42,7 @@ func TestStartCommand(t *testing.T) {
 }
 */
 func TestSimpleEcho(t *testing.T) {
-	InitDevLogger()
+	Logger = zaptest.NewLogger(t).Sugar()
 	done := make(chan bool)
 	gotAuthAck := make(chan bool)
 	peer, err := NewPeer("")
@@ -68,7 +69,7 @@ func TestSimpleEcho(t *testing.T) {
 		dc, err := client.CreateDataChannel("echo,hello world", nil)
 		require.Nil(t, err, "Failed to create the echo data channel: %v", err)
 		dc.OnOpen(func() {
-			log.Printf("Channel %q opened, state: %v", dc.Label(), peer.State)
+			log.Printf("Channel %q opened", dc.Label())
 		})
 		dc.OnMessage(func(msg webrtc.DataChannelMessage) {
 			// first get a channel Id and then "hello world" text
@@ -95,7 +96,7 @@ func TestSimpleEcho(t *testing.T) {
 }
 
 func TestResizeCommand(t *testing.T) {
-	InitDevLogger()
+	Logger = zaptest.NewLogger(t).Sugar()
 	gotAuthAck := make(chan bool)
 	done := make(chan bool)
 	peer, err := NewPeer("")
@@ -149,7 +150,7 @@ func TestResizeCommand(t *testing.T) {
 }
 
 func TestChannelReconnect(t *testing.T) {
-	InitDevLogger()
+	Logger = zaptest.NewLogger(t).Sugar()
 	var cId string
 	var dc *webrtc.DataChannel
 	done := make(chan bool)
@@ -183,7 +184,7 @@ func TestChannelReconnect(t *testing.T) {
 		dc, err = client.CreateDataChannel("24x80,bash,-c,sleep 1; echo 123456", nil)
 		require.Nil(t, err, "Failed to create the echo data channel: %v", err)
 		dc.OnOpen(func() {
-			log.Printf("Channel %q opened, state: %v", dc.Label(), peer.State)
+			log.Printf("Channel %q opened", dc.Label())
 		})
 		dc.OnMessage(func(msg webrtc.DataChannelMessage) {
 			log.Printf("DC Got msg #%d: %s", count, msg.Data)
@@ -202,7 +203,7 @@ func TestChannelReconnect(t *testing.T) {
 	dc2, err := client.CreateDataChannel("24x80,>"+cId, nil)
 	require.Nil(t, err, "Failed to create the second data channel: %q", err)
 	dc2.OnOpen(func() {
-		log.Printf("Second channel is open.  state: %q", peer.State)
+		log.Println("Second channel is open")
 	})
 	count2 := 0
 	dc2.OnMessage(func(msg webrtc.DataChannelMessage) {
@@ -232,7 +233,7 @@ func TestChannelReconnect(t *testing.T) {
 	// dc2.Close()
 }
 func TestPayloadOperations(t *testing.T) {
-	InitDevLogger()
+	Logger = zaptest.NewLogger(t).Sugar()
 	done := make(chan bool)
 	gotAuthAck := make(chan bool)
 	peer, err := NewPeer("")
