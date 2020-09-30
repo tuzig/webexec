@@ -16,33 +16,9 @@ import (
 
 const timeout = 3 * time.Second
 
-/* TODO: refactor as StartCommand is no longer a thing
-func TestStartCommand(t *testing.T) {
-	// to := test.TimeOut(time.Second * 3)
-	// defer to.Stop()
-	server, err := NewWebRTCServer()
-	if err != nil {
-		t.Errorf("Failed to start a new server %v", err)
-	}
-	var c []string
-	c = append(c, "echo", " badwolf")
-	cmd, err := server.StartCommand(c)
-	if err != nil {
-		t.Errorf("Failed to start a new server %v", err)
-
-	}
-	b := make([]byte, 1024)
-	_, err = cmd.Tty.Read(b)
-	if err != nil {
-		t.Errorf("Failed to read tty: %v", err)
-	}
-	if string(b[1:8]) != "badwolf" {
-		t.Errorf("Expected command output 'badwolf' got %q", b[1:8])
-	}
-}
-*/
 func TestSimpleEcho(t *testing.T) {
 	Logger = zaptest.NewLogger(t).Sugar()
+	TokensFilePath = "./test_tokens"
 	done := make(chan bool)
 	gotAuthAck := make(chan bool)
 	peer, err := NewPeer("")

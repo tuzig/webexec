@@ -130,6 +130,7 @@ func initCMD(c *cli.Context) error {
 			"contact":  contact,
 		}
 		confFile, err := os.Create(filepath.Join(home, "config.json"))
+		defer confFile.Close()
 		if err != nil {
 			return fmt.Errorf("Failed to create config file: %q", err)
 		}
@@ -138,7 +139,12 @@ func initCMD(c *cli.Context) error {
 			return fmt.Errorf("Failed to erialize configuration %q", err)
 		}
 		confFile.Write(d)
-		confFile.Close()
+		tokensFile, err := os.Create(TokensFilePath)
+		defer tokensFile.Close()
+		if err != nil {
+			return fmt.Errorf("Failed to create the tokens file at %q: %w",
+				TokensFilePath, err)
+		}
 	} else {
 		return fmt.Errorf("Can not initialize webexec as directory ~/.webexec already exists")
 	}
@@ -172,12 +178,9 @@ func stop(c *cli.Context) error {
 }
 
 func agentStart() error {
-	// InitAgentLogger()
-	InitDevLogger()
-	Logger.Info("1")
+	InitAgentLogger()
 	pidPath := ConfPath("agent.pid")
 	_, err := pidfile.New(pidPath)
-	Logger.Info("2")
 	if err == pidfile.ErrProcessRunning {
 		Logger.Info("agent is already running, doing nothing")
 		return fmt.Errorf("agent is already running, doing nothing")
@@ -257,9 +260,10 @@ func start(c *cli.Context) error {
 	if !debug {
 		Logger.Info("Exiting on SIGINT")
 	}
-
 	return nil
 }
+
+/* TBD:
 func paste(c *cli.Context) error {
 	// MT: Switch to log
 	// BD: I'm not sure. IMO, the logger is for the agent to use, CLI output
@@ -272,7 +276,7 @@ func copyCMD(c *cli.Context) error {
 	fmt.Println("Soon, we'll be copying data from STDIN to the clipboard")
 	return nil
 }
-
+*/
 // restart function restarts the agent or starts it if it is stopped
 func restart(c *cli.Context) error {
 	err := stop(c)
@@ -358,24 +362,6 @@ func main() {
 				Name:   "init",
 				Usage:  "initialize user settings",
 				Action: initCMD,
-			}, {
-				Name:  "auth",
-				Usage: "token based authorization",
-				Subcommands: []*cli.Command{
-					{
-						Name:   "ls",
-						Usage:  "list the authorized tokens",
-						Action: ListTokens,
-					},
-					{
-						Name:   "add",
-						Usage:  "add <token>",
-						Action: AddToken,
-					}, {
-						Name:   "rm",
-						Usage:  "rm <token>",
-						Action: DeleteToken,
-					}},
 			},
 		},
 	}

@@ -16,9 +16,14 @@ func TestUnauthincatedBlocked(t *testing.T) {
 	/* MT: Add a test logger that won't spam stdout but will log
 	to t.Logger. Logs will only with -v or when there's an.Sugar()
 	error
-	  BD: Thanks, I ended up using zaptest
+	  BD: Thanks, I ended up using zaptest. It still doesn't work as advertised
+	  and spams stdout even when all is well. Their docs say:
+	  "Use this with a *testing.T or *testing.B to get logs which get printed
+	   only if a test fails or if you ran go test -v."
+	   https://pkg.go.dev/go.uber.org/zap/zaptest
 	*/
 	Logger = zaptest.NewLogger(t).Sugar()
+	TokensFilePath = "./test_tokens"
 	done := make(chan bool)
 	peer, err := NewPeer("")
 	require.Nil(t, err, "NewPeer failed with: %s", err)
@@ -52,6 +57,7 @@ func TestUnauthincatedBlocked(t *testing.T) {
 
 func TestAuthorization(t *testing.T) {
 	Logger = zaptest.NewLogger(t).Sugar()
+	TokensFilePath = "./test_tokens"
 	gotAuthAck := make(chan bool)
 	gotTokenAck := make(chan bool)
 	peer, err := NewPeer("")
@@ -104,6 +110,7 @@ func TestAuthorization(t *testing.T) {
 
 func TestBadToken(t *testing.T) {
 	Logger = zaptest.NewLogger(t).Sugar()
+	TokensFilePath = "./test_tokens"
 	gotNAck := make(chan bool)
 	peer, err := NewPeer("")
 	require.Nil(t, err, "NewPeer failed with: %s", err)

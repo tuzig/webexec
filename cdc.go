@@ -9,12 +9,6 @@ import (
 	"github.com/creack/pty"
 )
 
-// MT: "Regular" code should know about tests
-// BD: I guess you mean "shouldn't know" and I agree.
-//     But practicalicy beats purity and this is the most elegant solution
-//     I found.
-const AValidTokenForTests = "THEoneANDonlyTOKEN"
-
 /* MT:
 - Why JSON? There are many serialization formats out there
 -- BD: Because webexec one & only front end is javascript.
@@ -120,21 +114,6 @@ type CTRLMessage struct {
 	MessageId int         `json:"message_id"`
 	Type      string      `json:"type"`
 	Args      interface{} `json:"args"`
-}
-
-// IsAuthorized checks whether a client token is authorized
-func IsAuthorized(token string) bool {
-	tokens, err := ReadAuthorizedTokens()
-	if err != nil {
-		Logger.Error(err)
-		return false
-	}
-	for _, at := range tokens {
-		if token == at {
-			return true
-		}
-	}
-	return false
 }
 
 // parseWinsize gets a string in the format of "24x80" and returns a Winsize

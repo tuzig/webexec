@@ -12,6 +12,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// AValidTokenForTests token is stored in the file "./test_tokens"
+// tests that use it should add `TokensFilePath = "./test_tokens"`
+const AValidTokenForTests = "THEoneANDonlyTOKEN"
 const TEST_ACK_REF = 123
 
 func GetMsgType(t *testing.T, msg webrtc.DataChannelMessage) string {
