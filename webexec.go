@@ -191,7 +191,7 @@ func agentStart() error {
 	return nil
 }
 
-func launchAgent() error {
+func launchAgent(address string) error {
 	pidf, err := pidfile.Open(ConfPath("agent.pid"))
 	if !os.IsNotExist(err) && pidf.Running() {
 		fmt.Println("agent is already running, doing nothing")
@@ -202,7 +202,7 @@ func launchAgent() error {
 	if err != nil {
 		return fmt.Errorf("Failed to find the executable: %s", err)
 	}
-	cmd := exec.Command(execPath, "start", "--agent")
+	cmd := exec.Command(execPath, "start", "--agent", "--address", address)
 	logfile, err := os.Open(ConfPath("agent.err"))
 	if errors.Is(err, os.ErrNotExist) {
 		// TODO: make it configurable
@@ -243,7 +243,7 @@ func start(c *cli.Context) error {
 				return fmt.Errorf("Failed to start as agent: %w", err)
 			}
 		} else {
-			return launchAgent()
+			return launchAgent(address)
 		}
 	}
 	// the code below runs for --debug and --agent
