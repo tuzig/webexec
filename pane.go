@@ -96,7 +96,7 @@ func (pane *Pane) ReadLoop() {
 			break
 		}
 	}
-	pane.Kill()
+	Panes[id-1].Kill()
 }
 
 // pane.Kill takes a pane to the sands of Rishon and buries it

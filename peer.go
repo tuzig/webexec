@@ -156,8 +156,6 @@ func (peer *Peer) OnChannelReq(d *webrtc.DataChannel) {
 	})
 }
 
-// Peer.NewPane opens a new pane and start its command and pty
-
 // OnPaneReqs gets a data channel request and creates the pane
 // The function parses the label to figure out what it needs to exec:
 //   the command to run and rows & cols of the pseudo tty.
