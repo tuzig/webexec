@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"strconv"
+	"sync"
 )
 
 var Panes []Pane
@@ -24,15 +25,16 @@ type Pane struct {
 	Ws     *pty.Winsize
 }
 
+// NewPane opens a new pane and start its command and pty
 func NewPane(command []string, d *webrtc.DataChannel,
 	ws *pty.Winsize) (*Pane, error) {
+	var m sync.Mutex
 
 	var (
 		err error
 		tty *os.File
 	)
 
-	pId := len(Panes) + 1
 	cmd := exec.Command(command[0], command[1:]...)
 	if ws != nil {
 		tty, err = pty.StartWithSize(cmd, ws)
@@ -43,9 +45,9 @@ func NewPane(command []string, d *webrtc.DataChannel,
 	if err != nil {
 		return nil, fmt.Errorf("Failed launching %q: %q", command, err)
 	}
-	// TODO: protect from reentrancy
+	m.Lock()
 	pane := Pane{
-		Id:     pId,
+		Id:     len(Panes) + 1,
 		C:      cmd,
 		Tty:    tty,
 		Buffer: nil,
@@ -53,6 +55,7 @@ func NewPane(command []string, d *webrtc.DataChannel,
 		Ws:     ws,
 	}
 	Panes = append(Panes, pane)
+	m.Unlock()
 	// NewCommand is up to here
 	return &pane, nil
 }
