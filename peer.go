@@ -254,7 +254,7 @@ func (peer *Peer) SendAck(cm CTRLMessage, body []byte) error {
 	if err != nil {
 		return fmt.Errorf("Failed to marshal the ack msg: %e\n   msg == %q", err, msg)
 	}
-	Logger.Infof("Sending ack: %q", msgJ)
+	Logger.Infof("Sending ack: %s", msgJ)
 	return peer.cdc.Send(msgJ)
 }
 

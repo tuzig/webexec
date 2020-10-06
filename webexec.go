@@ -326,8 +326,16 @@ func main() {
 				Action: paste,
 			},*/
 			{
-				Name:   "restart",
-				Usage:  "restarts the agent",
+				Name:  "restart",
+				Usage: "restarts the agent",
+				Flags: []cli.Flag{
+					&cli.StringFlag{
+						Name:    "address",
+						Aliases: []string{"a"},
+						Usage:   "The address to listen to",
+						Value:   "0.0.0.0:7777",
+					},
+				},
 				Action: restart,
 			}, {
 				Name:    "start",
