@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/creack/pty"
 	"github.com/pion/webrtc/v2"
+	"github.com/tuzig/webexec/terminal"
 	"io"
 	"os"
 	"os/exec"
@@ -23,6 +24,7 @@ type Pane struct {
 	Buffer [][]byte
 	dcs    []*webrtc.DataChannel
 	Ws     *pty.Winsize
+	Term   *terminal.Terminal
 }
 
 // NewPane opens a new pane and start its command and pty
@@ -53,6 +55,7 @@ func NewPane(command []string, d *webrtc.DataChannel,
 		Buffer: nil,
 		dcs:    []*webrtc.DataChannel{d},
 		Ws:     ws,
+		Term:	terminal.New(Logger)
 	}
 	Panes = append(Panes, pane)
 	m.Unlock()
@@ -94,6 +97,10 @@ func (pane *Pane) ReadLoop() {
 					Logger.Errorf("got an error when sending message: %v", err)
 				}
 			}
+		}
+		// update the local term emulator
+		for i := 0; i < l; i++ {
+			pane.Term <- b[i]
 		}
 		if err == io.EOF {
 			break

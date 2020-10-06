@@ -4,7 +4,9 @@ go 1.14
 
 require (
 	github.com/creack/pty v1.1.11
+	github.com/go-gl/glfw v0.0.0-20200707082815-5321531c36a2 // indirect
 	github.com/kardianos/osext v0.0.0-20190222173326-2bc1f35cddc0
+	github.com/liamg/aminal v0.9.0
 	github.com/pion/transport v0.10.1 // indirect
 	github.com/pion/webrtc/v2 v2.2.4
 	github.com/rs/cors v1.7.0
