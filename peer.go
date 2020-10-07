@@ -209,6 +209,8 @@ func (peer *Peer) OnPaneReq(d *webrtc.DataChannel) *Pane {
 
 	// If it's a reconnect, parse the id and connnect to the pane
 	if rune(fields[cmdIndex][0]) == '>' {
+		var m sync.Mutex
+
 		id, err := strconv.Atoi(fields[cmdIndex][1:])
 		if err != nil {
 			Logger.Errorf("Got an error converting incoming reconnect channel : %q", fields[cmdIndex])
@@ -220,8 +222,10 @@ func (peer *Peer) OnPaneReq(d *webrtc.DataChannel) *Pane {
 			return nil
 		}
 		pane = &Panes[id-1]
-		pane.Resize(ws)
+		m.Lock()
 		pane.dcs = append(pane.dcs, d)
+		m.Unlock()
+		pane.Resize(ws)
 		pane.SendId(d)
 		return pane
 	}
