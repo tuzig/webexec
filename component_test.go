@@ -26,6 +26,7 @@ func TestMain(m *testing.M) {
 
 func TestSimpleEcho(t *testing.T) {
 	Logger = zaptest.NewLogger(t).Sugar()
+	TokensFilePath = "./test_tokens"
 	done := make(chan bool)
 	gotAuthAck := make(chan bool)
 	peer, err := NewPeer("")
