@@ -1,9 +1,5 @@
 package terminal
 
-import (
-	"time"
-)
-
 // Wish list here: http://invisible-island.net/xterm/ctlseqs/ctlseqs.html
 
 type TerminalCharSet int
@@ -100,27 +96,17 @@ func (terminal *Terminal) translateRune(b rune) rune {
 func (terminal *Terminal) UpdateLoop(pty chan rune) {
 
 	// https://en.wikipedia.org/wiki/ANSI_escape_code
-
 	var b rune
-	terminal.logger.Infof("Terminal update loop is starting")
 
 	for {
-
-		if terminal.config.Slomo {
-			time.Sleep(time.Millisecond * 100)
-		}
-
 		b = <-pty
-		terminal.logger.Infof("Terminal is processing rune: %q", b)
 		if b == 0x1b {
-			//terminal.logger.Debugf("Handling escape sequence: 0x%x", b)
 			if err := ansiHandler(pty, terminal); err != nil {
 				terminal.logger.Errorf("Error handling escape sequence: %s", err)
 			}
 			terminal.isDirty = true
 			continue
 		}
-
 		terminal.processRune(b)
 	}
 }
