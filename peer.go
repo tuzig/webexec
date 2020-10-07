@@ -210,6 +210,8 @@ func (peer *Peer) OnOpen(d *webrtc.DataChannel) *Pane {
 
 	// If it's a reconnect, parse the id and reconnnect to the pane
 	if rune(fields[cmdIndex][0]) == '>' {
+		var m sync.Mutex
+
 		id, err := strconv.Atoi(fields[cmdIndex][1:])
 		if err != nil {
 			Logger.Errorf("Got an error converting incoming reconnect id : %q",
