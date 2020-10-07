@@ -97,11 +97,12 @@ func (terminal *Terminal) translateRune(b rune) rune {
 	return b
 }
 
-func (terminal *Terminal) processInput(pty chan rune) {
+func (terminal *Terminal) UpdateLoop(pty chan rune) {
 
 	// https://en.wikipedia.org/wiki/ANSI_escape_code
 
 	var b rune
+	terminal.logger.Infof("Terminal update loop is starting")
 
 	for {
 
@@ -110,8 +111,7 @@ func (terminal *Terminal) processInput(pty chan rune) {
 		}
 
 		b = <-pty
-		terminal.WriteRune(b)
-
+		terminal.logger.Infof("Terminal is processing rune: %q", b)
 		if b == 0x1b {
 			//terminal.logger.Debugf("Handling escape sequence: 0x%x", b)
 			if err := ansiHandler(pty, terminal); err != nil {

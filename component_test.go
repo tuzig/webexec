@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"os"
 	"strconv"
 	"strings"
 	"testing"
@@ -11,14 +12,20 @@ import (
 
 	"github.com/pion/webrtc/v2"
 	"github.com/stretchr/testify/require"
+	"github.com/tuzig/webexec/config"
 	"go.uber.org/zap/zaptest"
 )
 
 const timeout = 3 * time.Second
 
+func TestMain(m *testing.M) {
+	Config = &config.DefaultConfig
+	TokensFilePath = "./test_tokens"
+	os.Exit(m.Run())
+}
+
 func TestSimpleEcho(t *testing.T) {
 	Logger = zaptest.NewLogger(t).Sugar()
-	TokensFilePath = "./test_tokens"
 	done := make(chan bool)
 	gotAuthAck := make(chan bool)
 	peer, err := NewPeer("")
@@ -73,6 +80,7 @@ func TestSimpleEcho(t *testing.T) {
 
 func TestResizeCommand(t *testing.T) {
 	Logger = zaptest.NewLogger(t).Sugar()
+	Config = &config.DefaultConfig
 	gotAuthAck := make(chan bool)
 	done := make(chan bool)
 	peer, err := NewPeer("")
@@ -127,8 +135,11 @@ func TestResizeCommand(t *testing.T) {
 
 func TestChannelReconnect(t *testing.T) {
 	Logger = zaptest.NewLogger(t).Sugar()
-	var cId string
-	var dc *webrtc.DataChannel
+	var (
+		cId      string
+		dc       *webrtc.DataChannel
+		resolved bool
+	)
 	done := make(chan bool)
 	gotAuthAck := make(chan bool)
 	gotId := make(chan bool)
@@ -167,7 +178,7 @@ func TestChannelReconnect(t *testing.T) {
 			if count == 0 {
 				cId = string(msg.Data)
 				log.Printf("Client got a channel id: %q", cId)
-				dc.Close()
+				// dc.Close()
 				gotId <- true
 			}
 			count++
@@ -195,14 +206,16 @@ func TestChannelReconnect(t *testing.T) {
 				t.Errorf("Got an unexpected reply: %s", msg.Data)
 			}
 			log.Print("I'm done")
+			resolved = true
 			done <- true
 		}
 		count2++
 	})
 	log.Print("Waiting on done")
 	time.AfterFunc(3*time.Second, func() {
-		t.Error("Timeout waiting for dat ain reconnected pane")
-		done <- true
+		if !resolved {
+			t.Error("Timeout waiting for dat ain reconnected pane")
+		}
 	})
 	<-done
 	// dc.Close()

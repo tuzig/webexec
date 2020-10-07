@@ -1,9 +1,6 @@
 package terminal
 
 import (
-	"bufio"
-	"fmt"
-	"io"
 	"sync"
 
 	"github.com/tuzig/webexec/buffer"
@@ -129,9 +126,8 @@ func (terminal *Terminal) GetMouseExtMode() MouseExtMode {
 	return terminal.mouseExtMode
 }
 
-func (terminal *Terminal) IsOSCTerminator(char rune) bool {
-	_, ok := terminal.platformDependentSettings.OSCTerminators[char]
-	return ok
+func (terminal *Terminal) IsOSCTerminator(c rune) bool {
+	return c == 0x07 || c == 0x5c
 }
 
 func (terminal *Terminal) UseMainBuffer() {
@@ -295,12 +291,6 @@ func (terminal *Terminal) SetTitle(title string) {
 	terminal.emitTitleChange()
 }
 
-// Write sends data, i.e. locally typed keystrokes to the pty
-func (terminal *Terminal) Write(data []byte) error {
-	_, err := terminal.pty.Write(data)
-	return err
-}
-
 func (terminal *Terminal) WriteReturn() error {
 	if terminal.terminalState.IsNewLineMode() {
 		return terminal.Write([]byte{0x0d, 0x0a})
@@ -308,39 +298,6 @@ func (terminal *Terminal) WriteReturn() error {
 		return terminal.Write([]byte{0x0d})
 	}
 }
-
-func (terminal *Terminal) Paste(data []byte) error {
-
-	if terminal.bracketedPasteMode {
-		data = []byte(fmt.Sprintf("\x1b[200~%s\x1b[201~", string(data)))
-	}
-	_, err := terminal.pty.Write(data)
-	return err
-}
-
-// Read needs to be run on a goroutine, as it continually reads output to set on the terminal
-func (terminal *Terminal) Read() error {
-
-	buffer := make(chan rune, 0xffff)
-
-	reader := bufio.NewReader(terminal.pty)
-
-	go terminal.processInput(buffer)
-	for {
-		r, _, err := reader.ReadRune()
-		if err != nil {
-			if err == io.EOF {
-				break
-			}
-			return err
-		}
-		buffer <- r
-	}
-
-	//clean exit
-	return nil
-}
-
 func (terminal *Terminal) Clear() {
 	terminal.ActiveBuffer().Clear()
 }
@@ -355,11 +312,6 @@ func (terminal *Terminal) SetSize(newCols uint, newLines uint) error {
 
 	if terminal.size.Width == uint16(newCols) && terminal.size.Height == uint16(newLines) {
 		return nil
-	}
-
-	err := terminal.pty.Resize(int(newCols), int(newLines))
-	if err != nil {
-		return fmt.Errorf("Failed to set terminal size vai ioctl: Error no %d", err)
 	}
 
 	terminal.size.Width = uint16(newCols)
@@ -402,6 +354,11 @@ func (terminal *Terminal) SetLineFeedMode() {
 
 func (terminal *Terminal) ResetVerticalMargins() {
 	terminal.terminalState.ResetVerticalMargins()
+}
+
+func (terminal *Terminal) Write(data []byte) error {
+	terminal.logger.Errorf("The headless terminal emulator is trying to write: %s", data)
+	return nil
 }
 
 func (terminal *Terminal) SetScreenMode(enabled bool) {

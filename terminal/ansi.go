@@ -25,6 +25,11 @@ var ansiSequenceMap = map[rune]escapeSequenceHandler{
 	'=': swallowHandler(0), // alt char selection  //@todo
 }
 
+func sixelHandler(pty chan rune, terminal *Terminal) error {
+	terminal.logger.Info("ignoring sixsel")
+	return nil
+}
+
 func swallowHandler(n int) func(pty chan rune, terminal *Terminal) error {
 	return func(pty chan rune, terminal *Terminal) error {
 		for i := 0; i < n; i++ {

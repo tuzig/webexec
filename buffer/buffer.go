@@ -1078,6 +1078,28 @@ func (buffer *Buffer) getMaxLines() uint64 {
 	return result
 }
 
+// buffer.Dump returns a byte array of all chars on the screen.
+// the dump can be used by cleaning the screen, moving the cursor to 0,0
+// and print the dump
+func (buffer *Buffer) Dump() []byte {
+	var r []byte
+	h := buffer.ViewHeight() - 1
+	for i := uint16(0); i <= h; i++ {
+		var j int
+		line := buffer.getViewLine(i)
+
+		for j = 0; j < len(line.cells); j++ {
+			r = append(r, byte(line.cells[j].r))
+		}
+
+		if i < h && j < int(buffer.ViewWidth()) {
+			// add new line
+			r = append(r, 10)
+		}
+	}
+	return r
+}
+
 func (buffer *Buffer) SaveViewLines(path string) {
 	f, err := os.Create(path)
 	if err != nil {

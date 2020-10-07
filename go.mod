@@ -3,8 +3,9 @@ module github.com/tuzig/webexec
 go 1.14
 
 require (
+	github.com/BurntSushi/toml v0.3.1
 	github.com/creack/pty v1.1.11
-	github.com/go-gl/glfw v0.0.0-20200707082815-5321531c36a2 // indirect
+	github.com/go-gl/glfw v0.0.0-20200707082815-5321531c36a2
 	github.com/kardianos/osext v0.0.0-20190222173326-2bc1f35cddc0
 	github.com/liamg/aminal v0.9.0
 	github.com/pion/transport v0.10.1 // indirect

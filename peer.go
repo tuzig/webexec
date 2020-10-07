@@ -148,7 +148,7 @@ func (peer *Peer) OnChannelReq(d *webrtc.DataChannel) {
 	}
 
 	d.OnOpen(func() {
-		pane := peer.OnPaneReq(d)
+		pane := peer.OnOpen(d)
 		if pane != nil {
 			d.OnMessage(pane.OnMessage)
 			d.OnClose(pane.OnCloseDC)
@@ -156,17 +156,18 @@ func (peer *Peer) OnChannelReq(d *webrtc.DataChannel) {
 	})
 }
 
-// OnPaneReqs gets a data channel request and creates the pane
+// pane.OnOpen is called when a client requests to create or reconnect to a pane
+//
 // The function parses the label to figure out what it needs to exec:
 //   the command to run and rows & cols of the pseudo tty.
 // returns a nil when it fails to parse the channel name or when the name is
 // '%' used for command & control channel.
 //
 // label examples:
-//      simple form with no pty: echo,"Hello world"
-//		to start bash: "24x80,bash"
-//		to reconnect to pane id 123: "24x80,>123"
-func (peer *Peer) OnPaneReq(d *webrtc.DataChannel) *Pane {
+//      simple form with no pty: `echo,Hello world`
+//		to start bash: `24x80,bash`
+//		to reconnect to pane id 123: `24x80,>123`
+func (peer *Peer) OnOpen(d *webrtc.DataChannel) *Pane {
 	var (
 		err      error
 		cmdIndex int
@@ -207,37 +208,42 @@ func (peer *Peer) OnPaneReq(d *webrtc.DataChannel) *Pane {
 		return nil
 	}
 
-	// If it's a reconnect, parse the id and connnect to the pane
+	// If it's a reconnect, parse the id and reconnnect to the pane
 	if rune(fields[cmdIndex][0]) == '>' {
 		id, err := strconv.Atoi(fields[cmdIndex][1:])
 		if err != nil {
-			Logger.Errorf("Got an error converting incoming reconnect channel : %q", fields[cmdIndex])
+			Logger.Errorf("Got an error converting incoming reconnect id : %q",
+				fields[cmdIndex])
 			return nil
 		}
-		Logger.Infof("New channel is a reconnect request to %d", id)
-		if id > len(Panes) || id < 0 {
-			Logger.Errorf("Got a bad pane id: %d", id)
-			return nil
-		}
-		pane = &Panes[id-1]
-		pane.Resize(ws)
-		pane.dcs = append(pane.dcs, d)
-		pane.SendId(d)
-		return pane
-	}
-	if err != nil {
-		Logger.Errorf("Got an error parsing window size: %q", err)
+		return peer.Reconnect(d, id)
 	}
 	// TODO: get the default exec  the users shell or the command from the channel's name
 	pane, err = NewPane(fields[cmdIndex:], d, ws)
 	if pane != nil {
 		// Send the pane id as the first message
-		pane.SendId(d)
+		defer pane.Kill()
 		go pane.ReadLoop()
+		pane.SendId(d)
 		return pane
 	}
 	Logger.Error("Failed to create new pane: %q", err)
 	return nil
+}
+
+// Peer.Reconnect reconnects to a pane
+func (peer *Peer) Reconnect(d *webrtc.DataChannel, id int) *Pane {
+	Logger.Infof("New channel is a reconnect request to %d", id)
+	if id > len(Panes) || id < 0 {
+		Logger.Errorf("Got a bad pane id: %d", id)
+		return nil
+	}
+	Panes[id-1] = peer.AddDC(d, id)
+	pane := Panes[id-1]
+	pane.dcs = append(pane.dcs, d)
+	pane.SendId(d)
+	// pane.Restore(d)
+	return &pane
 }
 
 // SendAck sends an ack for a given control message

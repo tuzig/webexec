@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/kardianos/osext"
+	"github.com/tuzig/webexec/config"
 	"github.com/tuzig/webexec/pidfile"
 	"github.com/urfave/cli/v2"
 	"go.uber.org/zap"
@@ -31,6 +32,8 @@ Have you ran "%s init"?`
 
 // global logger
 var Logger *zap.SugaredLogger
+
+var Config *config.Config
 
 var gotExitSignal chan bool
 

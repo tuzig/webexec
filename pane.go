@@ -19,22 +19,24 @@ var Panes []Pane
 type Pane struct {
 	Id int
 	// C holds the exectuted command
-	C      *exec.Cmd
-	Tty    *os.File
-	Buffer [][]byte
-	dcs    []*webrtc.DataChannel
-	Ws     *pty.Winsize
-	Term   *terminal.Terminal
+	C        *exec.Cmd
+	Tty      *os.File
+	Buffer   [][]byte
+	dcs      []*webrtc.DataChannel
+	Ws       *pty.Winsize
+	Term     *terminal.Terminal
+	termChan chan rune
 }
 
 // NewPane opens a new pane and start its command and pty
 func NewPane(command []string, d *webrtc.DataChannel,
 	ws *pty.Winsize) (*Pane, error) {
-	var m sync.Mutex
-
 	var (
-		err error
-		tty *os.File
+		m     sync.Mutex
+		err   error
+		tty   *os.File
+		term  *terminal.Terminal
+		termc chan rune
 	)
 
 	cmd := exec.Command(command[0], command[1:]...)
@@ -47,19 +49,29 @@ func NewPane(command []string, d *webrtc.DataChannel,
 	if err != nil {
 		return nil, fmt.Errorf("Failed launching %q: %q", command, err)
 	}
+	if ws != nil {
+		term = terminal.New(Logger, Config)
+		termc = make(chan rune, 4096)
+		err = term.SetSize(uint(ws.Cols), uint(ws.Rows))
+		if err != nil {
+			return nil, fmt.Errorf("Failed to set terminal size: %s", err)
+		}
+		go term.UpdateLoop(termc)
+	}
+
 	m.Lock()
 	pane := Pane{
-		Id:     len(Panes) + 1,
-		C:      cmd,
-		Tty:    tty,
-		Buffer: nil,
-		dcs:    []*webrtc.DataChannel{d},
-		Ws:     ws,
-		Term:	terminal.New(Logger)
+		Id:       len(Panes) + 1,
+		C:        cmd,
+		Tty:      tty,
+		Buffer:   nil,
+		dcs:      []*webrtc.DataChannel{d},
+		Ws:       ws,
+		Term:     terminal.New(Logger, Config),
+		termChan: termc,
 	}
 	Panes = append(Panes, pane)
 	m.Unlock()
-	// NewCommand is up to here
 	return &pane, nil
 }
 
@@ -99,14 +111,16 @@ func (pane *Pane) ReadLoop() {
 			}
 		}
 		// update the local term emulator
-		for i := 0; i < l; i++ {
-			pane.Term <- b[i]
+		if pane.termChan != nil {
+			for i := 0; i < l; i++ {
+				pane.termChan <- rune(b[i])
+			}
 		}
 		if err == io.EOF {
 			break
 		}
 	}
-	Panes[id-1].Kill()
+	// Panes[id-1].Kill()
 }
 
 // pane.Kill takes a pane to the sands of Rishon and buries it
@@ -154,4 +168,19 @@ func (pane *Pane) Resize(ws *pty.Winsize) {
 		pty.Setsize(pane.Tty, ws)
 		// TODO: send resize message to all connected dcs
 	}
+}
+
+// pane.Restore sends the panes' visible lines line to a data channel
+// the function does nothing if it's given a nil size or the current size
+func (pane *Pane) Restore(d *webrtc.DataChannel) {
+	if pane.Term == nil {
+		Logger.Info("Pane.Term is nil")
+	}
+	buffer := pane.Term.ActiveBuffer()
+	b := buffer.Dump()
+	Logger.Infof("Restore got a dump size: %d", len(b))
+	if len(b) > 0 {
+		d.Send(b)
+	}
+	// TODO: move cursor where belongs
 }
