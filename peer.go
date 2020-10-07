@@ -224,7 +224,6 @@ func (peer *Peer) OnOpen(d *webrtc.DataChannel) *Pane {
 	pane, err = NewPane(fields[cmdIndex:], d, ws)
 	if pane != nil {
 		// Send the pane id as the first message
-		defer pane.Kill()
 		go pane.ReadLoop()
 		pane.SendId(d)
 		return pane

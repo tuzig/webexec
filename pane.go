@@ -100,9 +100,10 @@ func (pane *Pane) ReadLoop() {
 			break
 		}
 		// We need to get the dcs from Panes or we don't get an updated version
-		dcs := Panes[id-1].dcs
-		for i := 0; i < len(dcs); i++ {
-			dc := dcs[i]
+		pane := Panes[id-1]
+		Logger.Infof("Sending output to %d dcs", len(pane.dcs))
+		for i := 0; i < len(pane.dcs); i++ {
+			dc := pane.dcs[i]
 			if dc.ReadyState() == webrtc.DataChannelStateOpen {
 				err = dc.Send(b[:l])
 				if err != nil {
