@@ -210,8 +210,6 @@ func (peer *Peer) OnOpen(d *webrtc.DataChannel) *Pane {
 
 	// If it's a reconnect, parse the id and reconnnect to the pane
 	if rune(fields[cmdIndex][0]) == '>' {
-		var m sync.Mutex
-
 		id, err := strconv.Atoi(fields[cmdIndex][1:])
 		if err != nil {
 			Logger.Errorf("Got an error converting incoming reconnect id : %q",
@@ -234,17 +232,19 @@ func (peer *Peer) OnOpen(d *webrtc.DataChannel) *Pane {
 
 // Peer.Reconnect reconnects to a pane
 func (peer *Peer) Reconnect(d *webrtc.DataChannel, id int) *Pane {
+	var m sync.Mutex
 	Logger.Infof("New channel is a reconnect request to %d", id)
 	if id > len(Panes) || id < 0 {
 		Logger.Errorf("Got a bad pane id: %d", id)
 		return nil
 	}
-	Panes[id-1] = peer.AddDC(d, id)
-	pane := Panes[id-1]
+	pane := &Panes[id-1]
+	m.Lock()
 	pane.dcs = append(pane.dcs, d)
+	m.Unlock()
 	pane.SendId(d)
-	// pane.Restore(d)
-	return &pane
+	pane.Restore(d)
+	return pane
 }
 
 // SendAck sends an ack for a given control message
