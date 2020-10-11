@@ -171,6 +171,10 @@ func (pane *Pane) Restore(d *webrtc.DataChannel) {
 		b, l := STDump(pane.st)
 		if l > 0 {
 			d.Send(b)
+			// position the cursor
+			ps := fmt.Sprintf("\x1b[%d;%dH",
+				int(pane.st.c.y)+1, int(pane.st.c.x)+1)
+			d.Send([]byte(ps))
 		} else {
 			Logger.Info("not restoring as dump len is 0")
 		}
