@@ -39,13 +39,16 @@ func NewPane(command []string, d *webrtc.DataChannel,
 	var (
 		err error
 		tty *os.File
+		st  *C.Term
 	)
 
 	cmd := exec.Command(command[0], command[1:]...)
 	if ws != nil {
 		tty, err = pty.StartWithSize(cmd, ws)
+		st = STNew(ws.Cols, ws.Rows)
+		Logger.Infof("Got a new ST: %p", st)
 	} else {
-		// TODO: don't use a pty, just pipe the input and output
+		// don't use a pty, just pipe the input and output
 		tty, err = pty.Start(cmd)
 	}
 	if err != nil {
@@ -59,13 +62,10 @@ func NewPane(command []string, d *webrtc.DataChannel,
 		Buffer: nil,
 		dcs:    []*webrtc.DataChannel{d},
 		Ws:     ws,
+		st:     st,
 	}
 	Panes = append(Panes, pane)
 	paneIdM.Unlock()
-	if ws != nil {
-		pane.st = STNew(ws.Cols, ws.Rows)
-		Logger.Infof("Got a new ST: %p", pane.st)
-	}
 
 	return &pane, nil
 }
