@@ -163,9 +163,9 @@ func (peer *Peer) OnChannelReq(d *webrtc.DataChannel) {
 // '%' used for command & control channel.
 //
 // label examples:
-//      simple form with no pty: echo,"Hello world"
-//		to start bash: "24x80,bash"
-//		to reconnect to pane id 123: "24x80,>123"
+//      simple form with no pty: `echo,Hello world`
+//		to start bash: `24x80,bash`
+//		to reconnect to pane id 123: `24x80,>123`
 func (peer *Peer) OnPaneReq(d *webrtc.DataChannel) *Pane {
 	var (
 		err      error
@@ -207,37 +207,44 @@ func (peer *Peer) OnPaneReq(d *webrtc.DataChannel) *Pane {
 		return nil
 	}
 
-	// If it's a reconnect, parse the id and connnect to the pane
+	// If it's a reconnect, parse the id and reconnnect to the pane
 	if rune(fields[cmdIndex][0]) == '>' {
 		id, err := strconv.Atoi(fields[cmdIndex][1:])
+		Logger.Infof("Got a reconnect request to pane %d", id)
 		if err != nil {
-			Logger.Errorf("Got an error converting incoming reconnect channel : %q", fields[cmdIndex])
+			Logger.Errorf("Got an error converting incoming reconnect id : %q",
+				fields[cmdIndex])
 			return nil
 		}
-		Logger.Infof("New channel is a reconnect request to %d", id)
-		if id > len(Panes) || id < 0 {
-			Logger.Errorf("Got a bad pane id: %d", id)
-			return nil
-		}
-		pane = &Panes[id-1]
-		pane.Resize(ws)
-		pane.dcs = append(pane.dcs, d)
-		pane.SendId(d)
-		return pane
-	}
-	if err != nil {
-		Logger.Errorf("Got an error parsing window size: %q", err)
+		return peer.Reconnect(d, id)
 	}
 	// TODO: get the default exec  the users shell or the command from the channel's name
 	pane, err = NewPane(fields[cmdIndex:], d, ws)
 	if pane != nil {
 		// Send the pane id as the first message
-		pane.SendId(d)
 		go pane.ReadLoop()
+		pane.SendId(d)
 		return pane
 	}
 	Logger.Error("Failed to create new pane: %q", err)
 	return nil
+}
+
+// Peer.Reconnect reconnects to a pane
+func (peer *Peer) Reconnect(d *webrtc.DataChannel, id int) *Pane {
+	var m sync.Mutex
+	Logger.Infof("New channel is a reconnect request to %d", id)
+	if id > len(Panes) || id < 0 {
+		Logger.Errorf("Got a bad pane id: %d", id)
+		return nil
+	}
+	pane := &Panes[id-1]
+	m.Lock()
+	pane.dcs = append(pane.dcs, d)
+	m.Unlock()
+	pane.SendId(d)
+	pane.Restore(d)
+	return pane
 }
 
 // SendAck sends an ack for a given control message

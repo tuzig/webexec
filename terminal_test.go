@@ -7,18 +7,23 @@ import (
 	"go.uber.org/zap/zaptest"
 )
 
+func TestNewTerminal(t *testing.T) {
+	term := STNew(80, 24)
+	require.NotNil(t, term)
+}
 func TestTerminalDump(t *testing.T) {
 	logger := zaptest.NewLogger(t).Sugar()
 	logger.Info("Helllo")
-	STNew(10, 2)
+	term := STNew(10, 2)
 
-	STWrite("a\n\rb\n\rc")
+	STWrite(term, "a\n\rb\n\rc")
 	/*
 		for i := 65; i < 127 ; i++ {
 			STPutc(i)
 		}
 	*/
 
-	ret := STDump()
+	ret, l := STDump(term)
+	require.Equal(t, 3, l)
 	require.Equal(t, "b\nc", string(ret))
 }

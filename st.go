@@ -3,31 +3,42 @@ package main
 // #include <stdlib.h>
 // #include "st.h"
 import "C"
-import "log"
 
-func STNew(col int, row int) {
-	term := C.tnew(C.int(col), C.int(row))
-	log.Printf("term %p", term)
+import (
+	"log"
+)
+
+// STNew creates a new simple terminal and returns it
+func STNew(col uint16, row uint16) *C.Term {
+	r := (*C.Term)(C.malloc(C.sizeof_Term))
+	log.Printf("0")
+	C.tnew(r, C.int(col), C.int(row))
+	return r
 }
 
-func STResize(col int, row int) {
-	C.tresize(C.int(col), C.int(row))
+// STResize resizes a simple terminal
+func STResize(t *C.Term, col uint16, row uint16) {
+	C.tresize(t, C.int(col), C.int(row))
 }
 
-func STDump() []byte {
+// STDump dumps a terminal buffer returning a byte slice and a len
+func STDump(t *C.Term) ([]byte, int) {
 	buf := C.malloc(16536)
 	defer C.free(buf)
 
-	l := C.tdump2buf((*C.char)(buf))
+	l := C.tdump2buf(t, (*C.char)(buf))
 	log.Printf("%d: %v", l, buf)
-	return C.GoBytes(buf, l)
+	return C.GoBytes(buf, l), int(l)
 }
 
-func STPutc(r rune) {
-	C.tputc(C.uint(r))
+// STPutc output a rune on the terminal
+func STPutc(t *C.Term, r rune) {
+	C.tputc(t, C.uint(r))
 }
-func STWrite(s string) {
+
+// STWrite writes a string to the simple terminal
+func STWrite(t *C.Term, s string) {
 	for _, r := range s {
-		STPutc(r)
+		STPutc(t, r)
 	}
 }
