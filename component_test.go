@@ -73,6 +73,7 @@ func TestSimpleEcho(t *testing.T) {
 
 func TestResizeCommand(t *testing.T) {
 	Logger = zaptest.NewLogger(t).Sugar()
+	TokensFilePath = "./test_tokens"
 	gotAuthAck := make(chan bool)
 	done := make(chan bool)
 	peer, err := NewPeer("")

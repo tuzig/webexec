@@ -273,8 +273,8 @@ xmalloc(size_t len)
 void *
 xrealloc(void *p, size_t len)
 {
-	if ((p = realloc(p, len)) == NULL)
-		die("realloc: %s\n", strerror(errno));
+    if ((p = realloc(p, len)) == NULL)
+        die("realloc: %s\n", strerror(errno));
 
 	return p;
 }
@@ -607,13 +607,9 @@ Term *
 tnew(int col, int row)
 {
     Term *t = malloc(sizeof(Term));
+    memset(t, 0, sizeof(Term));
     t->c.attr.fg = defaultfg;
     t->c.attr.bg = defaultbg;
-    /* Allocate a single line so resize can realloc
-	t->line = malloc(sizeof(Line));
-	t->alt  = malloc(sizeof(Line));
-	t->dirty = malloc(sizeof(*t->dirty));
-	t->tabs = malloc(sizeof(*t->tabs)); */
   	tresize(t, col, row);
 	treset(t);
     return t;
