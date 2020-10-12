@@ -172,7 +172,7 @@ func stop(c *cli.Context) error {
 	if err != nil {
 		return fmt.Errorf("Failed to find the agetnt's process: %s", err)
 	}
-	fmt.Printf("Sending an INT signal to agent process # %d\n", pid)
+	fmt.Printf("Sending a SIGINT to agent process %d\n", pid)
 	err = process.Signal(syscall.SIGINT)
 	return err
 }
