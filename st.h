@@ -115,7 +115,7 @@ void sendbreak(const Arg *);
 void toggleprinter(const Arg *);
 
 int tattrset(int);
-void tnew(Term *, int, int);
+Term *tnew(int, int);
 void tset(Term *);
 void tdump();
 void tputc(Term *, Rune);

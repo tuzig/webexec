@@ -9,16 +9,14 @@ import (
 	"unsafe"
 )
 
-// STNew allocates a new simple terminal and returns it.
-// caller should C.free the returned pointer
-
 func STFree(t *C.Term) {
 	C.free(unsafe.Pointer(t))
 }
+
+// STNew allocates a new simple terminal and returns it.
+// caller should C.free the returned pointer
 func STNew(col uint16, row uint16) *C.Term {
-	r := (*C.Term)(C.malloc(C.sizeof_Term))
-	C.tnew(r, C.int(col), C.int(row))
-	return r
+	return C.tnew(C.int(col), C.int(row))
 }
 
 // STResize resizes a simple terminal

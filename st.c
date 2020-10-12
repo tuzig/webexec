@@ -603,18 +603,20 @@ treset(Term *t)
 	}
 }
 
-void
-tnew(Term *t, int col, int row)
+Term *
+tnew(int col, int row)
 {
+    Term *t = malloc(sizeof(Term));
     t->c.attr.fg = defaultfg;
     t->c.attr.bg = defaultbg;
-    /* Allocate a single line so resize can realloc */
+    /* Allocate a single line so resize can realloc
 	t->line = malloc(sizeof(Line));
 	t->alt  = malloc(sizeof(Line));
 	t->dirty = malloc(sizeof(*t->dirty));
-	t->tabs = malloc(sizeof(*t->tabs));
+	t->tabs = malloc(sizeof(*t->tabs)); */
   	tresize(t, col, row);
 	treset(t);
+    return t;
 }
 
 void
@@ -2024,7 +2026,7 @@ twrite(Term *t, const char *buf, int buflen, int show_ctrl)
 void
 tresize(Term *t, int col, int row)
 {
-	int i;
+	int i=0;
 	int minrow = MIN(row, t->row);
 	int mincol = MIN(col, t->col);
 	int *bp;
@@ -2042,21 +2044,24 @@ tresize(Term *t, int col, int row)
 	 * tscrollup would work here, but we can optimize to
 	 * memmove because we're freeing the earlier lines
 	 */
-	for (i = 0; i <= t->c.y - row; i++) {
-		free(t->line[i]);
-		free(t->alt[i]);
-	}
-	/* ensure that both src and dst are not NULL */
-	if (i > 0) {
-		memmove(t->line, t->line + i, row * sizeof(Line));
-		memmove(t->alt, t->alt + i, row * sizeof(Line));
-	}
-	for (i += row; i < t->row; i++) {
-		free(t->line[i]);
-		free(t->alt[i]);
-	}
+    if (t->line != NULL) {
+        for (i = 0; i <= t->c.y - row; i++) {
+            free(t->line[i]);
+            free(t->alt[i]);
+        }
+        /* ensure that both src and dst are not NULL */
+        if (i > 0) {
+            memmove(t->line, t->line + i, row * sizeof(Line));
+            memmove(t->alt, t->alt + i, row * sizeof(Line));
+        }
+        for (i += row; i < t->row; i++) {
+            free(t->line[i]);
+            free(t->alt[i]);
+        }
+    }
 
 	/* resize to new height */
+
 	t->line = xrealloc(t->line, row * sizeof(Line));
 	t->alt  = xrealloc(t->alt,  row * sizeof(Line));
 	t->dirty = xrealloc(t->dirty, row * sizeof(*t->dirty));
