@@ -94,17 +94,26 @@ func (pane *Pane) ReadLoop() {
 		if l == 0 {
 			break
 		}
-		// We need to get the dcs from Panes or we don't get an updated version
+		// We need to get the dcs from Panes for an updated version
 		pane := Panes[id-1]
 		Logger.Infof("Sending output to %d dcs", len(pane.dcs))
 		for i := 0; i < len(pane.dcs); i++ {
 			dc := pane.dcs[i]
-			if dc.ReadyState() == webrtc.DataChannelStateOpen {
+			s := dc.ReadyState()
+			if s == webrtc.DataChannelStateOpen {
 				err = dc.Send(b[:l])
 				if err != nil {
 					Logger.Errorf("got an error when sending message: %v", err)
 				}
+			} else {
+				Logger.Infof("removind dc because state: %q", s)
+				if id == 0 {
+					Panes[id-1].dcs = pane.dcs[1:]
+				} else {
+					Panes[id-1].dcs = append(pane.dcs[:i], pane.dcs[i+1:]...)
+				}
 			}
+
 		}
 		// TODO: does this work?
 		if pane.st != nil {
@@ -168,6 +177,7 @@ func (pane *Pane) Resize(ws *pty.Winsize) {
 // the function does nothing if it's given a nil size or the current size
 func (pane *Pane) Restore(d *webrtc.DataChannel) {
 	if pane.st != nil {
+		Logger.Infof("Sending scrren dump to %d", pane.Id)
 		b, l := STDump(pane.st)
 		if l > 0 {
 			d.Send(b)
