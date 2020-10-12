@@ -2,6 +2,7 @@ package main
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap/zaptest"
@@ -15,6 +16,7 @@ func TestTerminalDump(t *testing.T) {
 	logger := zaptest.NewLogger(t).Sugar()
 	logger.Info("Helllo")
 	term := STNew(10, 2)
+	defer STFree(term)
 
 	STWrite(term, "a\n\rb\n\rc")
 	/*
@@ -22,8 +24,9 @@ func TestTerminalDump(t *testing.T) {
 			STPutc(i)
 		}
 	*/
+	time.Sleep(time.Second / 100)
 
 	ret, l := STDump(term)
-	require.Equal(t, 3, l)
 	require.Equal(t, "b\nc", string(ret))
+	require.Equal(t, 3, l)
 }
