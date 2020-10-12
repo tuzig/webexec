@@ -157,7 +157,7 @@ func TestChannelReconnect(t *testing.T) {
 			}
 		})
 		<-gotAuthAck
-		dc, err = client.CreateDataChannel("24x80,bash,-c,sleep 1; echo 123456", nil)
+		dc, err = client.CreateDataChannel("bash,-c,sleep 1; echo 123456", nil)
 		require.Nil(t, err, "Failed to create the echo data channel: %v", err)
 		dc.OnOpen(func() {
 			log.Printf("Channel %q opened", dc.Label())

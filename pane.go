@@ -1,11 +1,15 @@
 // This file contains the Pane type and all associated functions
 package main
 
+// #cgo CFLAGS: -g -Wall -Wtypedef-redefinition
+// #include <stdlib.h>
+// #include "st.h"
+import "C"
+
 import (
 	"fmt"
 	"github.com/creack/pty"
 	"github.com/pion/webrtc/v2"
-	"io"
 	"os"
 	"os/exec"
 	"strconv"
@@ -13,6 +17,7 @@ import (
 )
 
 var Panes []Pane
+var paneIdM sync.Mutex
 
 // Pane type hold a command, a pseudo tty and the connected data channels
 type Pane struct {
@@ -23,29 +28,33 @@ type Pane struct {
 	Buffer [][]byte
 	dcs    []*webrtc.DataChannel
 	Ws     *pty.Winsize
+	// st is a C based terminal emulator used for screen restore
+	st *C.Term
 }
 
 // NewPane opens a new pane and start its command and pty
 func NewPane(command []string, d *webrtc.DataChannel,
 	ws *pty.Winsize) (*Pane, error) {
-	var m sync.Mutex
 
 	var (
 		err error
 		tty *os.File
+		st  *C.Term
 	)
 
 	cmd := exec.Command(command[0], command[1:]...)
 	if ws != nil {
 		tty, err = pty.StartWithSize(cmd, ws)
+		st = STNew(ws.Cols, ws.Rows)
+		Logger.Infof("Got a new ST: %p", st)
 	} else {
-		// TODO: don't use a pty, just pipe the input and output
+		// don't use a pty, just pipe the input and output
 		tty, err = pty.Start(cmd)
 	}
 	if err != nil {
 		return nil, fmt.Errorf("Failed launching %q: %q", command, err)
 	}
-	m.Lock()
+	paneIdM.Lock()
 	pane := Pane{
 		Id:     len(Panes) + 1,
 		C:      cmd,
@@ -53,10 +62,11 @@ func NewPane(command []string, d *webrtc.DataChannel,
 		Buffer: nil,
 		dcs:    []*webrtc.DataChannel{d},
 		Ws:     ws,
+		st:     st,
 	}
 	Panes = append(Panes, pane)
-	m.Unlock()
-	// NewCommand is up to here
+	paneIdM.Unlock()
+
 	return &pane, nil
 }
 
@@ -84,19 +94,30 @@ func (pane *Pane) ReadLoop() {
 		if l == 0 {
 			break
 		}
-		// We need to get the dcs from Panes or we don't get an updated version
-		dcs := Panes[id-1].dcs
-		for i := 0; i < len(dcs); i++ {
-			dc := dcs[i]
-			if dc.ReadyState() == webrtc.DataChannelStateOpen {
+		// We need to get the dcs from Panes for an updated version
+		pane := Panes[id-1]
+		Logger.Infof("Sending output to %d dcs", len(pane.dcs))
+		for i := 0; i < len(pane.dcs); i++ {
+			dc := pane.dcs[i]
+			s := dc.ReadyState()
+			if s == webrtc.DataChannelStateOpen {
 				err = dc.Send(b[:l])
 				if err != nil {
 					Logger.Errorf("got an error when sending message: %v", err)
 				}
+			} else {
+				Logger.Infof("removind dc because state: %q", s)
+				if id == 0 {
+					Panes[id-1].dcs = pane.dcs[1:]
+				} else {
+					Panes[id-1].dcs = append(pane.dcs[:i], pane.dcs[i+1:]...)
+				}
 			}
+
 		}
-		if err == io.EOF {
-			break
+		// TODO: does this work?
+		if pane.st != nil {
+			STWrite(pane.st, string(b[:l]))
 		}
 	}
 	Panes[id-1].Kill()
@@ -145,6 +166,29 @@ func (pane *Pane) Resize(ws *pty.Winsize) {
 		Logger.Infof("Changing pty size for pane %d: %v", pane.Id, ws)
 		pane.Ws = ws
 		pty.Setsize(pane.Tty, ws)
-		// TODO: send resize message to all connected dcs
+		if pane.st != nil {
+			STResize(pane.st, ws.Cols, ws.Rows)
+			// STResize := pane.Term.SetSize(uint(ws.Cols), uint(ws.Rows))
+		}
+	}
+}
+
+// pane.Restore sends the panes' visible lines line to a data channel
+// the function does nothing if it's given a nil size or the current size
+func (pane *Pane) Restore(d *webrtc.DataChannel) {
+	if pane.st != nil {
+		Logger.Infof("Sending scrren dump to %d", pane.Id)
+		b, l := STDump(pane.st)
+		if l > 0 {
+			d.Send(b)
+			// position the cursor
+			ps := fmt.Sprintf("\x1b[%d;%dH",
+				int(pane.st.c.y)+1, int(pane.st.c.x)+1)
+			d.Send([]byte(ps))
+		} else {
+			Logger.Info("not restoring as dump len is 0")
+		}
+	} else {
+		Logger.Info("not restoring as st is null")
 	}
 }
