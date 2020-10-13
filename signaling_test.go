@@ -71,12 +71,12 @@ func TestConnect(t *testing.T) {
 		cdc.OnOpen(func() {
 			done <- true
 		})
-		time.AfterFunc(3*time.Second, func() {
-			t.Errorf("Timeouton cdc open")
-			done <- true
-		})
 	}
-	<-done
+	select {
+	case <-time.After(3 * time.Second):
+		t.Errorf("Timeouton cdc open")
+	case <-done:
+	}
 	/*
 		// There's t.Cleanup in go 1.15+
 		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)

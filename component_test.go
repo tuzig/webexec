@@ -128,6 +128,7 @@ func TestResizeCommand(t *testing.T) {
 
 func TestChannelReconnect(t *testing.T) {
 	Logger = zaptest.NewLogger(t).Sugar()
+	TokensFilePath = "./test_tokens"
 	var cId string
 	var dc *webrtc.DataChannel
 	done := make(chan bool)
@@ -177,7 +178,7 @@ func TestChannelReconnect(t *testing.T) {
 	SignalPair(client, peer.PC)
 	<-gotId
 	// Now that we have a channel open, let's close the channel and reconnect
-	dc2, err := client.CreateDataChannel("24x80,>"+cId, nil)
+	dc2, err := client.CreateDataChannel(">"+cId, nil)
 	require.Nil(t, err, "Failed to create the second data channel: %q", err)
 	dc2.OnOpen(func() {
 		log.Println("Second channel is open")
@@ -201,16 +202,17 @@ func TestChannelReconnect(t *testing.T) {
 		count2++
 	})
 	log.Print("Waiting on done")
-	time.AfterFunc(3*time.Second, func() {
+	select {
+	case <-time.After(3 * time.Second):
 		t.Error("Timeout waiting for dat ain reconnected pane")
-		done <- true
-	})
-	<-done
+	case <-done:
+	}
 	// dc.Close()
 	// dc2.Close()
 }
 func TestPayloadOperations(t *testing.T) {
 	Logger = zaptest.NewLogger(t).Sugar()
+	TokensFilePath = "./test_tokens"
 	done := make(chan bool)
 	gotAuthAck := make(chan bool)
 	peer, err := NewPeer("")
@@ -243,12 +245,12 @@ func TestPayloadOperations(t *testing.T) {
 			}
 		})
 	})
-	time.AfterFunc(3*time.Second, func() {
-		t.Error("Timeout waiting for an ack")
-		done <- true
-	})
 	SignalPair(client, peer.PC)
-	<-gotAuthAck
+	select {
+	case <-time.After(3 * time.Second):
+		t.Error("Timeout waiting for an ack")
+	case <-gotAuthAck:
+	}
 	args := SetPayloadArgs{payload2}
 	setPayload := CTRLMessage{time.Now().UnixNano(), 777,
 		"set_payload", &args}
@@ -260,4 +262,85 @@ func TestPayloadOperations(t *testing.T) {
 		cdc.Send(getMsg)
 	}
 	<-done
+}
+func TestChannelRestore(t *testing.T) {
+	Logger = zaptest.NewLogger(t).Sugar()
+	TokensFilePath = "./test_tokens"
+	var cId string
+	var dc *webrtc.DataChannel
+	done := make(chan bool)
+	gotAuthAck := make(chan bool)
+	gotOutput := make(chan bool)
+	// start the server
+	peer, err := NewPeer("")
+	require.Nil(t, err, "NewPeer failed with: %s", err)
+	// and the client
+	client, err := webrtc.NewPeerConnection(webrtc.Configuration{})
+	require.Nil(t, err, "Failed to start a new server %v", err)
+	// create the command & control data channel
+	cdc, err := client.CreateDataChannel("%", nil)
+	require.Nil(t, err, "Failed to create the control data channel: %v", err)
+	// count the incoming messages
+	count := 0
+	cdc.OnOpen(func() {
+		log.Println("cdc is opened")
+		go SendAuth(cdc, AValidTokenForTests)
+		cdc.OnMessage(func(msg webrtc.DataChannelMessage) {
+			// we should get an ack for the auth message
+			var cm CTRLMessage
+			log.Printf("Got a ctrl msg: %s", msg.Data)
+			err := json.Unmarshal(msg.Data, &cm)
+			require.Nil(t, err, "Failed to marshal the server msg: %v", err)
+			if cm.Type == "ack" {
+				gotAuthAck <- true
+			}
+		})
+		<-gotAuthAck
+		dc, err = client.CreateDataChannel("24x80,bash,-c,echo 123456 ; sleep 1", nil)
+		require.Nil(t, err, "Failed to create the echo data channel: %v", err)
+		dc.OnOpen(func() {
+			log.Printf("Channel %q opened", dc.Label())
+		})
+		dc.OnMessage(func(msg webrtc.DataChannelMessage) {
+			log.Printf("DC Got msg #%d: %s", count, msg.Data)
+			if count == 0 {
+				cId = string(msg.Data)
+				log.Printf("Client got a channel id: %q", cId)
+			}
+			if count == 1 {
+				require.Contains(t, string(msg.Data), "123456")
+				gotOutput <- true
+			}
+			count++
+		})
+	})
+	SignalPair(client, peer.PC)
+	<-gotOutput
+	// Now that we have a channel open, let's close the channel and reconnect
+	dc2, err := client.CreateDataChannel(">"+cId, nil)
+	require.Nil(t, err, "Failed to create the second data channel: %q", err)
+	dc2.OnOpen(func() {
+		log.Println("Second channel is open")
+	})
+	count2 := 0
+	dc2.OnMessage(func(msg webrtc.DataChannelMessage) {
+		// first message is the pane id
+		if count2 == 0 && string(msg.Data) != cId {
+			t.Errorf("Got a bad pane ID on reconnect, expected %q got %q",
+				cId, msg.Data)
+		}
+		// second message should be the echo output
+		if count2 == 1 {
+			require.Contains(t, string(msg.Data), "123456",
+				"Got an unexpected reply: %s", msg.Data)
+			done <- true
+		}
+		count2++
+	})
+	log.Print("Waiting on done")
+	select {
+	case <-time.After(3 * time.Second):
+		t.Error("Timeout waiting for dat ain reconnected pane")
+	case <-done:
+	}
 }
