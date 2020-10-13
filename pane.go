@@ -1,7 +1,7 @@
 // This file contains the Pane type and all associated functions
 package main
 
-// #cgo CFLAGS: -g -Wall -Wtypedef-redefinition
+// #cgo CFLAGS: -g -Wall
 // #include <stdlib.h>
 // #include "st.h"
 import "C"
