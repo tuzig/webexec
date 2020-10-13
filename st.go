@@ -5,9 +5,13 @@ package main
 import "C"
 
 import (
-	"log"
 	"unsafe"
 )
+
+type STDumpContext struct {
+	paneId int
+	dcIdx  int
+}
 
 func STFree(t *C.Term) {
 	C.free(unsafe.Pointer(t))
@@ -24,14 +28,22 @@ func STResize(t *C.Term, col uint16, row uint16) {
 	C.tresize(t, C.int(col), C.int(row))
 }
 
-// STDump dumps a terminal buffer returning a byte slice and a len
-func STDump(t *C.Term) ([]byte, int) {
-	buf := C.malloc(16536)
-	defer C.free(buf)
+//export goSTDumpCB
+func goSTDumpCB(buf *C.char, l C.int, context unsafe.Pointer) {
+	// This is the function called from the C world by our expensive
+	// C.somelib_get_files() function. The userdata value contains an instance
+	// of *progressRequest, We unpack it and use it's values to call the
+	// actual function that our user supplied.
+	c := (*STDumpContext)(context)
+	Logger.Infof("Sending dump buf len %d with context %v\n", l, c)
+	Panes[c.paneId-1].dcs[c.dcIdx].Send(C.GoBytes((unsafe.Pointer)(buf), l))
+}
 
-	l := C.tdump2buf(t, (*C.char)(buf))
-	log.Printf("%d: %v", l, buf)
-	return C.GoBytes(buf, l), int(l)
+// STDump dumps a terminal buffer returning a byte slice and a len
+func STDump(t *C.Term, c *STDumpContext) int {
+	p := unsafe.Pointer(c)
+	r := C.tdump2cb(t, p)
+	return int(r)
 }
 
 // STPutc output a rune on the terminal

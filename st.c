@@ -67,6 +67,7 @@ DEALINGS IN THE SOFTWARE.
  #include <libutil.h>
 #endif
 
+extern void goSTDumpCB(char *, int, void *);
 /* TODO: dummy function tobe developed or deleted */
 void xclipcopy(void) {}
 void xloadcols(void) {}
@@ -1550,6 +1551,48 @@ tdumpline(Term *t, int n)
 			tprinter(buf, utf8encode(bp->u, buf));
 	}
 	tprinter("\n", 1);
+}
+
+int
+tdump2cb(Term *t, void *context) {
+	int i, l =0, tot=0;
+    char *outbuf, *out;
+    outbuf = malloc(CHUNK_SIZE);
+    out = outbuf;
+    
+	for (i = 0; i < t->row; ++i) {
+        char buf[UTF_SIZ];
+        Glyph *bp, *end;
+
+        bp = &t->line[i][0];
+        end = &bp[MIN(tlinelen(t, i), t->col) - 1];
+        if (bp != end || bp->u != ' ') {
+            for ( ; bp <= end; ++bp) {
+                int ul = utf8encode(bp->u, buf);
+                /* if the buffer is fulll call the cb and start fresh */
+                if (l + ul > CHUNK_SIZE) {
+                    goSTDumpCB(outbuf, l, context);
+                    out = outbuf;
+                    tot += l;
+                    l = 0;
+                }
+                memcpy(out, buf, ul);
+                l += ul;
+                out += ul;
+            }
+        }
+        /* if it's not the last row, add a new line */
+        if (i + 1 != t->row) {
+            *out = 10;
+            out++;
+            l++;
+        }
+    }
+    /* send the last buffer */
+    if (l > 0)
+        goSTDumpCB(outbuf, l, context);
+    free(outbuf);
+    return tot+l;
 }
 
 int

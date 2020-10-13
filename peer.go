@@ -240,10 +240,11 @@ func (peer *Peer) Reconnect(d *webrtc.DataChannel, id int) *Pane {
 	}
 	pane := &Panes[id-1]
 	m.Lock()
+	dIdx := len(pane.dcs)
 	pane.dcs = append(pane.dcs, d)
 	m.Unlock()
 	pane.SendId(d)
-	pane.Restore(d)
+	pane.Restore(dIdx)
 	return pane
 }
 

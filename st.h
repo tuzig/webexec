@@ -109,6 +109,7 @@ typedef struct {
 } Term;
 
 int tdump2buf(Term *, char *out);
+int tdump2cb(Term *, void *context);
 void printscreen(const Arg *);
 void printsel(const Arg *);
 void sendbreak(const Arg *);

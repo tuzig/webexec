@@ -58,4 +58,4 @@ Development
 
 We welcome issues with bugs or features and of course PRs.
 
-Please run `go test -v . ./...` before committing.
+Please run `go test -v ./...` before committing.
