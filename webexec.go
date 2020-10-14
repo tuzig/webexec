@@ -19,13 +19,15 @@ import (
 	"go.uber.org/zap/zapcore"
 )
 
+// ErrAgentNotRunning is raised when the agent is down
 var ErrAgentNotRunning = errors.New("agent is not running")
 
-var ErrHomePathMissing = `
+// HomePathMissing is displayed when there's no home folder
+var HomePathMissing = `
 Seems like ~/.webexec is missing.\n
 Have you ran "%s init"?`
 
-// global logger
+// Logger is our global logger
 var Logger *zap.SugaredLogger
 
 var gotExitSignal chan bool
@@ -52,6 +54,7 @@ func InitAgentLogger() {
 	defer Logger.Sync()
 }
 
+// InitDevLogger starts a logger for development
 func InitDevLogger() {
 	zapConf := []byte(`{
 		  "level": "debug",
@@ -198,7 +201,7 @@ func launchAgent(address string) error {
 		// TODO: make it configurable
 		logfile, err = os.Create(ConfPath("agent.err"))
 		if errors.Is(err, os.ErrNotExist) {
-			return fmt.Errorf(ErrHomePathMissing, execPath)
+			return fmt.Errorf(HomePathMissing, execPath)
 		}
 		if err != nil {
 			return fmt.Errorf("failed to create agent.err:%q", err)

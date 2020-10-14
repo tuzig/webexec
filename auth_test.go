@@ -59,8 +59,8 @@ func TestAuthorization(t *testing.T) {
 		go SendAuth(cdc, AValidTokenForTests)
 		cdc.OnMessage(func(msg webrtc.DataChannelMessage) {
 			ackArgs := ParseAck(t, msg)
-			require.Equal(t, ackArgs.Ref, TEST_ACK_REF,
-				"Expeted ack ref to equal %d and got: ", TEST_ACK_REF, ackArgs.Ref)
+			require.Equal(t, ackArgs.Ref, TestAckRef,
+				"Expeted ack ref to equal %d and got: ", TestAckRef, ackArgs.Ref)
 			gotAuthAck <- true
 		})
 

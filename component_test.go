@@ -86,7 +86,7 @@ func TestResizeCommand(t *testing.T) {
 		go SendAuth(cdc, AValidTokenForTests)
 		cdc.OnMessage(func(msg webrtc.DataChannelMessage) {
 			ack := ParseAck(t, msg)
-			if ack.Ref == TEST_ACK_REF {
+			if ack.Ref == TestAckRef {
 				gotAuthAck <- true
 			}
 			if ack.Ref == 456 {
@@ -129,11 +129,11 @@ func TestResizeCommand(t *testing.T) {
 func TestChannelReconnect(t *testing.T) {
 	Logger = zaptest.NewLogger(t).Sugar()
 	TokensFilePath = "./test_tokens"
-	var cId string
+	var cID string
 	var dc *webrtc.DataChannel
 	done := make(chan bool)
 	gotAuthAck := make(chan bool)
-	gotId := make(chan bool)
+	gotID := make(chan bool)
 	// start the server
 	peer, err := NewPeer("")
 	require.Nil(t, err, "NewPeer failed with: %s", err)
@@ -167,18 +167,18 @@ func TestChannelReconnect(t *testing.T) {
 		dc.OnMessage(func(msg webrtc.DataChannelMessage) {
 			log.Printf("DC Got msg #%d: %s", count, msg.Data)
 			if count == 0 {
-				cId = string(msg.Data)
-				log.Printf("Client got a channel id: %q", cId)
+				cID = string(msg.Data)
+				log.Printf("Client got a channel id: %q", cID)
 				dc.Close()
-				gotId <- true
+				gotID <- true
 			}
 			count++
 		})
 	})
 	SignalPair(client, peer.PC)
-	<-gotId
+	<-gotID
 	// Now that we have a channel open, let's close the channel and reconnect
-	dc2, err := client.CreateDataChannel(">"+cId, nil)
+	dc2, err := client.CreateDataChannel(">"+cID, nil)
 	require.Nil(t, err, "Failed to create the second data channel: %q", err)
 	dc2.OnOpen(func() {
 		log.Println("Second channel is open")
@@ -187,9 +187,9 @@ func TestChannelReconnect(t *testing.T) {
 	dc2.OnMessage(func(msg webrtc.DataChannelMessage) {
 		log.Printf("DC2 Got msg #%d: %s", count2, msg.Data)
 		// first message is the pane id
-		if count2 == 0 && string(msg.Data) != cId {
+		if count2 == 0 && string(msg.Data) != cID {
 			t.Errorf("Got a bad pane ID on reconnect, expected %q got %q",
-				cId, msg.Data)
+				cID, msg.Data)
 		}
 		// second message should be the echo output
 		if count2 == 1 {
@@ -233,7 +233,7 @@ func TestPayloadOperations(t *testing.T) {
 			args := ParseAck(t, msg)
 			var payload []byte
 			err = json.Unmarshal(args.Body, &payload)
-			if args.Ref == TEST_ACK_REF {
+			if args.Ref == TestAckRef {
 				require.Equal(t, []byte(args.Body), Payload,
 					"Got the wrong payload: %q", args.Body)
 				gotAuthAck <- true
@@ -266,7 +266,7 @@ func TestPayloadOperations(t *testing.T) {
 func TestChannelRestore(t *testing.T) {
 	Logger = zaptest.NewLogger(t).Sugar()
 	TokensFilePath = "./test_tokens"
-	var cId string
+	var cID string
 	var dc *webrtc.DataChannel
 	done := make(chan bool)
 	gotAuthAck := make(chan bool)
@@ -304,8 +304,8 @@ func TestChannelRestore(t *testing.T) {
 		dc.OnMessage(func(msg webrtc.DataChannelMessage) {
 			log.Printf("DC Got msg #%d: %s", count, msg.Data)
 			if count == 0 {
-				cId = string(msg.Data)
-				log.Printf("Client got a channel id: %q", cId)
+				cID = string(msg.Data)
+				log.Printf("Client got a channel id: %q", cID)
 			}
 			if count == 1 {
 				require.Contains(t, string(msg.Data), "123456")
@@ -317,7 +317,7 @@ func TestChannelRestore(t *testing.T) {
 	SignalPair(client, peer.PC)
 	<-gotOutput
 	// Now that we have a channel open, let's close the channel and reconnect
-	dc2, err := client.CreateDataChannel(">"+cId, nil)
+	dc2, err := client.CreateDataChannel(">"+cID, nil)
 	require.Nil(t, err, "Failed to create the second data channel: %q", err)
 	dc2.OnOpen(func() {
 		log.Println("Second channel is open")
@@ -325,9 +325,9 @@ func TestChannelRestore(t *testing.T) {
 	count2 := 0
 	dc2.OnMessage(func(msg webrtc.DataChannelMessage) {
 		// first message is the pane id
-		if count2 == 0 && string(msg.Data) != cId {
+		if count2 == 0 && string(msg.Data) != cID {
 			t.Errorf("Got a bad pane ID on reconnect, expected %q got %q",
-				cId, msg.Data)
+				cID, msg.Data)
 		}
 		// second message should be the echo output
 		if count2 == 1 {

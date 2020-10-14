@@ -9,6 +9,7 @@ import (
 	"github.com/rs/cors"
 )
 
+// HTTPGo starts to listen and serve http requests
 func HTTPGo(address string) error {
 	h, e := ConnectHandler()
 	if e != nil {

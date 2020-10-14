@@ -7,9 +7,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/creack/pty"
+	"sync"
+	"time"
 )
 
-// ErrorArgs is a type that holds the args for an error message
+// NAckArgs is a type that holds the args for an error message
 type NAckArgs struct {
 	// Desc hold the textual desciption of the error
 	Desc string `json:"desc"`
@@ -45,13 +47,31 @@ type ResizeArgs struct {
 // CTRLMessage type holds control messages passed over the control channel
 type CTRLMessage struct {
 	// Time is in msec since EPOCH
-	Time      int64       `json:"time"`
-	MessageId int         `json:"message_id"`
-	Type      string      `json:"type"`
-	Args      interface{} `json:"args"`
+	Time int64       `json:"time"`
+	Ref  int         `json:"message_id"`
+	Type string      `json:"type"`
+	Args interface{} `json:"args"`
 }
 
-// parseWinsize gets a string in the format of "24x80" and returns a Winsize
+var msgIDM sync.Mutex
+
+// SendCTRLMsg sends a control message to a peer.
+// The message is compose from a type and args
+func SendCTRLMsg(peer *Peer, typ string, args interface{}) error {
+	msgIDM.Lock()
+	peer.LastRef++
+	msg := CTRLMessage{time.Now().UnixNano() / 1000000, peer.LastRef,
+		typ, args}
+	msgIDM.Unlock()
+	msgJ, err := json.Marshal(msg)
+	if err != nil {
+		return fmt.Errorf("Failed to marshal the ack msg: %e\n   msg == %q", err, msg)
+	}
+	Logger.Infof("Sending nack: %q", msgJ)
+	return peer.cdc.Send(msgJ)
+}
+
+// ParseWinsize gets a string in the format of "24x80" and returns a Winsize
 func ParseWinsize(s string) (*pty.Winsize, error) {
 	var sx, sy uint16
 	Logger.Infof("Parsing window size: %q", s)

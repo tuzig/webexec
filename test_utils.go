@@ -15,15 +15,19 @@ import (
 // AValidTokenForTests token is stored in the file "./test_tokens"
 // tests that use it should add `TokensFilePath = "./test_tokens"`
 const AValidTokenForTests = "THEoneANDonlyTOKEN"
-const TEST_ACK_REF = 123
 
+// TestAckRef is the ref to use in tests
+const TestAckRef = 123
+
+// GetMsgType is used get the type of a control message
 func GetMsgType(t *testing.T, msg webrtc.DataChannelMessage) string {
 	env := CTRLMessage{}
 	err := json.Unmarshal(msg.Data, &env)
 	require.Nil(t, err, "failed to unmarshal cdc message: %q", err)
 	return env.Type
-
 }
+
+// ParseAck parses and ack message and returns its args
 func ParseAck(t *testing.T, msg webrtc.DataChannelMessage) AckArgs {
 	var args json.RawMessage
 	var ackArgs AckArgs
@@ -39,14 +43,15 @@ func ParseAck(t *testing.T, msg webrtc.DataChannelMessage) AckArgs {
 	return ackArgs
 }
 
+// SendAuth sends an authorization message
 func SendAuth(cdc *webrtc.DataChannel, token string) {
 	time.Sleep(10 * time.Millisecond)
 	//TODO we need something like peer.LastMsgId++ below
 	msg := CTRLMessage{
-		Time:      time.Now().UnixNano(),
-		Type:      "auth",
-		MessageId: TEST_ACK_REF,
-		Args:      AuthArgs{token},
+		Time: time.Now().UnixNano(),
+		Type: "auth",
+		Ref:  TestAckRef,
+		Args: AuthArgs{token},
 	}
 	authMsg, err := json.Marshal(msg)
 	if err != nil {
@@ -57,7 +62,7 @@ func SendAuth(cdc *webrtc.DataChannel, token string) {
 	}
 }
 
-//TODO: move this function to a test_utils.go file
+// SignalPair is used to start a connection between two peers
 func SignalPair(pcOffer *webrtc.PeerConnection, pcAnswer *webrtc.PeerConnection) error {
 	iceGatheringState := pcOffer.ICEGatheringState()
 	offerChan := make(chan webrtc.SessionDescription, 1)

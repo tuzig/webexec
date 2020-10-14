@@ -6,6 +6,7 @@ import (
 	"os"
 )
 
+// TokensFilePath holds the path to a file where each authorized token has a line
 var TokensFilePath = ConfPath("authorized_tokens")
 
 // ReadAuthorizedTokens reads the tokens file and returns all the tokens in it

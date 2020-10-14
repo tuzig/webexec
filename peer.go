@@ -26,19 +26,18 @@ var (
 	Payload []byte
 	// WebRTCAPI is the gateway to webrtc calls
 	WebRTCAPI *webrtc.API
-	msgIdM    sync.Mutex
 )
 
-// type Peer is used to remember a client.
+// Peer is a type used to remember a client.
 // a peer can be either authenticated or not. When not a peer can only accept
 // an auth msg over the control data channel - `cdc`
 type Peer struct {
-	Id                int
+	ID                int
 	Authenticated     bool
 	Remote            string
 	Token             string
 	LastContact       *time.Time
-	LastMsgId         int
+	LastRef           int
 	PC                *webrtc.PeerConnection
 	Answer            string
 	cdc               *webrtc.DataChannel
@@ -70,11 +69,11 @@ func NewPeer(remote string) (*Peer, error) {
 	}
 	m.Lock()
 	peer := Peer{
-		Id:                len(Peers),
+		ID:                len(Peers),
 		Token:             "",
 		Authenticated:     false,
 		LastContact:       nil,
-		LastMsgId:         0,
+		LastRef:           0,
 		PC:                pc,
 		Answer:            "",
 		cdc:               nil,
@@ -91,14 +90,14 @@ func NewPeer(remote string) (*Peer, error) {
 	if len(remote) > 0 {
 		err := peer.Listen(remote)
 		if err != nil {
-			return nil, fmt.Errorf("#%d: Failed to listen: %s", peer.Id, err)
+			return nil, fmt.Errorf("#%d: Failed to listen: %s", peer.ID, err)
 		}
 	}
 	pc.OnDataChannel(peer.OnChannelReq)
 	return &peer, nil
 }
 
-// peer.Listen get's a client offer, starts listens to it and return its offer
+// Listen get's a client offer, starts listens to it and return its offer
 func (peer *Peer) Listen(remote string) error {
 	offer := webrtc.SessionDescription{}
 	err := DecodeOffer(remote, &offer)
@@ -124,7 +123,8 @@ func (peer *Peer) Listen(remote string) error {
 	return nil
 }
 
-// start a system command over a pty. If the command contains a dimension
+// OnChannelReq starts a system command over a pty.
+// If the data channel label includes a dimention
 // in the format of 24x80 the login shell is lunched
 func (peer *Peer) OnChannelReq(d *webrtc.DataChannel) {
 	// the singalig channel is used for test setup
@@ -155,7 +155,7 @@ func (peer *Peer) OnChannelReq(d *webrtc.DataChannel) {
 	})
 }
 
-// OnPaneReqs gets a data channel request and creates the pane
+// OnPaneReq gets a data channel request and creates the pane
 // The function parses the label to figure out what it needs to exec:
 //   the command to run and rows & cols of the pseudo tty.
 // returns a nil when it fails to parse the channel name or when the name is
@@ -220,14 +220,14 @@ func (peer *Peer) OnPaneReq(d *webrtc.DataChannel) *Pane {
 	if pane != nil {
 		// Send the pane id as the first message
 		go pane.ReadLoop()
-		pane.SendId(d)
+		pane.SendID(d)
 		return pane
 	}
 	Logger.Error("Failed to create new pane: %q", err)
 	return nil
 }
 
-// Peer.Reconnect reconnects to a pane
+// Reconnect reconnects to a pane
 func (peer *Peer) Reconnect(d *webrtc.DataChannel, id int) *Pane {
 	var m sync.Mutex
 	Logger.Infof("New channel is a reconnect request to %d", id)
@@ -240,44 +240,21 @@ func (peer *Peer) Reconnect(d *webrtc.DataChannel, id int) *Pane {
 	dIdx := len(pane.dcs)
 	pane.dcs = append(pane.dcs, d)
 	m.Unlock()
-	pane.SendId(d)
+	pane.SendID(d)
 	pane.Restore(dIdx)
 	return pane
 }
 
 // SendAck sends an ack for a given control message
 func (peer *Peer) SendAck(cm CTRLMessage, body []byte) error {
-	args := AckArgs{Ref: cm.MessageId, Body: body}
-
-	msgIdM.Lock()
-	peer.LastMsgId++
-	msg := CTRLMessage{time.Now().UnixNano() / 1000000, peer.LastMsgId,
-		"ack", &args}
-	msgIdM.Unlock()
-	msgJ, err := json.Marshal(msg)
-	if err != nil {
-		return fmt.Errorf("Failed to marshal the ack msg: %e\n   msg == %q", err, msg)
-	}
-	Logger.Infof("Sending ack: %s", msgJ)
-	return peer.cdc.Send(msgJ)
+	args := AckArgs{Ref: cm.Ref, Body: body}
+	return SendCTRLMsg(peer, "ack", &args)
 }
 
 // SendNAck sends an nack for a given control message
 func (peer *Peer) SendNAck(cm CTRLMessage, desc string) error {
-	args := NAckArgs{Ref: cm.MessageId, Desc: desc}
-
-	// TODO: Add a NewCTRLMsg that accepts the type and args
-	msgIdM.Lock()
-	peer.LastMsgId++
-	msg := CTRLMessage{time.Now().UnixNano() / 1000000, peer.LastMsgId + 1,
-		"nack", &args}
-	msgIdM.Unlock()
-	msgJ, err := json.Marshal(msg)
-	if err != nil {
-		return fmt.Errorf("Failed to marshal the ack msg: %e\n   msg == %q", err, msg)
-	}
-	Logger.Infof("Sending nack: %q", msgJ)
-	return peer.cdc.Send(msgJ)
+	args := NAckArgs{Ref: cm.Ref, Desc: desc}
+	return SendCTRLMsg(peer, "nack", &args)
 }
 
 // OnCTRLMsg handles incoming control messages
@@ -300,19 +277,19 @@ func (peer *Peer) OnCTRLMsg(msg webrtc.DataChannelMessage) {
 			Logger.Infof("Failed to parse incoming control message: %v", err)
 			return
 		}
-		cId := resizeArgs.PaneID
-		if cId < 1 || cId > len(Panes) {
+		cID := resizeArgs.PaneID
+		if cID < 1 || cID > len(Panes) {
 			Logger.Error("Failed to parse resize message pane_id out of range")
 			return
 		}
-		pane := Panes[cId-1]
+		pane := Panes[cID-1]
 		var ws pty.Winsize
 		ws.Cols = resizeArgs.Sx
 		ws.Rows = resizeArgs.Sy
 		pane.Resize(&ws)
 		err = peer.SendAck(m, nil)
 		if err != nil {
-			Logger.Errorf("#%d: Failed to send a resize ack: %v", peer.Id, err)
+			Logger.Errorf("#%d: Failed to send a resize ack: %v", peer.ID, err)
 			return
 		}
 	case "auth":
@@ -351,7 +328,7 @@ func (peer *Peer) OnCTRLMsg(msg webrtc.DataChannelMessage) {
 		Logger.Errorf("Got a control message with unknown type: %q", m.Type)
 	}
 	if err != nil {
-		Logger.Errorf("#%d: Failed to send auth [n]ack: %v", peer.Id, err)
+		Logger.Errorf("#%d: Failed to send auth [n]ack: %v", peer.ID, err)
 		return
 	}
 }

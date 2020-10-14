@@ -8,13 +8,10 @@ import (
 	"unsafe"
 )
 
+// STDumpContext is used to pass context between C & go
 type STDumpContext struct {
-	paneId int
+	PaneID int
 	dcIdx  int
-}
-
-func STFree(t *C.Term) {
-	C.free(unsafe.Pointer(t))
 }
 
 // STNew allocates a new simple terminal and returns it.
@@ -36,7 +33,7 @@ func goSTDumpCB(buf *C.char, l C.int, context unsafe.Pointer) {
 	// actual function that our user supplied.
 	c := (*STDumpContext)(context)
 	Logger.Infof("Sending dump buf len %d with context %v\n", l, c)
-	Panes[c.paneId-1].dcs[c.dcIdx].Send(C.GoBytes((unsafe.Pointer)(buf), l))
+	Panes[c.PaneID-1].dcs[c.dcIdx].Send(C.GoBytes((unsafe.Pointer)(buf), l))
 }
 
 // STDump dumps a terminal buffer returning a byte slice and a len
