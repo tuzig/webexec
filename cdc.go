@@ -9,14 +9,6 @@ import (
 	"github.com/creack/pty"
 )
 
-/* MT:
-- Why JSON? There are many serialization formats out there
--- BD: Because webexec one & only front end is javascript.
-- Maybe we can try and decouple the code from the serialization so we can
-	swMyitch serialization without much trouble
--- Good idea, but i'd rather wait till when we non-js client
-*/
-
 // ErrorArgs is a type that holds the args for an error message
 type NAckArgs struct {
 	// Desc hold the textual desciption of the error
@@ -43,61 +35,6 @@ type SetPayloadArgs struct {
 	Payload json.RawMessage `json:"payload"`
 }
 
-/* MT: You can use https://pkg.go.dev/github.com/mitchellh/mapstructure for
-variadic messages.
-
-func main() {
-	r := strings.NewReader(`
-		{"type": "login", "user": "joe"}
-		{"type": "resize", "height": 220, "width": 400}
-	`)
-	dec := json.NewDecoder(r)
-
-	for {
-		var m map[string]interface{}
-		err := dec.Decode(&m)
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			fmt.Println("ERROR:", err)
-			break
-		}
-		if err := handleMessage(m); err != nil {
-			fmt.Println("ERROR:", err)
-		}
-	}
-}
-
-func handleMessage(m map[string]interface{}) error {
-	typ, ok := m["type"].(string)
-	if !ok {
-		return fmt.Errorf("bad message: %v", m)
-	}
-	switch typ {
-	case "login":
-		var msg struct {
-			User string
-		}
-		if err := mapstructure.Decode(m, &msg); err != nil {
-			return err
-		}
-		fmt.Println("USER:", msg)
-	case "resize":
-		var msg struct {
-			Height int
-			Width  int
-		}
-		if err := mapstructure.Decode(m, &msg); err != nil {
-			return err
-		}
-		fmt.Println("RESIZE:", msg)
-	}
-
-	return nil
-}
-*/
-
 // ResizeArgs is a type that holds the argumnet to the resize pty command
 type ResizeArgs struct {
 	PaneID int    `json:"pane_id"`
@@ -107,8 +44,6 @@ type ResizeArgs struct {
 
 // CTRLMessage type holds control messages passed over the control channel
 type CTRLMessage struct {
-	// MT: Why time.Time? It knows how to un/marshal from/to JSON
-	// MT: Document is it msec or sec since epoch
 	// Time is in msec since EPOCH
 	Time      int64       `json:"time"`
 	MessageId int         `json:"message_id"`

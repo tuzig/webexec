@@ -26,6 +26,7 @@ var (
 	Payload []byte
 	// WebRTCAPI is the gateway to webrtc calls
 	WebRTCAPI *webrtc.API
+	msgIdM    sync.Mutex
 )
 
 // type Peer is used to remember a client.
@@ -175,7 +176,6 @@ func (peer *Peer) OnPaneReq(d *webrtc.DataChannel) *Pane {
 	// If the message starts with a digit we assume it starts with a size
 	// i.e. "24x80,echo,Hello World"
 	l := d.Label()
-	// MT: For each case, add a comment with example input
 	fields := strings.Split(l, ",")
 	// "%" is the command & control channel - aka cdc
 	if l[0] == '%' {
@@ -185,7 +185,7 @@ func (peer *Peer) OnPaneReq(d *webrtc.DataChannel) *Pane {
 		d.OnMessage(peer.OnCTRLMsg)
 		return nil
 	}
-	// if the label starts witha digit, it needs a pty
+	// if the label starts witha digit, i.e. "80x24" it needs a pty
 	if unicode.IsDigit(rune(l[0])) {
 		cmdIndex = 1
 		// no command, don't create the pane
@@ -199,7 +199,6 @@ func (peer *Peer) OnPaneReq(d *webrtc.DataChannel) *Pane {
 			return nil
 		}
 	}
-	// MT: Might panic if d.Label() starts with ","
 	if len(fields[cmdIndex]) < 2 {
 		Logger.Errorf("Command is too short")
 		return nil
@@ -248,14 +247,13 @@ func (peer *Peer) Reconnect(d *webrtc.DataChannel, id int) *Pane {
 
 // SendAck sends an ack for a given control message
 func (peer *Peer) SendAck(cm CTRLMessage, body []byte) error {
-	var m sync.Mutex
 	args := AckArgs{Ref: cm.MessageId, Body: body}
 
-	m.Lock()
-	msg := CTRLMessage{time.Now().UnixNano() / 1000000, peer.LastMsgId + 1,
+	msgIdM.Lock()
+	peer.LastMsgId++
+	msg := CTRLMessage{time.Now().UnixNano() / 1000000, peer.LastMsgId,
 		"ack", &args}
-	peer.LastMsgId += 1 // MT: peer.LastMsgId++ before the previous line?
-	m.Unlock()
+	msgIdM.Unlock()
 	msgJ, err := json.Marshal(msg)
 	if err != nil {
 		return fmt.Errorf("Failed to marshal the ack msg: %e\n   msg == %q", err, msg)
@@ -268,10 +266,12 @@ func (peer *Peer) SendAck(cm CTRLMessage, body []byte) error {
 func (peer *Peer) SendNAck(cm CTRLMessage, desc string) error {
 	args := NAckArgs{Ref: cm.MessageId, Desc: desc}
 
-	// TODO: protect message counter against reentrancy
+	// TODO: Add a NewCTRLMsg that accepts the type and args
+	msgIdM.Lock()
+	peer.LastMsgId++
 	msg := CTRLMessage{time.Now().UnixNano() / 1000000, peer.LastMsgId + 1,
 		"nack", &args}
-	peer.LastMsgId += 1
+	msgIdM.Unlock()
 	msgJ, err := json.Marshal(msg)
 	if err != nil {
 		return fmt.Errorf("Failed to marshal the ack msg: %e\n   msg == %q", err, msg)
@@ -279,25 +279,6 @@ func (peer *Peer) SendNAck(cm CTRLMessage, desc string) error {
 	Logger.Infof("Sending nack: %q", msgJ)
 	return peer.cdc.Send(msgJ)
 }
-
-/* MT
-You can avoid of the types in cdc.go and use anonymouns struct
-
-	data := []byte(`{"x": 1, "y": 2}`)
-	var point struct { // point is an anonymouns struct
-		X int
-		Y int
-	}
-
-	if err := json.Unmarshal(data, &point); err != nil {
-		fmt.Println("ERROR:", err)
-	} else {
-		fmt.Printf("point: %+v\n", point)
-	}
-
-BD Good to know but I prefer not to. While what I have now is more verbose,
-it is the API and I'd rather have a separate type for the args
-*/
 
 // OnCTRLMsg handles incoming control messages
 func (peer *Peer) OnCTRLMsg(msg webrtc.DataChannelMessage) {

@@ -84,5 +84,5 @@ func TestConnect(t *testing.T) {
 		err := Shutdown(ctx)
 		require.Nil(t, err, "Failed shutting the http server: %v", err)
 	*/
-
+	Shutdown()
 }

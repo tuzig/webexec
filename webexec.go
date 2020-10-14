@@ -21,10 +21,6 @@ import (
 
 var ErrAgentNotRunning = errors.New("agent is not running")
 
-// MT: Ideally there should be good defaults that "just work"™
-// BD: Not sure I can be that light. I added the init command because
-//     the agent needs a way to get the user's approval for new clients.
-//     I guess an alternative will be use ssh and run "webexec auth <token>"
 var ErrHomePathMissing = `
 Seems like ~/.webexec is missing.\n
 Have you ran "%s init"?`
@@ -36,8 +32,6 @@ var gotExitSignal chan bool
 
 // InitAgentLogger intializes the global `Logger` with agent's settings
 func InitAgentLogger() {
-	// MT: I don't know how, but rotate logs
-	// BD: https://github.com/tuzig/webexec/issues/16
 	cfg := zap.Config{
 		Level:       zap.NewAtomicLevelAt(zap.DebugLevel),
 		Encoding:    "console",
@@ -58,10 +52,6 @@ func InitAgentLogger() {
 	defer Logger.Sync()
 }
 
-// InitDevLogger intializes the global `Logger` for development
-// MT: Why not read a YAML/JSON file from the config directory
-// BD: We'll still need this function when the user runs `webexec start --debug`
-//     but for the agent's: https://github.com/tuzig/webexec/issues/17
 func InitDevLogger() {
 	zapConf := []byte(`{
 		  "level": "debug",
@@ -228,15 +218,12 @@ func launchAgent(address string) error {
 }
 
 // start - start the user's agent
-// MT: Why did you choose the cli package?
-// BD: Did a bit of research and it seemed like a simple and very active package
 func start(c *cli.Context) error {
 	address := c.String("address")
 	debug := c.Bool("debug")
 	if debug {
 		InitDevLogger()
 	} else {
-		// MT: Too much code in if/else
 		if c.Bool("agent") {
 			err := agentStart()
 			if err != nil {
@@ -265,14 +252,10 @@ func start(c *cli.Context) error {
 
 /* TBD:
 func paste(c *cli.Context) error {
-	// MT: Switch to log
-	// BD: I'm not sure. IMO, the logger is for the agent to use, CLI output
-	//     should just print to stdout without level, time, etc.
 	fmt.Println("Soon, we'll be pasting data from the clipboard to STDOUT")
 	return nil
 }
 func copyCMD(c *cli.Context) error {
-	// MT: Switch to log
 	fmt.Println("Soon, we'll be copying data from STDIN to the clipboard")
 	return nil
 }
@@ -284,9 +267,7 @@ func restart(c *cli.Context) error {
 		return err
 	}
 	// wait for the process to stop
-	// MT: I prefer to do a for loop with short sleeps and check the process
-	// status. Error if a timeout reached
-	// BD: right. https://github.com/tuzig/webexec/issues/18
+	// TODO: https://github.com/tuzig/webexec/issues/18
 	time.Sleep(1 * time.Second)
 	return start(c)
 }

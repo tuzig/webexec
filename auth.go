@@ -6,16 +6,6 @@ import (
 	"os"
 )
 
-/* MT: I'm not sure I see the value of this code. Users can edit their own tokens file, document it.
-   BD: Remove it. I guess I'm getting closer to the MVP and
-       "You know the nearer your destination, the more you slip slidingaway"
-
-
-Also: Add support for empty lines and comments when reading
-
-BD: opened an issue for that https://github.com/tuzig/webexec/issues/15
-*/
-
 var TokensFilePath = ConfPath("authorized_tokens")
 
 // ReadAuthorizedTokens reads the tokens file and returns all the tokens in it
