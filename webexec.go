@@ -19,6 +19,8 @@ import (
 	"go.uber.org/zap/zapcore"
 )
 
+const Version = "0.4.0"
+
 // ErrAgentNotRunning is raised when the agent is down
 var ErrAgentNotRunning = errors.New("agent is not running")
 
@@ -107,6 +109,10 @@ func ConfPath(suffix string) string {
 }
 
 // initCMD - initialize the user's .webexec directory
+func version(c *cli.Context) error {
+	fmt.Println(Version)
+	return nil
+}
 func initCMD(c *cli.Context) error {
 	var contact string
 
@@ -310,6 +316,10 @@ func main() {
 				Action: paste,
 			},*/
 			{
+				Name:   "version",
+				Usage:  "Print version information",
+				Action: version,
+			}, {
 				Name:  "restart",
 				Usage: "restarts the agent",
 				Flags: []cli.Flag{

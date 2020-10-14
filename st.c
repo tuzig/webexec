@@ -174,8 +174,6 @@ typedef struct {
 	int narg;              /* nb of args */
 } STREscape;
 
-static void ttywriteraw(const char *, size_t);
-
 static void csidump(void);
 static void csihandle(Term *);
 static void csiparse(void);
@@ -209,7 +207,6 @@ static void tsetdirt(Term *, int, int);
 static void tsetscroll(Term *, int, int);
 static void tswapscreen(Term *);
 static void tsetmode(Term *, int, int, int *, int);
-static int twrite(Term *, const char *, int, int);
 static void tfulldirt(Term *);
 static void tcontrolcode(Term*, uchar);
 static void tdectest(Term *, char );
@@ -219,7 +216,6 @@ static void tdeftran(Term *, char);
 static void tstrsequence(Term *, uchar);
 
 static void selscroll(int, int);
-static void selsnap(Term *, int *, int *, int);
 
 static size_t utf8decode(const char *, Rune *, size_t);
 static Rune utf8decodebyte(char, size_t *);
@@ -440,86 +436,6 @@ selected(int x, int y)
 {
     return 0;
 }
-
-void
-selsnap(Term *t, int *x, int *y, int direction)
-{
-	int newx, newy, xt, yt;
-	int delim, prevdelim;
-	Glyph *gp, *prevgp;
-
-	switch (sel.snap) {
-	case SNAP_WORD:
-		/*
-		 * Snap around if the word wraps around at the end or
-		 * beginning of a line.
-		 */
-		prevgp = &t->line[*y][*x];
-		prevdelim = ISDELIM(prevgp->u);
-		for (;;) {
-			newx = *x + direction;
-			newy = *y;
-			if (!BETWEEN(newx, 0, t->col - 1)) {
-				newy += direction;
-				newx = (newx + t->col) % t->col;
-				if (!BETWEEN(newy, 0, t->row - 1))
-					break;
-
-				if (direction > 0)
-					yt = *y, xt = *x;
-				else
-					yt = newy, xt = newx;
-				if (!(t->line[yt][xt].mode & ATTR_WRAP))
-					break;
-			}
-
-			if (newx >= tlinelen(t, newy))
-				break;
-
-			gp = &t->line[newy][newx];
-			delim = ISDELIM(gp->u);
-			if (!(gp->mode & ATTR_WDUMMY) && (delim != prevdelim
-					|| (delim && gp->u != prevgp->u)))
-				break;
-
-			*x = newx;
-			*y = newy;
-			prevgp = gp;
-			prevdelim = delim;
-		}
-		break;
-	case SNAP_LINE:
-		/*
-		 * Snap around if the the previous line or the current one
-		 * has set ATTR_WRAP at its end. Then the whole next or
-		 * previous line will be selected.
-		 */
-		*x = (direction < 0) ? 0 : t->col - 1;
-		if (direction < 0) {
-			for (; *y > 0; *y += direction) {
-				if (!(t->line[*y-1][t->col-1].mode
-						& ATTR_WRAP)) {
-					break;
-				}
-			}
-		} else if (direction > 0) {
-			for (; *y < t->row-1; *y += direction) {
-				if (!(t->line[*y][t->col-1].mode
-						& ATTR_WRAP)) {
-					break;
-				}
-			}
-		}
-		break;
-	}
-}
-
-char *
-getsel(void)
-{
-    return "";
-}
-
 
 void
 selclear(void)
@@ -2028,38 +1944,6 @@ check_control_code:
 	} else {
 		t->c.state |= CURSOR_WRAPNEXT;
 	}
-}
-
-int
-twrite(Term *t, const char *buf, int buflen, int show_ctrl)
-{
-	int charsize;
-	Rune u;
-	int n;
-
-	for (n = 0; n < buflen; n += charsize) {
-		if (IS_SET(MODE_UTF8)) {
-			/* process a complete utf8 char */
-			charsize = utf8decode(buf + n, &u, buflen - n);
-			if (charsize == 0)
-				break;
-		} else {
-			u = buf[n] & 0xFF;
-			charsize = 1;
-		}
-		if (show_ctrl && ISCONTROL(u)) {
-			if (u & 0x80) {
-				u &= 0x7f;
-				tputc(t, '^');
-				tputc(t, '[');
-			} else if (u != '\n' && u != '\r' && u != '\t') {
-				u ^= 0x40;
-				tputc(t, '^');
-			}
-		}
-		tputc(t, u);
-	}
-	return n;
 }
 
 void
