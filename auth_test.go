@@ -13,45 +13,33 @@ import (
 )
 
 func TestUnauthincatedBlocked(t *testing.T) {
-	/* MT: Add a test logger that won't spam stdout but will log
-	to t.Logger. Logs will only with -v or when there's an.Sugar()
-	error
-	  BD: Thanks, I ended up using zaptest. It still doesn't work as advertised
-	  and spams stdout even when all is well. Their docs say:
-	  "Use this with a *testing.T or *testing.B to get logs which get printed
-	   only if a test fails or if you ran go test -v."
-	   https://pkg.go.dev/go.uber.org/zap/zaptest
-	*/
 	Logger = zaptest.NewLogger(t).Sugar()
 	TokensFilePath = "./test_tokens"
-	done := make(chan bool)
+	failed := make(chan bool)
 	peer, err := NewPeer("")
 	require.Nil(t, err, "NewPeer failed with: %s", err)
 	client, err := webrtc.NewPeerConnection(webrtc.Configuration{})
 	require.Nil(t, err, "Failed to start a new peer connection: %q", err)
-	SignalPair(client, peer.PC)
 	cdc, err := client.CreateDataChannel("%", nil)
 	require.Nil(t, err, "failed to create the control data channel: %q", err)
 	cdc.OnOpen(func() {
 		// control channel is open let's open another one, so we'll have
 		// what to resize
-		dc, err := client.CreateDataChannel("bash", nil)
+		dc, err := client.CreateDataChannel("echo,Failed", nil)
 		require.Nil(t, err, "failed to create the a channel: %q", err)
-		dc.OnClose(func() {
-			require.Equal(t, dc.Label(), "bash",
-				"Got a close request for channel: %q", dc.Label())
-			// First message in is the server id for this channel
+		dc.OnOpen(func() {
+			dc.OnMessage(func(msg webrtc.DataChannelMessage) {
+				failed <- true
+			})
 		})
 	})
+	SignalPair(client, peer.PC)
 
-	// MT: Why do we do this code?
-	// Because when the test fails, somtimes it hangs for too long.
-	// I found a "-timeout" command line option but no other way of controlling
-	// the timeout
-	time.AfterFunc(3*time.Second, func() {
-		done <- true
-	})
-	<-done
+	select {
+	case <-time.After(3 * time.Second):
+	case <-failed:
+		t.Error("Data channel is opened even though no authentication")
+	}
 	Shutdown()
 }
 

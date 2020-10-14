@@ -92,8 +92,6 @@ func NewPeer(remote string) (*Peer, error) {
 		if err != nil {
 			return nil, fmt.Errorf("#%d: Failed to listen: %s", peer.Id, err)
 		}
-	} else {
-		Logger.Error("Got a connect request with empty an offer")
 	}
 	pc.OnDataChannel(peer.OnChannelReq)
 	return &peer, nil
