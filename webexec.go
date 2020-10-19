@@ -39,7 +39,7 @@ func InitAgentLogger() {
 	cfg := zap.Config{
 		Level:       zap.NewAtomicLevelAt(zap.DebugLevel),
 		Encoding:    "console",
-		OutputPaths: []string{ConfPath("agent.log")},
+		OutputPaths: []string{"stdout"},
 		EncoderConfig: zapcore.EncoderConfig{
 			MessageKey:  "message",
 			LevelKey:    "level",
@@ -202,20 +202,12 @@ func launchAgent(address string) error {
 		return fmt.Errorf("Failed to find the executable: %s", err)
 	}
 	cmd := exec.Command(execPath, "start", "--agent", "--address", address)
-	logfile, err := os.Open(ConfPath("agent.err"))
-	if errors.Is(err, os.ErrNotExist) {
-		// TODO: make it configurable
-		logfile, err = os.Create(ConfPath("agent.err"))
-		if errors.Is(err, os.ErrNotExist) {
-			return fmt.Errorf(HomePathMissing, execPath)
-		}
-		if err != nil {
-			return fmt.Errorf("failed to create agent.err:%q", err)
-		}
-	}
+	logfile, err := os.OpenFile(ConfPath("agent.log"),
+		os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
-		return fmt.Errorf("failed to open agent.err :%s", err)
+		return fmt.Errorf("failed to open agent.log :%s", err)
 	}
+	cmd.Stdout = logfile
 	cmd.Stderr = logfile
 	err = cmd.Start()
 	if err != nil {

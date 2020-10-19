@@ -67,7 +67,7 @@ func SendCTRLMsg(peer *Peer, typ string, args interface{}) error {
 	if err != nil {
 		return fmt.Errorf("Failed to marshal the ack msg: %e\n   msg == %q", err, msg)
 	}
-	Logger.Infof("Sending nack: %q", msgJ)
+	Logger.Infof("Sending ctrl message: %s", msgJ)
 	return peer.cdc.Send(msgJ)
 }
 
