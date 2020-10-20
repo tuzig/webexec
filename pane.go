@@ -19,6 +19,7 @@ import (
 // Panes is an array that hol;ds all the panes
 var Panes []Pane
 var paneIDM sync.Mutex
+var dcsM sync.Mutex
 
 // Pane type hold a command, a pseudo tty and the connected data channels
 type Pane struct {
@@ -101,12 +102,14 @@ func (pane *Pane) ReadLoop() {
 					Logger.Errorf("got an error when sending message: %v", err)
 				}
 			} else {
-				Logger.Infof("removind dc because state: %q", s)
+				Logger.Infof("removing dc because state: %q", s)
+				dcsM.Lock()
 				if id == 0 {
 					Panes[id-1].dcs = pane.dcs[1:]
 				} else {
 					Panes[id-1].dcs = append(pane.dcs[:i], pane.dcs[i+1:]...)
 				}
+				dcsM.Unlock()
 			}
 
 		}
@@ -177,11 +180,13 @@ func (pane *Pane) Restore(dIdx int) {
 	if pane.st != nil {
 		Logger.Infof("Sending scrren dump to %d", pane.ID)
 		dc := STDumpContext{pane.ID, dIdx}
+		dcsM.Lock()
 		STDump(pane.st, &dc)
 		// position the cursor
 		ps := fmt.Sprintf("\x1b[%d;%dH",
 			int(pane.st.c.y)+1, int(pane.st.c.x)+1)
 		pane.dcs[dIdx].Send([]byte(ps))
+		dcsM.Unlock()
 	} else {
 		Logger.Warn("not restoring as st is null")
 	}
