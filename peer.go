@@ -82,9 +82,9 @@ func NewPeer(remote string) (*Peer, error) {
 	Peers = append(Peers, peer)
 	m.Unlock()
 	// Status changes happend when the peer has connected/disconnected
-	pc.OnICEConnectionStateChange(func(connectionState webrtc.ICEConnectionState) {
+	pc.OnConnectionStateChange(func(connectionState webrtc.PeerConnectionState) {
 		s := connectionState.String()
-		Logger.Infof("ICE Connection State change: %s", s)
+		Logger.Infof("WebRTC Connection State change: %s", s)
 	})
 	// testing uses special signaling, so there's no remote information
 	if len(remote) > 0 {
