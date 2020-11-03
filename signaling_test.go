@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"strings"
@@ -12,13 +13,16 @@ import (
 	"go.uber.org/zap/zaptest"
 )
 
+const TestingHost = "127.0.0.1:7888"
+
 func TestConnect(t *testing.T) {
 	Logger = zaptest.NewLogger(t).Sugar()
 	done := make(chan bool)
 	offerChan := make(chan webrtc.SessionDescription, 1)
 	// Start the https server
 	go func() {
-		err := HTTPGo("0.0.0.0:7778")
+
+		err := HTTPGo(TestingHost)
 		require.Nil(t, err, "HTTP Listen and Server returns an error: %q", err)
 	}()
 	// start the webrtc client
@@ -51,8 +55,8 @@ func TestConnect(t *testing.T) {
 		var sd webrtc.SessionDescription
 		cob := EncodeOffer(&offer)
 		offerReader := strings.NewReader(cob)
-		r, err := http.Post("http://127.0.0.1:7778/connect", "application/json",
-			offerReader)
+		url := fmt.Sprintf("http://%s/connect", TestingHost)
+		r, err := http.Post(url, "application/json", offerReader)
 		require.Nil(t, err, "Failed sending a post request: %q", err)
 		defer r.Body.Close()
 		require.Equal(t, r.StatusCode, http.StatusOK,
