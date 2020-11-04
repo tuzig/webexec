@@ -89,4 +89,6 @@ func TestConnect(t *testing.T) {
 		require.Nil(t, err, "Failed shutting the http server: %v", err)
 	*/
 	Shutdown()
+	// TODO: be smarter, this is just a hack to get github action to pass
+	time.Sleep(500 * time.Millisecond)
 }
