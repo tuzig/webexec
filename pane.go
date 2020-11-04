@@ -102,13 +102,10 @@ func (pane *Pane) ReadLoop() {
 					Logger.Errorf("got an error when sending message: %v", err)
 				}
 			} else {
-				Logger.Infof("removing dc because state: %q", s)
+				Logger.Infof("closing & removing dc because state: %q", s)
+				dc.Close()
 				dcsM.Lock()
-				if id == 0 {
-					Panes[id-1].dcs = pane.dcs[1:]
-				} else {
-					Panes[id-1].dcs = append(pane.dcs[:i], pane.dcs[i+1:]...)
-				}
+				Panes[id-1].dcs = append(pane.dcs[:i], pane.dcs[i+1:]...)
 				dcsM.Unlock()
 			}
 
@@ -123,6 +120,7 @@ func (pane *Pane) ReadLoop() {
 
 // Kill takes a pane to the sands of Rishon and buries it
 func (pane *Pane) Kill() {
+	Logger.Infof("Killing pane: %d", pane.ID)
 	for i := 0; i < len(pane.dcs); i++ {
 		dc := pane.dcs[i]
 		if dc.ReadyState() == webrtc.DataChannelStateOpen {
