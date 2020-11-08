@@ -230,19 +230,24 @@ func (peer *Peer) OnPaneReq(d *webrtc.DataChannel) *Pane {
 // Reconnect reconnects to a pane
 func (peer *Peer) Reconnect(d *webrtc.DataChannel, id int) *Pane {
 	var m sync.Mutex
-	Logger.Infof("New channel is a reconnect request to %d", id)
+	Logger.Infof("Reconnect request to %d", id)
 	if id > len(Panes) || id < 0 {
 		Logger.Errorf("Got a bad pane id: %d", id)
 		return nil
 	}
 	pane := &Panes[id-1]
-	m.Lock()
-	dIdx := len(pane.dcs)
-	pane.dcs = append(pane.dcs, d)
-	m.Unlock()
-	pane.SendID(d)
-	pane.Restore(dIdx)
-	return pane
+	if pane.Alive() {
+		m.Lock()
+		dIdx := len(pane.dcs)
+		pane.dcs = append(pane.dcs, d)
+		m.Unlock()
+		pane.SendID(d)
+		pane.Restore(dIdx)
+		return pane
+	} else {
+		d.Close()
+		return nil
+	}
 }
 
 // SendAck sends an ack for a given control message
@@ -320,7 +325,7 @@ func (peer *Peer) OnCTRLMsg(msg webrtc.DataChannelMessage) {
 	case "set_payload":
 		var payloadArgs SetPayloadArgs
 		err = json.Unmarshal(raw, &payloadArgs)
-		Logger.Infof("Setting payload to: %q", payloadArgs.Payload)
+		Logger.Infof("Setting payload to: %s", payloadArgs.Payload)
 		Payload = payloadArgs.Payload
 		err = peer.SendAck(m, Payload)
 	// TODO: add more commands here: mouse, copy, paste, etc.

@@ -85,7 +85,7 @@ func (pane *Pane) SendID(dc *webrtc.DataChannel) {
 func (pane *Pane) ReadLoop() {
 	b := make([]byte, 4096)
 	id := pane.ID
-	for pane.C.ProcessState.String() != "killed" {
+	for pane.Alive() {
 		l, err := pane.Tty.Read(b)
 		if l == 0 {
 			break
@@ -117,18 +117,21 @@ func (pane *Pane) ReadLoop() {
 	}
 	Panes[id-1].Kill()
 }
-
-// Kill takes a pane to the sands of Rishon and buries it
-func (pane *Pane) Kill() {
-	Logger.Infof("Killing pane: %d", pane.ID)
+func (pane *Pane) closeAllDCs() {
 	for i := 0; i < len(pane.dcs); i++ {
 		dc := pane.dcs[i]
 		if dc.ReadyState() == webrtc.DataChannelStateOpen {
 			dc.Close()
 		}
 	}
+}
+
+// Kill takes a pane to the sands of Rishon and buries it
+func (pane *Pane) Kill() {
+	Logger.Infof("Killing pane: %d", pane.ID)
+	pane.closeAllDCs()
 	pane.Tty.Close()
-	if pane.C.ProcessState.String() != "killed" {
+	if pane.Alive() {
 		err := pane.C.Process.Kill()
 		if err != nil {
 			Logger.Errorf("Failed to kill process: %v %v",
@@ -147,6 +150,10 @@ func (pane *Pane) OnCloseDC() {
 func (pane *Pane) OnMessage(msg webrtc.DataChannelMessage) {
 	p := msg.Data
 	l, err := pane.Tty.Write(p)
+	if err == os.ErrClosed {
+		pane.closeAllDCs()
+		return
+	}
 	if err != nil {
 		Logger.Warnf("pty of %d write failed: %v",
 			pane.ID, err)
@@ -188,4 +195,15 @@ func (pane *Pane) Restore(dIdx int) {
 	} else {
 		Logger.Warn("not restoring as st is null")
 	}
+}
+func (pane *Pane) Alive() bool {
+	/* TODO: replace ProcessState with somwething that works
+	r := false
+	if pane.C.ProcessState != nil {
+		Logger.Infof("Checking is alive, state - %q", pane.C.ProcessState.String())
+		r = !(pane.C.ProcessState.Exited())
+	}
+	Logger.Infof("pane.Alive returns %v", r)
+	return r */
+	return true
 }
