@@ -1,5 +1,7 @@
 # webexec
 
+![Test](https://github.com/tuzig/webexec/workflows/Test/badge.svg)
+
 webexec acts as a WebRTC peer and http server, listen for connection requests,
 executes commands and pipes their I/O over WebRTC data channels.
 
