@@ -85,6 +85,10 @@ func NewPeer(remote string) (*Peer, error) {
 	pc.OnConnectionStateChange(func(connectionState webrtc.PeerConnectionState) {
 		s := connectionState.String()
 		Logger.Infof("WebRTC Connection State change: %s", s)
+		if s == "failed" {
+			peer.PC.Close()
+			peer.PC = nil
+		}
 	})
 	// testing uses special signaling, so there's no remote information
 	if len(remote) > 0 {
@@ -180,7 +184,7 @@ func (peer *Peer) OnPaneReq(d *webrtc.DataChannel) *Pane {
 	// "%" is the command & control channel - aka cdc
 	if l[0] == '%' {
 		//TODO: if there's an older cdc close it
-		Logger.Info("Got a request to open for a new control channel")
+		Logger.Info("Got a request to open a control channel")
 		peer.cdc = d
 		d.OnMessage(peer.OnCTRLMsg)
 		return nil
