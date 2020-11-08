@@ -9,6 +9,7 @@ import (
 	"os/signal"
 	"os/user"
 	"path/filepath"
+	"runtime"
 	"syscall"
 	"time"
 
@@ -18,8 +19,6 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
-
-const Version = "0.4.0"
 
 // ErrAgentNotRunning is raised when the agent is down
 var ErrAgentNotRunning = errors.New("agent is not running")
@@ -33,6 +32,12 @@ Have you ran "%s init"?`
 var Logger *zap.SugaredLogger
 
 var gotExitSignal chan bool
+
+// version stuff
+var BuildVersion string
+var BuildHash string
+var BuildDate string
+var BuildClean string
 
 // InitAgentLogger intializes the global `Logger` with agent's settings
 func InitAgentLogger() {
@@ -110,7 +115,12 @@ func ConfPath(suffix string) string {
 
 // initCMD - initialize the user's .webexec directory
 func version(c *cli.Context) error {
-	fmt.Println(Version)
+	fmt.Printf("Version: %s\n", BuildVersion)
+	fmt.Printf("Git Commit Hash: %s\n", BuildHash)
+	fmt.Printf("Build Date: %s\n", BuildDate)
+	fmt.Printf("Built from clean source tree: %s\n", BuildClean)
+	fmt.Printf("OS: %s\n", runtime.GOOS)
+	fmt.Printf("Architecture: %s\n", runtime.GOARCH)
 	return nil
 }
 func initCMD(c *cli.Context) error {
