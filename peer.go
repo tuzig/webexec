@@ -218,7 +218,7 @@ func (peer *Peer) OnPaneReq(d *webrtc.DataChannel) *Pane {
 	// TODO: get the default exec  the users shell or the command from the channel's name
 	pane, err = NewPane(fields[cmdIndex:], d, ws)
 	if pane != nil {
-		// Send the pane id as the first message
+		// start the read loop and Send the pane id as the first message
 		go pane.ReadLoop()
 		pane.SendID(d)
 		return pane
@@ -230,21 +230,22 @@ func (peer *Peer) OnPaneReq(d *webrtc.DataChannel) *Pane {
 // Reconnect reconnects to a pane
 func (peer *Peer) Reconnect(d *webrtc.DataChannel, id int) *Pane {
 	var m sync.Mutex
-	Logger.Infof("Reconnect request to %d", id)
 	if id > len(Panes) || id < 0 {
 		Logger.Errorf("Got a bad pane id: %d", id)
 		return nil
 	}
 	pane := &Panes[id-1]
-	if pane.Alive() {
+	if pane.IsRunning {
 		m.Lock()
 		dIdx := len(pane.dcs)
 		pane.dcs = append(pane.dcs, d)
 		m.Unlock()
 		pane.SendID(d)
 		pane.Restore(dIdx)
+		Logger.Infof("Reconnect request to %d", id)
 		return pane
 	} else {
+		Logger.Infof("Reconnect request to %d denied", id)
 		d.Close()
 		return nil
 	}

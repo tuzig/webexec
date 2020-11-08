@@ -25,11 +25,12 @@ var dcsM sync.Mutex
 type Pane struct {
 	ID int
 	// C holds the exectuted command
-	C      *exec.Cmd
-	Tty    *os.File
-	Buffer [][]byte
-	dcs    []*webrtc.DataChannel
-	Ws     *pty.Winsize
+	C         *exec.Cmd
+	IsRunning bool
+	Tty       *os.File
+	Buffer    [][]byte
+	dcs       []*webrtc.DataChannel
+	Ws        *pty.Winsize
 	// st is a C based terminal emulator used for screen restore
 	st *C.Term
 }
@@ -58,13 +59,14 @@ func NewPane(command []string, d *webrtc.DataChannel,
 	}
 	paneIDM.Lock()
 	pane := Pane{
-		ID:     len(Panes) + 1,
-		C:      cmd,
-		Tty:    tty,
-		Buffer: nil,
-		dcs:    []*webrtc.DataChannel{d},
-		Ws:     ws,
-		st:     st,
+		ID:        len(Panes) + 1,
+		C:         cmd,
+		IsRunning: true,
+		Tty:       tty,
+		Buffer:    nil,
+		dcs:       []*webrtc.DataChannel{d},
+		Ws:        ws,
+		st:        st,
 	}
 	Panes = append(Panes, pane)
 	paneIDM.Unlock()
@@ -85,7 +87,7 @@ func (pane *Pane) SendID(dc *webrtc.DataChannel) {
 func (pane *Pane) ReadLoop() {
 	b := make([]byte, 4096)
 	id := pane.ID
-	for pane.Alive() {
+	for {
 		l, err := pane.Tty.Read(b)
 		if l == 0 {
 			break
@@ -108,13 +110,13 @@ func (pane *Pane) ReadLoop() {
 				Panes[id-1].dcs = append(pane.dcs[:i], pane.dcs[i+1:]...)
 				dcsM.Unlock()
 			}
-
 		}
 		// TODO: does this work?
 		if pane.st != nil {
 			STWrite(pane.st, string(b[:l]))
 		}
 	}
+	Logger.Infof("Killing pane %d", id)
 	Panes[id-1].Kill()
 }
 func (pane *Pane) closeAllDCs() {
@@ -130,13 +132,14 @@ func (pane *Pane) closeAllDCs() {
 func (pane *Pane) Kill() {
 	Logger.Infof("Killing pane: %d", pane.ID)
 	pane.closeAllDCs()
-	pane.Tty.Close()
-	if pane.Alive() {
+	if pane.IsRunning {
+		pane.Tty.Close()
 		err := pane.C.Process.Kill()
 		if err != nil {
 			Logger.Errorf("Failed to kill process: %v %v",
 				err, pane.C.ProcessState.String())
 		}
+		pane.IsRunning = false
 	}
 }
 
@@ -195,15 +198,4 @@ func (pane *Pane) Restore(dIdx int) {
 	} else {
 		Logger.Warn("not restoring as st is null")
 	}
-}
-func (pane *Pane) Alive() bool {
-	/* TODO: replace ProcessState with somwething that works
-	r := false
-	if pane.C.ProcessState != nil {
-		Logger.Infof("Checking is alive, state - %q", pane.C.ProcessState.String())
-		r = !(pane.C.ProcessState.Exited())
-	}
-	Logger.Infof("pane.Alive returns %v", r)
-	return r */
-	return true
 }

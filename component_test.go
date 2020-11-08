@@ -19,7 +19,7 @@ const timeout = 3 * time.Second
 func TestSimpleEcho(t *testing.T) {
 	Logger = zaptest.NewLogger(t).Sugar()
 	TokensFilePath = "./test_tokens"
-	done := make(chan bool)
+	closed := make(chan bool)
 	gotAuthAck := make(chan bool)
 	peer, err := NewPeer("")
 	require.Nil(t, err, "NewPeer failed with: %s", err)
@@ -56,18 +56,18 @@ func TestSimpleEcho(t *testing.T) {
 			} else if count == 1 {
 				require.EqualValues(t, string(msg.Data)[:11], "hello world",
 					"Got bad msg: %q", msg.Data)
-				done <- true
 			}
 			count++
 		})
 		dc.OnClose(func() {
 			fmt.Println("Client Data channel closed")
-			done <- true
+			closed <- true
 		})
 	})
 	SignalPair(client, peer.PC)
 	// TODO: add timeout
-	<-done
+	<-closed
+	require.False(t, Panes[len(Panes)-1].IsRunning)
 	require.Equal(t, count, 2, "Expected to recieve 2 messages and got %d", count)
 }
 
