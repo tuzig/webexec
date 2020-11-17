@@ -5,6 +5,7 @@ package main
 import "C"
 
 import (
+	"fmt"
 	"unsafe"
 )
 
@@ -26,14 +27,20 @@ func STResize(t *C.Term, col uint16, row uint16) {
 }
 
 //export goSTDumpCB
-func goSTDumpCB(buf *C.char, l C.int, context unsafe.Pointer) {
+func goSTDumpCB(buf *C.char, l C.int, context unsafe.Pointer) error {
 	// This is the function called from the C world by our expensive
 	// C.somelib_get_files() function. The userdata value contains an instance
 	// of *progressRequest, We unpack it and use it's values to call the
 	// actual function that our user supplied.
 	c := (*STDumpContext)(context)
 	Logger.Infof("Sending dump buf len %d with context %v\n", l, c)
-	Panes[c.PaneID-1].dcs[c.dcIdx].Send(C.GoBytes((unsafe.Pointer)(buf), l))
+	pane := Panes.Get(c.PaneID)
+	if pane == nil {
+		Logger.Errorf("unknown pane ID to dump: %d", c.PaneID)
+		return fmt.Errorf("unknown pane ID to dump: %d", c.PaneID)
+	}
+	pane.dcs[c.dcIdx].Send(C.GoBytes((unsafe.Pointer)(buf), l))
+	return nil
 }
 
 // STDump dumps a terminal buffer returning a byte slice and a len

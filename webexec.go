@@ -98,7 +98,7 @@ func Shutdown() {
 			}
 		}
 	}
-	for _, p := range Panes {
+	for _, p := range Panes.All() {
 		err = p.C.Process.Kill()
 		if err != nil {
 			Logger.Error("Failed closing a process: %w", err)

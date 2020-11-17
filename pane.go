@@ -17,8 +17,7 @@ import (
 )
 
 // Panes is an array that hol;ds all the panes
-var Panes []Pane
-var paneIDM sync.Mutex
+var Panes = NewPanesDB()
 var dcsM sync.Mutex
 
 // Pane type hold a command, a pseudo tty and the connected data channels
@@ -57,9 +56,7 @@ func NewPane(command []string, d *webrtc.DataChannel,
 	if err != nil {
 		return nil, fmt.Errorf("Failed launching %q: %q", command, err)
 	}
-	paneIDM.Lock()
-	pane := Pane{
-		ID:        len(Panes) + 1,
+	pane := &Pane{
 		C:         cmd,
 		IsRunning: true,
 		Tty:       tty,
@@ -68,10 +65,8 @@ func NewPane(command []string, d *webrtc.DataChannel,
 		Ws:        ws,
 		st:        st,
 	}
-	Panes = append(Panes, pane)
-	paneIDM.Unlock()
-
-	return &pane, nil
+	Panes.Add(pane) // This will set pane.ID
+	return pane, nil
 }
 
 // SendID sends the pane id as a message on the channel
@@ -93,7 +88,7 @@ func (pane *Pane) ReadLoop() {
 			break
 		}
 		// We need to get the dcs from Panes for an updated version
-		pane := Panes[id-1]
+		pane := Panes.Get(id)
 		Logger.Infof("Sending output to %d dcs", len(pane.dcs))
 		for i := 0; i < len(pane.dcs); i++ {
 			dc := pane.dcs[i]
@@ -107,7 +102,7 @@ func (pane *Pane) ReadLoop() {
 				Logger.Infof("closing & removing dc because state: %q", s)
 				dc.Close()
 				dcsM.Lock()
-				Panes[id-1].dcs = append(pane.dcs[:i], pane.dcs[i+1:]...)
+				Panes.Delete(id)
 				dcsM.Unlock()
 			}
 		}
@@ -116,8 +111,14 @@ func (pane *Pane) ReadLoop() {
 			STWrite(pane.st, string(b[:l]))
 		}
 	}
+
 	Logger.Infof("Killing pane %d", id)
-	Panes[id-1].Kill()
+	pane = Panes.Get(id)
+	if pane == nil {
+		Logger.Errorf("no such pane %d", id)
+	} else {
+		pane.Kill()
+	}
 }
 func (pane *Pane) closeAllDCs() {
 	for i := 0; i < len(pane.dcs); i++ {
