@@ -13,12 +13,10 @@ import (
 	"os"
 	"os/exec"
 	"strconv"
-	"sync"
 )
 
 // Panes is an array that hol;ds all the panes
 var Panes = NewPanesDB()
-var dcsM sync.Mutex
 
 // Pane type hold a command, a pseudo tty and the connected data channels
 type Pane struct {
@@ -28,7 +26,7 @@ type Pane struct {
 	IsRunning bool
 	Tty       *os.File
 	Buffer    [][]byte
-	dcs       []*webrtc.DataChannel
+	dcs       *DCsDB
 	Ws        *pty.Winsize
 	// st is a C based terminal emulator used for screen restore
 	st *C.Term
@@ -61,11 +59,12 @@ func NewPane(command []string, d *webrtc.DataChannel,
 		IsRunning: true,
 		Tty:       tty,
 		Buffer:    nil,
-		dcs:       []*webrtc.DataChannel{d},
+		dcs:       NewDCsDB(),
 		Ws:        ws,
 		st:        st,
 	}
 	Panes.Add(pane) // This will set pane.ID
+	pane.dcs.Add(d)
 	return pane, nil
 }
 
@@ -89,9 +88,8 @@ func (pane *Pane) ReadLoop() {
 		}
 		// We need to get the dcs from Panes for an updated version
 		pane := Panes.Get(id)
-		Logger.Infof("Sending output to %d dcs", len(pane.dcs))
-		for i := 0; i < len(pane.dcs); i++ {
-			dc := pane.dcs[i]
+		Logger.Infof("Sending output to %d dcs", pane.dcs.Len())
+		for _, dc := range pane.dcs.All() {
 			s := dc.ReadyState()
 			if s == webrtc.DataChannelStateOpen {
 				err = dc.Send(b[:l])
@@ -100,10 +98,13 @@ func (pane *Pane) ReadLoop() {
 				}
 			} else {
 				Logger.Infof("closing & removing dc because state: %q", s)
+				id := dc.ID()
+				if id == nil {
+					Logger.Error("Failed to delete a data channel with no id")
+					return
+				}
+				pane.dcs.Delete(*id)
 				dc.Close()
-				dcsM.Lock()
-				Panes.Delete(id)
-				dcsM.Unlock()
 			}
 		}
 		// TODO: does this work?
@@ -120,19 +121,11 @@ func (pane *Pane) ReadLoop() {
 		pane.Kill()
 	}
 }
-func (pane *Pane) closeAllDCs() {
-	for i := 0; i < len(pane.dcs); i++ {
-		dc := pane.dcs[i]
-		if dc.ReadyState() == webrtc.DataChannelStateOpen {
-			dc.Close()
-		}
-	}
-}
 
 // Kill takes a pane to the sands of Rishon and buries it
 func (pane *Pane) Kill() {
 	Logger.Infof("Killing pane: %d", pane.ID)
-	pane.closeAllDCs()
+	pane.dcs.CloseAll()
 	if pane.IsRunning {
 		pane.Tty.Close()
 		err := pane.C.Process.Kill()
@@ -155,7 +148,7 @@ func (pane *Pane) OnMessage(msg webrtc.DataChannelMessage) {
 	p := msg.Data
 	l, err := pane.Tty.Write(p)
 	if err == os.ErrClosed {
-		pane.closeAllDCs()
+		pane.dcs.CloseAll()
 		return
 	}
 	if err != nil {
@@ -185,17 +178,20 @@ func (pane *Pane) Resize(ws *pty.Winsize) {
 // Restore sends the panes' visible lines line to a data channel
 // the data channel is specified by it index in the pane.dcs slice
 // the function does nothing if it's given a nil size or the current size
-func (pane *Pane) Restore(dIdx int) {
+func (pane *Pane) Restore(d *webrtc.DataChannel) {
 	if pane.st != nil {
 		Logger.Infof("Sending scrren dump to %d", pane.ID)
-		dc := STDumpContext{pane.ID, dIdx}
-		dcsM.Lock()
+		id := d.ID()
+		if id == nil {
+			Logger.Error("Failed restoring to a data channel that has no id")
+		}
+		Logger.Infof("Sending scrren dump to pane: %d, dc: %d", pane.ID, *id)
+		dc := STDumpContext{pane.ID, *id}
 		STDump(pane.st, &dc)
 		// position the cursor
 		ps := fmt.Sprintf("\x1b[%d;%dH",
 			int(pane.st.c.y)+1, int(pane.st.c.x)+1)
-		pane.dcs[dIdx].Send([]byte(ps))
-		dcsM.Unlock()
+		d.Send([]byte(ps))
 	} else {
 		Logger.Warn("not restoring as st is null")
 	}

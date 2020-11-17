@@ -233,19 +233,15 @@ func (peer *Peer) OnPaneReq(d *webrtc.DataChannel) *Pane {
 
 // Reconnect reconnects to a pane
 func (peer *Peer) Reconnect(d *webrtc.DataChannel, id int) *Pane {
-	var m sync.Mutex
 	pane := Panes.Get(id)
 	if pane == nil {
 		Logger.Errorf("Got a bad pane id: %d", id)
 		return nil
 	}
 	if pane.IsRunning {
-		m.Lock()
-		dIdx := len(pane.dcs)
-		pane.dcs = append(pane.dcs, d)
-		m.Unlock()
+		pane.dcs.Add(d)
 		pane.SendID(d)
-		pane.Restore(dIdx)
+		pane.Restore(d)
 		Logger.Infof("Reconnect request to %d", id)
 		return pane
 	} else {
