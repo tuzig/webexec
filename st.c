@@ -1821,9 +1821,11 @@ tputc(Term *t, Rune u)
 		c[0] = u;
 		width = len = 1;
 	} else {
-		len = utf8encode(u, c);
+		width = len = utf8encode(u, c);
+        /* TODO: wcwidth is undefined
 		if (!control && (width = wcwidth(u)) == -1)
 			width = 1;
+        */
 	}
 
 	if (IS_SET(MODE_PRINT))
