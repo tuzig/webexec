@@ -11,7 +11,7 @@ import (
 // STDumpContext is used to pass context between C & go
 type STDumpContext struct {
 	PaneID int
-	dcIdx  int
+	dcID   uint16
 }
 
 // STNew allocates a new simple terminal and returns it.
@@ -27,13 +27,23 @@ func STResize(t *C.Term, col uint16, row uint16) {
 
 //export goSTDumpCB
 func goSTDumpCB(buf *C.char, l C.int, context unsafe.Pointer) {
-	// This is the function called from the C world by our expensive
-	// C.somelib_get_files() function. The userdata value contains an instance
-	// of *progressRequest, We unpack it and use it's values to call the
-	// actual function that our user supplied.
+	// This is the function called from the C world do send a buffer over
+	// the data channel
 	c := (*STDumpContext)(context)
 	Logger.Infof("Sending dump buf len %d with context %v\n", l, c)
-	Panes[c.PaneID-1].dcs[c.dcIdx].Send(C.GoBytes((unsafe.Pointer)(buf), l))
+	pane := Panes.Get(c.PaneID)
+	Logger.Info("after Get")
+	if pane == nil {
+		Logger.Errorf("unknown pane ID to dump: %d", c.PaneID)
+	}
+	d := pane.dcs.Get(c.dcID)
+	if d == nil {
+		Logger.Errorf("unknown dc ID to dump: %d", c.PaneID)
+	}
+	Logger.Infof("sending to %v", d)
+	b := C.GoBytes((unsafe.Pointer)(buf), l)
+	Logger.Infof("buffer %v", b)
+	d.Send(b)
 }
 
 // STDump dumps a terminal buffer returning a byte slice and a len

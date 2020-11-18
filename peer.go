@@ -233,19 +233,15 @@ func (peer *Peer) OnPaneReq(d *webrtc.DataChannel) *Pane {
 
 // Reconnect reconnects to a pane
 func (peer *Peer) Reconnect(d *webrtc.DataChannel, id int) *Pane {
-	var m sync.Mutex
-	if id > len(Panes) || id < 0 {
+	pane := Panes.Get(id)
+	if pane == nil {
 		Logger.Errorf("Got a bad pane id: %d", id)
 		return nil
 	}
-	pane := &Panes[id-1]
 	if pane.IsRunning {
-		m.Lock()
-		dIdx := len(pane.dcs)
-		pane.dcs = append(pane.dcs, d)
-		m.Unlock()
+		pane.dcs.Add(d)
 		pane.SendID(d)
-		pane.Restore(dIdx)
+		pane.Restore(d)
 		Logger.Infof("Reconnect request to %d", id)
 		return pane
 	} else {
@@ -288,11 +284,11 @@ func (peer *Peer) OnCTRLMsg(msg webrtc.DataChannelMessage) {
 			return
 		}
 		cID := resizeArgs.PaneID
-		if cID < 1 || cID > len(Panes) {
+		pane := Panes.Get(cID)
+		if pane == nil {
 			Logger.Error("Failed to parse resize message pane_id out of range")
 			return
 		}
-		pane := Panes[cID-1]
 		var ws pty.Winsize
 		ws.Cols = resizeArgs.Sx
 		ws.Rows = resizeArgs.Sy

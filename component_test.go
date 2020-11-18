@@ -67,7 +67,8 @@ func TestSimpleEcho(t *testing.T) {
 	SignalPair(client, peer.PC)
 	// TODO: add timeout
 	<-closed
-	require.False(t, Panes[len(Panes)-1].IsRunning)
+	panes := Panes.All()
+	require.False(t, panes[len(panes)-1].IsRunning)
 	require.Equal(t, count, 2, "Expected to recieve 2 messages and got %d", count)
 }
 

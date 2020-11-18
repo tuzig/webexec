@@ -9,6 +9,11 @@ webexec exposes TCP port 7777 by default, to support signalling.
 There's a single endpoint `/connect`: The client exchanges tokens with the
 server and then initiates a WebRTC connection.
 
+## Running
+
+To create the binary run `make build`. To install webexec on system wide
+`/usr/local/bin` run `make install`
+
 ## Flow
 
 1. Client -> Token -> Server (HTTP)
@@ -66,7 +71,5 @@ If you are ready to code yourslef, follow these steps:
 3. Commit your changes (git commit -am 'Add some feature')
 4. Push to the branch (git push origin my-new-feature)
 5. Create new Pull Request
-
-To build the project please use `make`.
 
 Please run `go test -v ./...` before pushing.
