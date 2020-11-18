@@ -39,3 +39,9 @@ build: ${BIN_DIR} check-env
 .PHONY: clean
 clean:
 	rm -fv ${BIN_DIR}/${BIN_FILE}
+
+install: build
+	cp bin/webexec /usr/local/bin
+
+test:
+	go test -v ./...
