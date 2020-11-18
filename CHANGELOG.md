@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixes
 
 - When a peer connection fails, close it and foggatabouit
+- Solving the multi-output bug #33 by refactoring the panes and dcs management
 
 ## [0.4.1] - 2020-11-08
 
