@@ -13,6 +13,7 @@ import (
 	"os"
 	"os/exec"
 	"strconv"
+	"sync"
 )
 
 // Panes is an array that hol;ds all the panes
@@ -29,7 +30,8 @@ type Pane struct {
 	dcs       *DCsDB
 	Ws        *pty.Winsize
 	// st is a C based terminal emulator used for screen restore
-	st *C.Term
+	st      *C.Term
+	resizeM sync.RWMutex
 }
 
 // NewPane opens a new pane and start its command and pty
@@ -169,8 +171,9 @@ func (pane *Pane) Resize(ws *pty.Winsize) {
 		pane.Ws = ws
 		pty.Setsize(pane.Tty, ws)
 		if pane.st != nil {
+			pane.resizeM.Lock()
 			STResize(pane.st, ws.Cols, ws.Rows)
-			// STResize := pane.Term.SetSize(uint(ws.Cols), uint(ws.Rows))
+			pane.resizeM.Unlock()
 		}
 	}
 }

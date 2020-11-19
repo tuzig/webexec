@@ -32,7 +32,6 @@ func goSTDumpCB(buf *C.char, l C.int, context unsafe.Pointer) {
 	c := (*STDumpContext)(context)
 	Logger.Infof("Sending dump buf len %d with context %v\n", l, c)
 	pane := Panes.Get(c.PaneID)
-	Logger.Info("after Get")
 	if pane == nil {
 		Logger.Errorf("unknown pane ID to dump: %d", c.PaneID)
 	}
@@ -40,9 +39,7 @@ func goSTDumpCB(buf *C.char, l C.int, context unsafe.Pointer) {
 	if d == nil {
 		Logger.Errorf("unknown dc ID to dump: %d", c.PaneID)
 	}
-	Logger.Infof("sending to %v", d)
 	b := C.GoBytes((unsafe.Pointer)(buf), l)
-	Logger.Infof("buffer %v", b)
 	d.Send(b)
 }
 
