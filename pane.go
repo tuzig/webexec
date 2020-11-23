@@ -90,7 +90,7 @@ func (pane *Pane) ReadLoop() {
 		}
 		// We need to get the dcs from Panes for an updated version
 		pane := Panes.Get(id)
-		Logger.Infof("Sending output to %d dcs", pane.dcs.Len())
+		Logger.Infof("@%d: Sending output to %d dcs", pane.ID, pane.dcs.Len())
 		for _, dc := range pane.dcs.All() {
 			s := dc.ReadyState()
 			if s == webrtc.DataChannelStateOpen {
