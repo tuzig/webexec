@@ -18,6 +18,7 @@ import (
 	"github.com/urfave/cli/v2"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
+	"gopkg.in/natefinch/lumberjack.v2"
 )
 
 // ErrAgentNotRunning is raised when the agent is down
@@ -41,24 +42,26 @@ var BuildClean string
 
 // InitAgentLogger intializes the global `Logger` with agent's settings
 func InitAgentLogger() {
-	cfg := zap.Config{
-		Level:       zap.NewAtomicLevelAt(zap.DebugLevel),
-		Encoding:    "console",
-		OutputPaths: []string{"stdout"},
-		EncoderConfig: zapcore.EncoderConfig{
+	w := zapcore.AddSync(&lumberjack.Logger{
+		Filename:   ConfPath("agent.log"),
+		MaxSize:    10, // megabytes
+		MaxBackups: 3,
+		MaxAge:     28, // days
+	})
+	core := zapcore.NewCore(
+		zapcore.NewConsoleEncoder(zapcore.EncoderConfig{
 			MessageKey:  "message",
 			LevelKey:    "level",
 			EncodeLevel: zapcore.CapitalLevelEncoder,
 			TimeKey:     "time",
 			EncodeTime:  zapcore.ISO8601TimeEncoder,
-		},
-	}
-	l, err := cfg.Build()
-	if err != nil {
-		panic(err)
-	}
+		}),
+		w,
+		zap.InfoLevel,
+	)
+	l := zap.New(core)
+	defer l.Sync()
 	Logger = l.Sugar()
-	defer Logger.Sync()
 }
 
 // InitDevLogger starts a logger for development
@@ -212,13 +215,6 @@ func launchAgent(address string) error {
 		return fmt.Errorf("Failed to find the executable: %s", err)
 	}
 	cmd := exec.Command(execPath, "start", "--agent", "--address", address)
-	logfile, err := os.OpenFile(ConfPath("agent.log"),
-		os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-	if err != nil {
-		return fmt.Errorf("failed to open agent.log :%s", err)
-	}
-	cmd.Stdout = logfile
-	cmd.Stderr = logfile
 	err = cmd.Start()
 	if err != nil {
 		return fmt.Errorf("agent failed to start :%q", err)
