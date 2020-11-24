@@ -34,7 +34,6 @@ bin:
 
 .PHONY: build
 build: ${BIN_DIR} check-env
-	go install
 	${GO_BIN} build -ldflags "-X 'main.BuildVersion=${VERSION}' -X 'main.BuildHash=${BUILD_VERSION}' -X 'main.BuildDate=${BUILD_DATE}' -X 'main.BuildClean=${BUILD_CLEAN}'" -o "${BIN_DIR}/${BIN_FILE}" .
 
 .PHONY: clean
