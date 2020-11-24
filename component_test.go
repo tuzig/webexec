@@ -68,6 +68,7 @@ func TestSimpleEcho(t *testing.T) {
 	// TODO: add timeout
 	<-closed
 	panes := Panes.All()
+	time.Sleep(100 * time.Millisecond)
 	require.False(t, panes[len(panes)-1].IsRunning)
 	require.Equal(t, count, 2, "Expected to recieve 2 messages and got %d", count)
 }
