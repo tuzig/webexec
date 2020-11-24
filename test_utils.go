@@ -10,6 +10,7 @@ import (
 
 	"github.com/pion/webrtc/v2"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/sys/unix"
 )
 
 // AValidTokenForTests token is stored in the file "./test_tokens"
@@ -116,4 +117,19 @@ func SignalPair(pcOffer *webrtc.PeerConnection, pcAnswer *webrtc.PeerConnection)
 		}
 		return nil
 	}
+}
+func isAlive(pid int) bool {
+	return unix.Kill(pid, 0) == nil
+}
+
+// waitForChild waits for a give timeout for for a process to die
+func waitForChild(pid int, timeout time.Duration) error {
+	start := time.Now()
+	for time.Since(start) <= timeout {
+		if !isAlive(pid) {
+			return nil
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	return fmt.Errorf("process %d still alive (timeout=%v)", pid, timeout)
 }

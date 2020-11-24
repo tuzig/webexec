@@ -68,8 +68,10 @@ func TestSimpleEcho(t *testing.T) {
 	// TODO: add timeout
 	<-closed
 	panes := Panes.All()
-	time.Sleep(100 * time.Millisecond)
-	require.False(t, panes[len(panes)-1].IsRunning)
+	lp := panes[len(panes)-1]
+
+	waitForChild(lp.C.Process.Pid, time.Second)
+	require.False(t, lp.IsRunning)
 	require.Equal(t, count, 2, "Expected to recieve 2 messages and got %d", count)
 }
 
