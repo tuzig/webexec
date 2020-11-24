@@ -30,8 +30,8 @@ type Pane struct {
 	dcs       *DCsDB
 	Ws        *pty.Winsize
 	// st is a C based terminal emulator used for screen restore
-	st      *C.Term
-	resizeM sync.RWMutex
+	st  *C.Term
+	stM sync.RWMutex
 }
 
 // NewPane opens a new pane and start its command and pty
@@ -109,9 +109,10 @@ func (pane *Pane) ReadLoop() {
 				dc.Close()
 			}
 		}
-		// TODO: does this work?
 		if pane.st != nil {
+			pane.stM.Lock()
 			STWrite(pane.st, string(b[:l]))
+			pane.stM.Unlock()
 		}
 	}
 
@@ -171,9 +172,9 @@ func (pane *Pane) Resize(ws *pty.Winsize) {
 		pane.Ws = ws
 		pty.Setsize(pane.Tty, ws)
 		if pane.st != nil {
-			pane.resizeM.Lock()
+			pane.stM.Lock()
 			STResize(pane.st, ws.Cols, ws.Rows)
-			pane.resizeM.Unlock()
+			pane.stM.Unlock()
 		}
 	}
 }
@@ -190,7 +191,9 @@ func (pane *Pane) Restore(d *webrtc.DataChannel) {
 		}
 		Logger.Infof("Sending scrren dump to pane: %d, dc: %d", pane.ID, *id)
 		dc := STDumpContext{pane.ID, *id}
+		pane.stM.Lock()
 		STDump(pane.st, &dc)
+		pane.stM.Unlock()
 		// position the cursor
 		ps := fmt.Sprintf("\x1b[%d;%dH",
 			int(pane.st.c.y)+1, int(pane.st.c.x)+1)
