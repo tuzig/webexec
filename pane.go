@@ -26,7 +26,7 @@ type Pane struct {
 	C         *exec.Cmd
 	IsRunning bool
 	Tty       *os.File
-	Buffer    [][]byte
+	Buffer    *Buffer
 	dcs       *DCsDB
 	Ws        *pty.Winsize
 	// st is a C based terminal emulator used for screen restore
@@ -60,7 +60,7 @@ func NewPane(command []string, d *webrtc.DataChannel,
 		C:         cmd,
 		IsRunning: true,
 		Tty:       tty,
-		Buffer:    nil,
+		Buffer:    NewBuffer(100000), //TODO: get the number from conf
 		dcs:       NewDCsDB(),
 		Ws:        ws,
 		st:        st,
@@ -114,6 +114,7 @@ func (pane *Pane) ReadLoop() {
 			STWrite(pane.st, string(b[:l]))
 			pane.stM.Unlock()
 		}
+		pane.Buffer.Add(b[:l])
 	}
 
 	Logger.Infof("Killing pane %d", id)
