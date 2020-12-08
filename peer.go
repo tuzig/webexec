@@ -157,7 +157,7 @@ func (peer *Peer) OnChannelReq(d *webrtc.DataChannel) {
 	}
 
 	d.OnOpen(func() {
-		pane := peer.OnPaneReq(d)
+		pane := peer.GetOrCreatePane(d)
 		if pane != nil {
 			d.OnMessage(pane.OnMessage)
 			d.OnClose(pane.OnCloseDC)
@@ -165,7 +165,7 @@ func (peer *Peer) OnChannelReq(d *webrtc.DataChannel) {
 	})
 }
 
-// OnPaneReq gets a data channel request and creates the pane
+// GetOrCreatePane gets a data channel and creates an associated pane
 // The function parses the label to figure out what it needs to exec:
 //   the command to run and rows & cols of the pseudo tty.
 // returns a nil when it fails to parse the channel name or when the name is
@@ -175,7 +175,7 @@ func (peer *Peer) OnChannelReq(d *webrtc.DataChannel) {
 //      simple form with no pty: `echo,Hello world`
 //		to start bash: `24x80,bash`
 //		to reconnect to pane id 123: `24x80,>123`
-func (peer *Peer) OnPaneReq(d *webrtc.DataChannel) *Pane {
+func (peer *Peer) GetOrCreatePane(d *webrtc.DataChannel) *Pane {
 	var (
 		err      error
 		cmdIndex int
@@ -237,7 +237,9 @@ func (peer *Peer) OnPaneReq(d *webrtc.DataChannel) *Pane {
 	return nil
 }
 
-// Reconnect reconnects to a pane
+// Reconnect reconnects to a pane and restore the screen/buffer
+// buffer from that marker if not we use our headless terminal emulator to
+// send over the current screen.
 func (peer *Peer) Reconnect(d *webrtc.DataChannel, id int) *Pane {
 	pane := Panes.Get(id)
 	if pane == nil {
@@ -247,7 +249,7 @@ func (peer *Peer) Reconnect(d *webrtc.DataChannel, id int) *Pane {
 	if pane.IsRunning {
 		pane.dcs.Add(d)
 		pane.SendID(d)
-		pane.Restore(d)
+		pane.Restore(d, peer.Marker)
 		Logger.Infof("Reconnect request to %d", id)
 		return pane
 	} else {

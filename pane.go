@@ -180,26 +180,32 @@ func (pane *Pane) Resize(ws *pty.Winsize) {
 	}
 }
 
-// Restore sends the panes' visible lines line to a data channel
-// the data channel is specified by it index in the pane.dcs slice
-// the function does nothing if it's given a nil size or the current size
-func (pane *Pane) Restore(d *webrtc.DataChannel) {
-	if pane.st != nil {
-		Logger.Infof("Sending scrren dump to %d", pane.ID)
-		id := d.ID()
-		if id == nil {
-			Logger.Error("Failed restoring to a data channel that has no id")
+// Restore restore the screen or buffer.
+// If the peer has a marker data will be read from the buffer and sent over.
+// If no marker, Restore uses our headless terminal emulator to restore the
+// screen.
+func (pane *Pane) Restore(d *webrtc.DataChannel, marker int) {
+	if marker == -1 {
+		if pane.st != nil {
+			id := d.ID()
+			if id == nil {
+				Logger.Error(
+					"Failed restoring to a data channel that has no id")
+			}
+			Logger.Infof(
+				"Sending scrren dump to pane: %d, dc: %d", pane.ID, *id)
+			dc := STDumpContext{pane.ID, *id}
+			pane.stM.Lock()
+			STDump(pane.st, &dc)
+			pane.stM.Unlock()
+			// position the cursor
+			ps := fmt.Sprintf("\x1b[%d;%dH",
+				int(pane.st.c.y)+1, int(pane.st.c.x)+1)
+			d.Send([]byte(ps))
+		} else {
+			Logger.Warn("not restoring as st is null")
 		}
-		Logger.Infof("Sending scrren dump to pane: %d, dc: %d", pane.ID, *id)
-		dc := STDumpContext{pane.ID, *id}
-		pane.stM.Lock()
-		STDump(pane.st, &dc)
-		pane.stM.Unlock()
-		// position the cursor
-		ps := fmt.Sprintf("\x1b[%d;%dH",
-			int(pane.st.c.y)+1, int(pane.st.c.x)+1)
-		d.Send([]byte(ps))
 	} else {
-		Logger.Warn("not restoring as st is null")
+		d.Send(pane.Buffer.GetSinceMarker(marker))
 	}
 }

@@ -454,7 +454,7 @@ func TestMarkerRestore(t *testing.T) {
 				require.Equal(t, cID, string(msg.Data))
 			}
 			if count == 1 {
-				require.Equal(t, "789", string(msg.Data))
+				require.Equal(t, "789\r\n", string(msg.Data))
 				gotSecondAgain <- true
 			}
 			count++
