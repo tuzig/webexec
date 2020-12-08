@@ -360,6 +360,7 @@ func TestMarkerRestore(t *testing.T) {
 		marker    int
 	)
 	gotAuthAck := make(chan bool)
+	gotAuthAck2 := make(chan bool)
 	gotFirst := make(chan bool)
 	gotSecond := make(chan bool)
 	gotSecondAgain := make(chan bool)
@@ -439,13 +440,10 @@ func TestMarkerRestore(t *testing.T) {
 			err := json.Unmarshal(msg.Data, &cm)
 			require.Nil(t, err, "Failed to marshal the server msg: %v", err)
 			if cm.Type == "ack" {
-				if cb, ok := onAck[cm.Ref]; ok {
-					var args = ParseAck(t, msg)
-					cb(args.Body)
-				}
+				gotAuthAck2 <- true
 			}
 		})
-		<-gotAuthAck
+		<-gotAuthAck2
 		dc, err = client2.CreateDataChannel(">"+cID, nil)
 		require.Nil(t, err, "Failed to create the echo data channel: %v", err)
 		dc.OnOpen(func() {
