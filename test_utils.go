@@ -20,6 +20,9 @@ const AValidTokenForTests = "THEoneANDonlyTOKEN"
 // TestAckRef is the ref to use in tests
 const TestAckRef = 123
 
+// used to keep track of sent control messages
+var lastRef int
+
 // GetMsgType is used get the type of a control message
 func GetMsgType(t *testing.T, msg webrtc.DataChannelMessage) string {
 	env := CTRLMessage{}
@@ -45,14 +48,14 @@ func ParseAck(t *testing.T, msg webrtc.DataChannelMessage) AckArgs {
 }
 
 // SendAuth sends an authorization message
-func SendAuth(cdc *webrtc.DataChannel, token string) {
+func SendAuth(cdc *webrtc.DataChannel, token string, marker int) {
 	time.Sleep(10 * time.Millisecond)
 	//TODO we need something like peer.LastMsgId++ below
 	msg := CTRLMessage{
 		Time: time.Now().UnixNano(),
 		Type: "auth",
 		Ref:  TestAckRef,
-		Args: AuthArgs{token},
+		Args: AuthArgs{token, marker},
 	}
 	authMsg, err := json.Marshal(msg)
 	if err != nil {
@@ -60,6 +63,29 @@ func SendAuth(cdc *webrtc.DataChannel, token string) {
 	} else {
 		log.Print("Test is sending an auth message")
 		cdc.Send(authMsg)
+	}
+}
+
+func getMarker(cdc *webrtc.DataChannel) int {
+	lastRef++
+	ref := lastRef
+	// sleep to simulate latency
+	time.Sleep(10 * time.Millisecond)
+	//TODO we need something like peer.LastMsgId++ below
+	msg := CTRLMessage{
+		Time: time.Now().UnixNano(),
+		Type: "mark",
+		Ref:  ref,
+		Args: nil,
+	}
+	markMsg, err := json.Marshal(msg)
+	if err != nil {
+		log.Printf("Failed to marshal the makr message: %v", err)
+		return -1
+	} else {
+		log.Print("Test is sending a mark message")
+		cdc.Send(markMsg)
+		return ref
 	}
 }
 

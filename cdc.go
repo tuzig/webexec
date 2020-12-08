@@ -21,7 +21,8 @@ type NAckArgs struct {
 
 // AuthArgs is a type that holds client's authentication arguments.
 type AuthArgs struct {
-	Token string `json:"token"`
+	Token  string `json:"token"`
+	Marker int    `json:"marker"`
 }
 
 // AckArgs is a type to hold the args for an Ack message

@@ -26,6 +26,9 @@ var (
 	Payload []byte
 	// WebRTCAPI is the gateway to webrtc calls
 	WebRTCAPI *webrtc.API
+	// the id of the last marker used
+	lastMarker = 0
+	markerM    sync.RWMutex
 )
 
 // Peer is a type used to remember a client.
@@ -42,6 +45,8 @@ type Peer struct {
 	Answer            string
 	cdc               *webrtc.DataChannel
 	PendingChannelReq chan *webrtc.DataChannel
+	// Marker is used to restore the buffer, set with auth message
+	Marker int
 }
 
 // NewPeer funcions starts listening to incoming peer connection from a remote
@@ -78,6 +83,7 @@ func NewPeer(remote string) (*Peer, error) {
 		Answer:            "",
 		cdc:               nil,
 		PendingChannelReq: make(chan *webrtc.DataChannel, 5),
+		Marker:            -1,
 	}
 	Peers = append(Peers, peer)
 	m.Unlock()
@@ -299,15 +305,17 @@ func (peer *Peer) OnCTRLMsg(msg webrtc.DataChannelMessage) {
 			return
 		}
 	case "auth":
-		// TODO:
-		// token := Authenticate(m.Auth)
 		var authArgs AuthArgs
 		err = json.Unmarshal(raw, &authArgs)
-		// if we're running a test. authorzied only the test token
 		if IsAuthorized(authArgs.Token) {
 			peer.Authenticated = true
 			err = json.Unmarshal(raw, &authArgs)
 			peer.Token = authArgs.Token
+			if authArgs.Marker == 0 {
+				peer.Marker = -1
+			} else {
+				peer.Marker = authArgs.Marker
+			}
 			// handle pending channel requests
 			handlePendingChannelRequests := func() {
 				for d := range peer.PendingChannelReq {
@@ -330,6 +338,17 @@ func (peer *Peer) OnCTRLMsg(msg webrtc.DataChannelMessage) {
 		Payload = payloadArgs.Payload
 		err = peer.SendAck(m, Payload)
 	// TODO: add more commands here: mouse, copy, paste, etc.
+	case "mark":
+		// add a marker and store it in each pane
+		markerM.Lock()
+		lastMarker++
+		id := lastMarker
+		for _, p := range Panes.All() {
+			p.Buffer.Mark(id)
+		}
+		markerM.Unlock()
+		err = peer.SendAck(m, []byte(fmt.Sprintf("%d", id)))
+
 	default:
 		Logger.Errorf("Got a control message with unknown type: %q", m.Type)
 	}

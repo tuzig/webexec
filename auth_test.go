@@ -56,7 +56,7 @@ func TestAuthorization(t *testing.T) {
 	require.Nil(t, err, "failed to create the control data channel: %q", err)
 
 	cdc.OnOpen(func() {
-		go SendAuth(cdc, AValidTokenForTests)
+		go SendAuth(cdc, AValidTokenForTests, -1)
 		cdc.OnMessage(func(msg webrtc.DataChannelMessage) {
 			ackArgs := ParseAck(t, msg)
 			require.Equal(t, ackArgs.Ref, TestAckRef,
@@ -81,7 +81,7 @@ func TestAuthorization(t *testing.T) {
 	cdc, err = client.CreateDataChannel("%", nil)
 	require.Nil(t, err, "failed to create the control data channel: %v", err)
 	cdc.OnOpen(func() {
-		go SendAuth(cdc, AValidTokenForTests)
+		go SendAuth(cdc, AValidTokenForTests, -1)
 		cdc.OnMessage(func(msg webrtc.DataChannelMessage) {
 			var cm CTRLMessage
 			log.Printf("Got a ctrl msg: %s", msg.Data)
@@ -108,7 +108,7 @@ func TestBadToken(t *testing.T) {
 	require.Nil(t, err, "failed to create the control data channel: %q", err)
 
 	cdc.OnOpen(func() {
-		go SendAuth(cdc, "BADWOLF")
+		go SendAuth(cdc, "BADWOLF", -1)
 		cdc.OnMessage(func(msg webrtc.DataChannelMessage) {
 			msgType := GetMsgType(t, msg)
 			require.Equal(t, msgType, "nack",
