@@ -189,6 +189,7 @@ func stop(c *cli.Context) error {
 	return err
 }
 
+// agentStart starts the user agent
 func agentStart() error {
 	InitAgentLogger()
 	pidPath := ConfPath("agent.pid")
