@@ -176,7 +176,7 @@ func (peer *Peer) OnChannelReq(d *webrtc.DataChannel) {
 // label examples:
 //      simple form with no pty: `echo,Hello world`
 //		to start bash: `24x80,bash`
-//		to reconnect to pane id 123: `24x80,>123`
+//		to reconnect to pane id 123: `>123`
 func (peer *Peer) GetOrCreatePane(d *webrtc.DataChannel) *Pane {
 	var (
 		err      error

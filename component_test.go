@@ -362,7 +362,6 @@ func TestMarkerRestore(t *testing.T) {
 	gotAuthAck := make(chan bool)
 	gotAuthAck2 := make(chan bool)
 	gotFirst := make(chan bool)
-	gotSecond := make(chan bool)
 	gotSecondAgain := make(chan bool)
 	// start the server
 	peer, err := NewPeer("")
@@ -398,21 +397,17 @@ func TestMarkerRestore(t *testing.T) {
 			"24x80,bash,-c,echo 123456 ; sleep 1; echo 789; sleep 9", nil)
 		require.Nil(t, err, "Failed to create the echo data channel: %v", err)
 		dc.OnOpen(func() {
-			log.Printf("Channel %q opened", dc.Label())
+			Logger.Infof("Channel %q opened", dc.Label())
 		})
 		dc.OnMessage(func(msg webrtc.DataChannelMessage) {
 			log.Printf("DC Got msg #%d: %s", count, msg.Data)
 			if count == 0 {
 				cID = string(msg.Data)
-				log.Printf("Client got a channel id: %q", cID)
+				Logger.Infof("Client got a channel id: %q", cID)
 			}
 			if count == 1 {
 				require.Contains(t, string(msg.Data), "123456")
 				gotFirst <- true
-			}
-			if count == 2 {
-				require.Contains(t, string(msg.Data), "789")
-				gotSecond <- true
 			}
 			count++
 		})
@@ -421,7 +416,6 @@ func TestMarkerRestore(t *testing.T) {
 	<-gotFirst
 
 	markerRef = getMarker(cdc)
-	<-gotSecond
 	peer2, err := NewPeer("")
 	require.Nil(t, err, "NewPeer2 failed with: %s", err)
 	client2, err := webrtc.NewPeerConnection(webrtc.Configuration{})
@@ -444,6 +438,7 @@ func TestMarkerRestore(t *testing.T) {
 			}
 		})
 		<-gotAuthAck2
+		time.Sleep(time.Second)
 		dc, err = client2.CreateDataChannel(">"+cID, nil)
 		require.Nil(t, err, "Failed to create the echo data channel: %v", err)
 		dc.OnOpen(func() {
