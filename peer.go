@@ -47,6 +47,7 @@ type Peer struct {
 	PendingChannelReq chan *webrtc.DataChannel
 	// Marker is used to restore the buffer, set with auth message
 	Marker int
+	dcs    *DCsDB
 }
 
 // NewPeer funcions starts listening to incoming peer connection from a remote
@@ -84,6 +85,7 @@ func NewPeer(remote string) (*Peer, error) {
 		cdc:               nil,
 		PendingChannelReq: make(chan *webrtc.DataChannel, 5),
 		Marker:            -1,
+		dcs:               NewDCsDB(),
 	}
 	Peers = append(Peers, peer)
 	m.Unlock()
@@ -229,8 +231,9 @@ func (peer *Peer) GetOrCreatePane(d *webrtc.DataChannel) *Pane {
 	pane, err = NewPane(fields[cmdIndex:], d, ws)
 	if pane != nil {
 		// start the read loop and Send the pane id as the first message
-		go pane.ReadLoop()
+		peer.dcs.Add(d)
 		pane.SendID(d)
+		go pane.ReadLoop()
 		return pane
 	}
 	Logger.Error("Failed to create new pane: %q", err)
@@ -247,6 +250,7 @@ func (peer *Peer) Reconnect(d *webrtc.DataChannel, id int) *Pane {
 		return nil
 	}
 	if pane.IsRunning {
+		peer.dcs.Add(d)
 		pane.dcs.Add(d)
 		pane.SendID(d)
 		pane.Restore(d, peer.Marker)
@@ -344,12 +348,15 @@ func (peer *Peer) OnCTRLMsg(msg webrtc.DataChannelMessage) {
 		// add a marker and store it in each pane
 		markerM.Lock()
 		lastMarker++
-		id := lastMarker
-		for _, p := range Panes.All() {
-			p.Buffer.Mark(id)
-		}
+		peer.Marker = lastMarker
 		markerM.Unlock()
-		err = peer.SendAck(m, []byte(fmt.Sprintf("%d", id)))
+		for _, d := range peer.dcs.All() {
+			d.Close()
+		}
+		for _, p := range Panes.All() {
+			p.Buffer.Mark(peer.Marker)
+		}
+		err = peer.SendAck(m, []byte(fmt.Sprintf("%d", peer.Marker)))
 
 	default:
 		Logger.Errorf("Got a control message with unknown type: %q", m.Type)

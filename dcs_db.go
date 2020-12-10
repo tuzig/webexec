@@ -54,7 +54,7 @@ func (dd *DCsDB) Delete(id uint16) error {
 }
 
 func (dd *DCsDB) Get(id uint16) *webrtc.DataChannel {
-	Logger.Infof("Deleting data channel %d", id)
+	Logger.Infof("Getting a data channel %d", id)
 	dd.m.RLock()
 	defer dd.m.RUnlock()
 	return dd.dcs[id]
