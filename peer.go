@@ -350,10 +350,11 @@ func (peer *Peer) OnCTRLMsg(msg webrtc.DataChannelMessage) {
 		lastMarker++
 		peer.Marker = lastMarker
 		markerM.Unlock()
-		for _, d := range peer.dcs.All() {
-			d.Close()
-		}
 		for _, p := range Panes.All() {
+			for _, d := range peer.dcs.All() {
+				// this will usually fail, but delete what's needed
+				_ = p.dcs.Delete(*d.ID())
+			}
 			p.Buffer.Mark(peer.Marker)
 		}
 		err = peer.SendAck(m, []byte(fmt.Sprintf("%d", peer.Marker)))
