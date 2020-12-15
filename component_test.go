@@ -445,14 +445,18 @@ func TestMarkerRestore(t *testing.T) {
 			Logger.Infof("TS> Channel %q re-opened", dc.Label())
 		})
 		dc.OnMessage(func(msg webrtc.DataChannelMessage) {
-			if count == 0 {
-				require.Equal(t, cID, string(msg.Data))
+			// ignore null messages
+			if msg.Data[0] != 0 || len(msg.Data) > 1 {
+				if count == 0 {
+					require.Equal(t, cID, string(msg.Data))
+				}
+				if count == 1 {
+					require.Equal(t, "789\r\n", string(msg.Data))
+					gotSecondAgain <- true
+				}
+				count++
 			}
-			if count == 1 {
-				require.Equal(t, "789\r\n", string(msg.Data))
-				gotSecondAgain <- true
-			}
-			count++
+
 		})
 	})
 	select {
