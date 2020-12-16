@@ -40,13 +40,19 @@ Example JSON request:
   "message_id": 123,
   "type": "auth",
   "args": {
-    "token": "l;sdfjkghqop3i5utqiowrdhjfklasdjfhopqwi9rtujipw"
+    "token": "l;sdfjkghqop3i5utqiowrdhjfklasdjfhopqwi9rtujipw",
+    "marker": 123
   }
 }
 ```
 
 The token should exist in `~/.webexec/autherized_tokens`. webexec will reply
 with an ACK that includes the latest payload.
+
+The `marker` field is optional and is used orderly restore.
+If the client was lucky to do an orderly shutdown, he sent a `mark` command 
+and got a marker in the body of the ack. Upon a data channel reconnect, t
+his marker is used to collect all the output the client missed and send it over.
 
 Example JSON reply:
 
@@ -61,6 +67,15 @@ Example JSON reply:
   }
 }
 ```
+
+### Mark
+
+When a client knows it is about to siconnect he should send a mark message
+to make the restore seemles. Upon recieving this message webexec will stop
+sending output to the client and mark all the connected output buffer location
+with a `marker_id`. This is sent as an int in the `body` field of the 
+Ack message.
+
 
 ### Resize
 
