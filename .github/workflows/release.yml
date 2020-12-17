@@ -1,8 +1,5 @@
+on: release
 name: Release
-on: 
-  release:
-    types: [created]
-
 jobs:
   releases-matrix:
     name: Release Terminal7 Binary
@@ -19,8 +16,6 @@ jobs:
         github_token: ${{ secrets.GITHUB_TOKEN }}
         goos: ${{ matrix.goos }}
         goarch: ${{ matrix.goarch }}
-        goversion: "https://dl.google.com/go/go1.14.2.linux-amd64.tar.gz"
-        project_path: "./cmd/test-binary"
-        binary_name: "test-binary"
+        goversion: https://dl.google.com/go/go1.14.2.linux-amd64.tar.gz
         extra_files: README.md
 

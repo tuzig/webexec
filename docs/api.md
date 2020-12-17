@@ -76,22 +76,70 @@ sending output to the client and mark all the connected output buffer location
 with a `marker_id`. This is sent as an int in the `body` field of the 
 Ack message.
 
+### Panes
 
-### Resize
+webexec holds a table of panes and the client can CRUD them as he wishes.
 
-The resize message lets the client change the dimensions of a pane.
+### Update Panes
+
+The update panes message let's a client resize panes
 
 ```json
 {
   "time": 1257894000000,
   "message_id": 123,
-  "type": "resize",
-  "args": {
-    "sx": 123,
-    "sy": 45
-  }
+  "type": "update_panes",
+  "args": [
+    {"id": 123,
+     "sx": 80,
+     "sy": 24,
+     "payload": {} },
+    {"id": 124,
+     "sx": 120,
+     "sy": 48,
+     "payload": {}}
+  ]
 }
 ```
+
+### Create Pane
+
+When a client wants to create a new pane it sends this message with the 
+command to run, the dimensions and an optinal parent pane. If provided,
+the new pane will inherit it's working directory from the parent.
+After receiving this message webexec will create the pseudo tty and start 
+the commend.  If it succeeds it will reply with an ack where the body contains
+the pane's id.  To start communicating with the pane the clients needs to open
+a data channel 
+
+```json
+{
+  "time": 1257894000000,
+  "message_id": 123,
+  "type": "create_pane",
+  "args": {
+    "sx": 80,
+    "sy": 24,
+    "command": "zsh",
+    "payload": {},
+    "based_on": 123
+  }
+
+}
+```
+### Delete Panes
+
+Some panes die when their command exits some die because of this message.
+
+```json
+{
+  "time": 1257894000000,
+  "message_id": 123,
+  "type": "delete_panes",
+  "args": [ 123, 124]
+}
+```
+
 
 ### Payload
 
