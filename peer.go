@@ -15,9 +15,8 @@ import (
 	"github.com/pion/webrtc/v2"
 )
 
-const connectionTimeout = 600 * time.Second
-const keepAliveInterval = 15 * time.Minute
-const peerBufferSize = 5000
+const connectionTimeout = 10 * time.Second
+const keepAliveInterval = 2 * time.Second
 
 var (
 	// Peers holds all the peers (connected and disconnected)
