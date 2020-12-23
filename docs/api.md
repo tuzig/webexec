@@ -27,16 +27,12 @@ While WebRTC data channels are peer to peer, webexec protocol is a client-server
 one. The client send a message with a command and the server replies 
 with either an ACK message or an error.
 
-Each message includes a `time` key, as milliseconds since epoch, to track
-performance and identify disconnects.
-
 ### Authentication
 
 Example JSON request:
 
 ```json
 {
-  "time": 1257894000000,
   "message_id": 123,
   "type": "auth",
   "args": {
@@ -58,7 +54,6 @@ Example JSON reply:
 
 ```json
 {
-  "time": 1257894000000,
   "message_id": 123,
   "type": "ack",
   "args": {
@@ -79,120 +74,125 @@ Ack message.
 ### Panes
 
 webexec holds a table of panes and the client can CRUD them as he wishes.
+every pane has a `display` field that is reservered for client use.
 
-### Update Panes
-
-The update panes message let's a client resize panes
-
-```json
-{
-  "time": 1257894000000,
-  "message_id": 123,
-  "type": "update_panes",
-  "args": [
-    {"id": 123,
-     "sx": 80,
-     "sy": 24,
-     "payload": {} },
-    {"id": 124,
-     "sx": 120,
-     "sy": 48,
-     "payload": {}}
-  ]
-}
-```
-
-### Create Pane
+#### Create Pane
 
 When a client wants to create a new pane it sends this message with the 
-command to run, the dimensions and an optinal parent pane. If provided,
-the new pane will inherit it's working directory from the parent.
+command to run, the dimensions and an optional parent pane.
 After receiving this message webexec will create the pseudo tty and start 
-the commend.  If it succeeds it will reply with an ack where the body contains
-the pane's id.  To start communicating with the pane the clients needs to open
-a data channel 
+the commend.
 
 ```json
 {
-  "time": 1257894000000,
   "message_id": 123,
   "type": "create_pane",
   "args": {
-    "sx": 80,
-    "sy": 24,
+    "cols": 80,
+    "rows": 24,
     "command": "zsh",
-    "payload": {},
-    "based_on": 123
+    "display": {"xoff": 200, "yoff": 1300, "font_size": 16},
+    "parent": 123
   }
 
 }
 ```
-### Delete Panes
 
-Some panes die when their command exits some die because of this message.
+If webexec succeeds it will reply with an ack where the body contains
+the new pane's info: 
 
 ```json
 {
-  "time": 1257894000000,
+  "message_id": 123,
+  "type": "ack",
+  "args": {
+    "ref": 456,
+    "body": {
+     "id": 12, "rows": 24,"cols": 80, 
+     "ctime": 84679246926, "display": {..} , "process_status": {..}
+    }
+  }
+}
+```
+To start communicating with the pane the client opens
+a data channel with a label `<id>`
+
+If provided, the new pane will inherit it's working directory from its parent.
+
+
+#### Update Panes
+
+The update panes message let's a client resize panes's pty and display
+information
+
+```json
+{
+  "message_id": 123,
+  "type": "update_panes",
+  "args": [
+    {"id": 123,
+     "cols": 80,
+     "rows": 24,
+     "display": {....} },
+    {"id": 124,
+     "cols": 120,
+     "rows": 48,
+     "display": {..}}
+  ]
+}
+```
+
+#### Delete Panes
+
+Some panes die when their command exits and some die because of this message.
+
+```json
+{
   "message_id": 123,
   "type": "delete_panes",
   "args": [ 123, 124]
 }
 ```
 
+#### Read Panes
 
-### Payload
-
-To synchronize with other connected clients, webexec saves and restores client
-payloads. Clients can use the payload to store information about screen layout,
-window tabs, etc.
-
-Example request:
+When the client needs a fresh copy of the pane table he sends this command:
 
 ```json
 {
-  "time": 1257894000000,
-  "message_id": 456,
-  "type": "get_payload",
-  "args": {}
+  "message_id": 123,
+  "type": "read_panes",
+  "args": null
 }
 ```
 
-Example ACK reply:
+The reply being:
 
 ```json
 {
-  "time": 1257894000000,
-  "message_id": 678,
+  "message_id": 123,
   "type": "ack",
   "args": {
     "ref": 456,
-    "body": <payload>
+    "body": [
+     {"id": 12, "rows": 24,"cols": 80, 
+      "ctime": 84679246926, "display": {..} , "process_status": {..}},
+     {"id": 12, "rows": 24,"cols": 80, 
+      "ctime": 84679246926, "display": {..} , "process_status": {..}}
+    ]
   }
 }
 ```
 
-Client should set the payload message to change the payload.
-
-```json
-{
-  "time": 1257894000000,
-  "message_id": 456,
-  "type": "set_payload",
-  "args": {
-    "payload": <client payload>
-  }
-}
-```
 
 ### NACK
 
-When the server encounters an error it sends a [NACK](https://webrtcglossary.com/nack/) message to the client:
+When the server failes to execute a client's command it sends a 
+[NACK](https://webrtcglossary.com/nack/) message to the client:
 
 
 ```json
 {
-  "time": 1257894000000,
   "message_id": 124,
   "type": "nack",
   "args": {
