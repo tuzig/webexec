@@ -9,9 +9,20 @@ webexec exposes TCP port 7777 by default, to support signalling.
 There's a single endpoint `/connect`: The client exchanges tokens with the
 server and then initiates a WebRTC connection.
 
-## Running
+## Install
 
-To create the binary run `make build`. To install webexec on system wide
+We're working on distributing binaries, for now you  need to have
+the go language installled and then:
+
+``` console
+
+% GO111MODULE=on go get github.com/tuzig/webexec/...
+
+```
+
+## Development
+
+To build the binary run `make build`. To install webexec on system wide
 `/usr/local/bin` run `make install`
 
 ## Flow
@@ -60,8 +71,7 @@ To reconnect to pane 12 client opens a data channel with a ">12" as a label.
 
 When the peer disconnects, webexec buffers command output.
 
-Development
------------
+## Contributing
 
 We welcome bug reports as well as ideas for new features.
 If you are ready to code yourslef, follow these steps:
