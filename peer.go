@@ -253,13 +253,11 @@ func (peer *Peer) Reconnect(d *webrtc.DataChannel, id int) *Pane {
 		pane.dcs.Add(d)
 		pane.SendID(d)
 		pane.Restore(d, peer.Marker)
-		Logger.Infof("Reconnect request to %d", id)
 		return pane
-	} else {
-		Logger.Infof("Reconnect request to %d denied", id)
-		d.Close()
-		return nil
 	}
+	Logger.Infof("Reconnect request to %d denied", id)
+	d.Close()
+	return nil
 }
 
 // SendAck sends an ack for a given control message

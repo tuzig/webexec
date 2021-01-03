@@ -6,6 +6,7 @@ import (
 	"sync"
 )
 
+// DCsDB is a structure used to represent a data channels data baase
 type DCsDB struct {
 	dcs map[uint16]*webrtc.DataChannel
 	m   sync.RWMutex

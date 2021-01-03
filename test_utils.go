@@ -82,11 +82,10 @@ func getMarker(cdc *webrtc.DataChannel) int {
 	if err != nil {
 		log.Printf("Failed to marshal the makr message: %v", err)
 		return -1
-	} else {
-		log.Print("Test is sending a mark message")
-		cdc.Send(markMsg)
-		return ref
 	}
+	log.Print("Test is sending a mark message")
+	cdc.Send(markMsg)
+	return ref
 }
 
 // SignalPair is used to start a connection between two peers

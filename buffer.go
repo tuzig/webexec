@@ -13,14 +13,14 @@ type Buffer struct {
 	size    int
 }
 
-// Buffer.NewBuffer creates and returns a new buffer of a given size
+// NewBuffer creates and returns a new buffer of a given size
 func NewBuffer(size int) *Buffer {
 	return &Buffer{markers: make(map[int]int),
 		data: make([]byte, size),
 		size: size}
 }
 
-// Buffer.Add adds a slice of bytes to the buffer
+// Add adds a slice of bytes to the buffer
 func (buffer *Buffer) Add(b []byte) {
 	for i := range b {
 		buffer.data[buffer.end] = b[i]
@@ -36,12 +36,12 @@ func (buffer *Buffer) Add(b []byte) {
 	}
 }
 
-// Buffer.Mark adds a new marker in the next buffer position
+// Mark adds a new marker in the next buffer position
 func (buffer *Buffer) Mark(id int) {
 	buffer.markers[id] = buffer.end
 }
 
-// Buffer.GetSinceMarker returns a byte slice with all the accumlated data
+// GetSinceMarker returns a byte slice with all the accumlated data
 // since a given marker id and deltes the marker. If the marker is too ancient
 // cycle or id is -1 then all the buffer's data is returned.
 func (buffer *Buffer) GetSinceMarker(id int) []byte {
