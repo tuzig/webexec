@@ -1,3 +1,4 @@
+//go:generate go run git.rootprojects.org/root/go-gitver/v2 --fail
 package main
 
 import (
@@ -9,7 +10,6 @@ import (
 	"os/signal"
 	"os/user"
 	"path/filepath"
-	"runtime"
 	"syscall"
 	"time"
 
@@ -19,6 +19,12 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"gopkg.in/natefinch/lumberjack.v2"
+)
+
+var (
+	commit  = "0000000"
+	version = "UNRELEASED"
+	date    = "0000-00-00T00:00:00+0000"
 )
 
 // ErrAgentNotRunning is raised when the agent is down
@@ -117,13 +123,10 @@ func ConfPath(suffix string) string {
 }
 
 // initCMD - initialize the user's .webexec directory
-func version(c *cli.Context) error {
-	fmt.Printf("Version: %s\n", BuildVersion)
-	fmt.Printf("Git Commit Hash: %s\n", BuildHash)
-	fmt.Printf("Build Date: %s\n", BuildDate)
-	fmt.Printf("Built from clean source tree: %s\n", BuildClean)
-	fmt.Printf("OS: %s\n", runtime.GOOS)
-	fmt.Printf("Architecture: %s\n", runtime.GOARCH)
+func versionCMD(c *cli.Context) error {
+	fmt.Printf("Version: %s\n", version)
+	fmt.Printf("Git Commit Hash: %s\n", commit)
+	fmt.Printf("Build Date: %s\n", date)
 	return nil
 }
 func initCMD(c *cli.Context) error {
@@ -317,7 +320,7 @@ func main() {
 			{
 				Name:   "version",
 				Usage:  "Print version information",
-				Action: version,
+				Action: versionCMD,
 			}, {
 				Name:  "restart",
 				Usage: "restarts the agent",

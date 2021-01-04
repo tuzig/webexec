@@ -22,8 +22,7 @@ the go language installled and then:
 
 ## Development
 
-To build the binary run `make build`. To install webexec on system wide
-`/usr/local/bin` run `make install`
+To build the binary run `go build`, to test run `go test`.
 
 ## Flow
 
