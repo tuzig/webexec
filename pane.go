@@ -24,7 +24,7 @@ type Pane struct {
 	Buffer    *Buffer
 	dcs       *DCsDB
 	Ws        *pty.Winsize
-	st        vt10x.VT
+	vt        vt10x.VT
 }
 
 // NewPane opens a new pane and start its command and pty
@@ -34,7 +34,7 @@ func NewPane(command []string, d *webrtc.DataChannel,
 	var (
 		err error
 		tty *os.File
-		st  vt10x.VT
+		vt  vt10x.VT
 	)
 
 	cmd := exec.Command(command[0], command[1:]...)
@@ -43,13 +43,10 @@ func NewPane(command []string, d *webrtc.DataChannel,
 		if err != nil {
 			return nil, fmt.Errorf("Failed starting command: %q", err)
 		}
-		st, err = STNew(int(ws.Cols), int(ws.Rows))
-		if err != nil {
-			return nil, fmt.Errorf("Failed create a headless terminal: %q", err)
-		}
-		Logger.Infof("Got a new ST: %p", st)
+		vt = vt10x.New()
+		vt.Resize(int(ws.Cols), int(ws.Rows))
 	} else {
-		// no size given: don't use a pty, just pipe the input and output
+		// TODO: remove the pty
 		tty, err = pty.Start(cmd)
 	}
 	if err != nil {
@@ -62,7 +59,7 @@ func NewPane(command []string, d *webrtc.DataChannel,
 		Buffer:    NewBuffer(100000), //TODO: get the number from conf
 		dcs:       NewDCsDB(),
 		Ws:        ws,
-		st:        st,
+		vt:        vt,
 	}
 	Panes.Add(pane) // This will set pane.ID
 	pane.dcs.Add(d)
@@ -108,8 +105,8 @@ func (pane *Pane) ReadLoop() {
 				dc.Close()
 			}
 		}
-		if pane.st != nil {
-			STWrite(pane.st, string(b[:l]))
+		if pane.vt != nil {
+			pane.vt.Write(b[:l])
 		}
 		pane.Buffer.Add(b[:l])
 	}
@@ -169,10 +166,39 @@ func (pane *Pane) Resize(ws *pty.Winsize) {
 		Logger.Infof("Changing pty size for pane %d: %v", pane.ID, ws)
 		pane.Ws = ws
 		pty.Setsize(pane.Tty, ws)
-		if pane.st != nil {
-			STResize(pane.st, int(ws.Cols), int(ws.Rows))
+		if pane.vt != nil {
+			pane.vt.Resize(int(ws.Cols), int(ws.Rows))
 		}
 	}
+}
+
+func (pane *Pane) dumpVT(d *webrtc.DataChannel) {
+	var (
+		view []byte
+		c    rune
+	)
+	t := pane.vt
+	t.Lock()
+	defer t.Unlock()
+	rows, cols := t.Size()
+	Logger.Infof("dumping scree size %dx%d", rows, cols)
+	for y := 0; y < rows; y++ {
+		for x := 0; x < cols; x++ {
+			c, _, _ = t.Cell(x, y)
+			view = append(view, byte(c))
+		}
+		if y < rows-1 {
+			view = append(view, byte('\n'))
+			view = append(view, byte('\r'))
+		}
+		d.Send(view)
+		view = nil
+	}
+	// position the cursor
+	x, y := t.Cursor()
+	Logger.Infof("Got cursor at: %d, %d", x, y)
+	ps := fmt.Sprintf("\x1b[%d;%dH", y+1, x+1)
+	d.Send([]byte(ps))
 }
 
 // Restore restore the screen or buffer.
@@ -181,7 +207,7 @@ func (pane *Pane) Resize(ws *pty.Winsize) {
 // screen.
 func (pane *Pane) Restore(d *webrtc.DataChannel, marker int) {
 	if marker == -1 {
-		if pane.st != nil {
+		if pane.vt != nil {
 			id := d.ID()
 			if id == nil {
 				Logger.Error(
@@ -189,7 +215,7 @@ func (pane *Pane) Restore(d *webrtc.DataChannel, marker int) {
 			}
 			Logger.Infof(
 				"Sending scrren dump to pane: %d, dc: %d", pane.ID, *id)
-			STDump(pane.st, d)
+			pane.dumpVT(d)
 		} else {
 			Logger.Warn("not restoring as st is null")
 		}
