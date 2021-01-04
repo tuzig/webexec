@@ -1,19 +1,14 @@
 // This file contains the Pane type and all associated functions
 package main
 
-// #cgo CFLAGS: -g -Wall
-// #include <stdlib.h>
-// #include "st.h"
-import "C"
-
 import (
 	"fmt"
 	"github.com/creack/pty"
+	"github.com/hinshun/vt10x"
 	"github.com/pion/webrtc/v2"
 	"os"
 	"os/exec"
 	"strconv"
-	"sync"
 )
 
 // Panes is an array that hol;ds all the panes
@@ -29,9 +24,7 @@ type Pane struct {
 	Buffer    *Buffer
 	dcs       *DCsDB
 	Ws        *pty.Winsize
-	// st is a C based terminal emulator used for screen restore
-	st  *C.Term
-	stM sync.RWMutex
+	st        vt10x.VT
 }
 
 // NewPane opens a new pane and start its command and pty
@@ -41,16 +34,22 @@ func NewPane(command []string, d *webrtc.DataChannel,
 	var (
 		err error
 		tty *os.File
-		st  *C.Term
+		st  vt10x.VT
 	)
 
 	cmd := exec.Command(command[0], command[1:]...)
 	if ws != nil {
 		tty, err = pty.StartWithSize(cmd, ws)
-		st = STNew(ws.Cols, ws.Rows)
+		if err != nil {
+			return nil, fmt.Errorf("Failed starting command: %q", err)
+		}
+		st, err = STNew(int(ws.Cols), int(ws.Rows))
+		if err != nil {
+			return nil, fmt.Errorf("Failed create a headless terminal: %q", err)
+		}
 		Logger.Infof("Got a new ST: %p", st)
 	} else {
-		// don't use a pty, just pipe the input and output
+		// no size given: don't use a pty, just pipe the input and output
 		tty, err = pty.Start(cmd)
 	}
 	if err != nil {
@@ -110,9 +109,7 @@ func (pane *Pane) ReadLoop() {
 			}
 		}
 		if pane.st != nil {
-			pane.stM.Lock()
 			STWrite(pane.st, string(b[:l]))
-			pane.stM.Unlock()
 		}
 		pane.Buffer.Add(b[:l])
 	}
@@ -173,9 +170,7 @@ func (pane *Pane) Resize(ws *pty.Winsize) {
 		pane.Ws = ws
 		pty.Setsize(pane.Tty, ws)
 		if pane.st != nil {
-			pane.stM.Lock()
-			STResize(pane.st, ws.Cols, ws.Rows)
-			pane.stM.Unlock()
+			STResize(pane.st, int(ws.Cols), int(ws.Rows))
 		}
 	}
 }
@@ -194,14 +189,7 @@ func (pane *Pane) Restore(d *webrtc.DataChannel, marker int) {
 			}
 			Logger.Infof(
 				"Sending scrren dump to pane: %d, dc: %d", pane.ID, *id)
-			dc := STDumpContext{pane.ID, *id}
-			pane.stM.Lock()
-			STDump(pane.st, &dc)
-			pane.stM.Unlock()
-			// position the cursor
-			ps := fmt.Sprintf("\x1b[%d;%dH",
-				int(pane.st.c.y)+1, int(pane.st.c.x)+1)
-			d.Send([]byte(ps))
+			STDump(pane.st, d)
 		} else {
 			Logger.Warn("not restoring as st is null")
 		}

@@ -7,6 +7,7 @@ import (
 )
 
 func TestNewTerminal(t *testing.T) {
-	term := STNew(80, 24)
+	term, err := STNew(80, 24)
+	require.Nil(t, err)
 	require.NotNil(t, term)
 }
