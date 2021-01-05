@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -14,6 +15,7 @@ import (
 	"time"
 
 	"github.com/kardianos/osext"
+	"github.com/pelletier/go-toml"
 	"github.com/tuzig/webexec/pidfile"
 	"github.com/urfave/cli/v2"
 	"go.uber.org/zap"
@@ -28,18 +30,48 @@ var (
 	version            = "UNRELEASED"
 	date               = "0000-00-00T00:00:00+0000"
 	ErrAgentNotRunning = errors.New("agent is not running")
-	defaultConfig      map[string]string
 	gotExitSignal      chan bool
+	Conf               *toml.Tree
+	defaultConf        = `# webexec's toml configuration file
+[log]
+level = "error"
+# for absolute path by starting with a /
+file = "agent.log"
+[http]
+address = "0.0.0.0:7777"
+`
 )
 
 // InitAgentLogger intializes the global `Logger` with agent's settings
 func InitAgentLogger() {
+	var fs string
+	f := Conf.Get("log.file")
+	if f == nil {
+		fs = ConfPath("agent.log")
+	} else {
+		fs = Conf.Get("log.file").(string)
+		if fs[0] != '/' {
+			fs = ConfPath(fs)
+		}
+	}
+	// rotate the log file
 	w := zapcore.AddSync(&lumberjack.Logger{
-		Filename:   ConfPath("agent.log"),
+		Filename:   fs,
 		MaxSize:    10, // megabytes
 		MaxBackups: 3,
 		MaxAge:     28, // days
 	})
+	// set the level
+	level := zapcore.InfoLevel
+	l := Conf.Get("log.level").(string)
+	if l == "error" {
+		level = zapcore.ErrorLevel
+	} else if l == "warn" {
+		level = zapcore.WarnLevel
+	} else if l == "debug" {
+		level = zapcore.DebugLevel
+	}
+
 	core := zapcore.NewCore(
 		zapcore.NewConsoleEncoder(zapcore.EncoderConfig{
 			MessageKey:  "message",
@@ -49,11 +81,11 @@ func InitAgentLogger() {
 			EncodeTime:  zapcore.ISO8601TimeEncoder,
 		}),
 		w,
-		zap.InfoLevel,
+		level,
 	)
-	l := zap.New(core)
-	defer l.Sync()
-	Logger = l.Sugar()
+	logger := zap.New(core)
+	defer logger.Sync()
+	Logger = logger.Sugar()
 }
 
 // InitDevLogger starts a logger for development
@@ -116,32 +148,45 @@ func versionCMD(c *cli.Context) error {
 	return nil
 }
 
-// init creates the home dir and the files
-func mkhome(c *cli.Context) error {
+// load_conf creates the home dir and the files
+func load_conf(c *cli.Context) error {
 	usr, _ := user.Current()
 	home := filepath.Join(usr.HomeDir, ".webexec")
+	conf_path := filepath.Join(home, "webexec.conf")
 	_, err := os.Stat(home)
 	if os.IsNotExist(err) {
 		os.Mkdir(home, 0755)
 		fmt.Printf(
 			"First run, created %q and \"config.json\" and \"authorized_tokens\"\n",
 			home)
-		config := defaultConfig
-		confFile, err := os.Create(filepath.Join(home, "config.json"))
+
+		confFile, err := os.Create(conf_path)
 		defer confFile.Close()
 		if err != nil {
 			return fmt.Errorf("Failed to create config file: %q", err)
 		}
-		d, err := json.Marshal(config)
+		confFile.WriteString(defaultConf)
+		Conf, err = toml.Load(defaultConf)
 		if err != nil {
-			return fmt.Errorf("Failed to erialize configuration %q", err)
+			return fmt.Errorf("Failed to parse default conf: %s", err)
 		}
-		confFile.Write(d)
 		tokensFile, err := os.Create(TokensFilePath)
 		defer tokensFile.Close()
 		if err != nil {
 			return fmt.Errorf("Failed to create the tokens file at %q: %w",
 				TokensFilePath, err)
+		}
+	} else {
+		b, err := ioutil.ReadFile(conf_path)
+		if err != nil {
+			return fmt.Errorf("Failed to read conf file %q: %s", conf_path,
+				err)
+		}
+
+		Conf, err = toml.Load(string(b))
+		if err != nil {
+			return fmt.Errorf("Failed to parse conf file %q: %s", conf_path,
+				err)
 		}
 	}
 	return nil
@@ -210,7 +255,19 @@ func launchAgent(address string) error {
 
 // start - start the user's agent
 func start(c *cli.Context) error {
-	address := c.String("address")
+	var address string
+	if c.IsSet("address") {
+		address = c.String("address")
+	} else {
+		// no address is set, let's see if the conf file has it
+		a := Conf.Get("http.address")
+		if a != nil {
+			address = a.(string)
+		} else {
+			// when no address is given, this is the default address
+			address = c.String("address")
+		}
+	}
 	debug := c.Bool("debug")
 	if debug {
 		InitDevLogger()
@@ -287,7 +344,7 @@ func main() {
 		Name:        "webexec",
 		Usage:       "execute commands and pipe their stdin&stdout over webrtc",
 		HideVersion: true,
-		Before:      mkhome,
+		Before:      load_conf,
 
 		Commands: []*cli.Command{
 			/* TODO: Add clipboard commands
@@ -325,7 +382,7 @@ func main() {
 						Name:    "address",
 						Aliases: []string{"a"},
 						Usage:   "The address to listen to",
-						Value:   "0.0.0.0:7777",
+						Value:   "",
 					},
 					&cli.BoolFlag{
 						Name:  "debug",

@@ -3,10 +3,10 @@ module github.com/tuzig/webexec
 go 1.15
 
 require (
-	git.rootprojects.org/root/go-gitver/v2 v2.0.2
 	github.com/creack/pty v1.1.11
 	github.com/hinshun/vt10x v0.0.0-20201217012337-52c1408d37d6
 	github.com/kardianos/osext v0.0.0-20190222173326-2bc1f35cddc0
+	github.com/pelletier/go-toml v1.8.1
 	github.com/pion/transport v0.10.1 // indirect
 	github.com/pion/webrtc/v2 v2.2.4
 	github.com/rs/cors v1.7.0
