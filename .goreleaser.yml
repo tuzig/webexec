@@ -18,26 +18,28 @@ builds:
       - 6
       - 7
 archives:
-  - replacements:
-      darwin: macOS
+  - 
+    replacements:
+      darwin: MacOS
       linux: Linux
+      freebsd: FreeBSD
       386: _i386_
       amd64: x86_64
       arm: ARM32_
       arm64: ARM64_
-    checksum:
-      name_template: 'checksums.txt'
-    snapshot:
-      name_template: "{{ .Tag }}-next"
     wrap_in_directory: true
-    changelog:
-      sort: asc
-      filters:
-        exclude:
-          - '^docs:'
-          - '^test:'
     files:
       - README.md
       - LICENSE
       - CHANGELOG.md
 
+checksum:
+  name_template: 'checksums.txt'
+snapshot:
+  name_template: "{{ .Tag }}-next"
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - '^docs:'
+      - '^test:'
