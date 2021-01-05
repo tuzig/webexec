@@ -3,6 +3,7 @@ module github.com/tuzig/webexec
 go 1.15
 
 require (
+	git.rootprojects.org/root/go-gitver/v2 v2.0.2 // indirect
 	github.com/creack/pty v1.1.11
 	github.com/hinshun/vt10x v0.0.0-20201217012337-52c1408d37d6
 	github.com/kardianos/osext v0.0.0-20190222173326-2bc1f35cddc0
