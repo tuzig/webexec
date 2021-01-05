@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## UNRELEASED
 
+### Fixed
+
+- reentrancy on dcs db causing a crash
+
 ### Changed
 
 - removed the `init` subcommand, home dir is created if missing

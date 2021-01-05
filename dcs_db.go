@@ -17,6 +17,8 @@ func NewDCsDB() *DCsDB {
 }
 
 func (dd *DCsDB) Add(d *webrtc.DataChannel) {
+	dd.m.Lock()
+	defer dd.m.Unlock()
 	id := d.ID()
 	if id == nil {
 		Logger.Errorf("Can not add channel %q as it's not open", d.Label())
