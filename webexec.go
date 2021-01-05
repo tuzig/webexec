@@ -22,29 +22,15 @@ import (
 )
 
 var (
-	commit  = "0000000"
-	version = "UNRELEASED"
-	date    = "0000-00-00T00:00:00+0000"
+	// Logger is our global logger
+	Logger             *zap.SugaredLogger
+	commit             = "0000000"
+	version            = "UNRELEASED"
+	date               = "0000-00-00T00:00:00+0000"
+	ErrAgentNotRunning = errors.New("agent is not running")
+	defaultConfig      map[string]string
+	gotExitSignal      chan bool
 )
-
-// ErrAgentNotRunning is raised when the agent is down
-var ErrAgentNotRunning = errors.New("agent is not running")
-
-// HomePathMissing is displayed when there's no home folder
-var HomePathMissing = `
-Seems like ~/.webexec is missing.\n
-Have you ran "%s init"?`
-
-// Logger is our global logger
-var Logger *zap.SugaredLogger
-
-var gotExitSignal chan bool
-
-// version stuff
-var BuildVersion string
-var BuildHash string
-var BuildDate string
-var BuildClean string
 
 // InitAgentLogger intializes the global `Logger` with agent's settings
 func InitAgentLogger() {
@@ -122,28 +108,25 @@ func ConfPath(suffix string) string {
 	return filepath.Join(usr.HomeDir, ".webexec", suffix)
 }
 
-// initCMD - initialize the user's .webexec directory
+// versionCMD prints version information
 func versionCMD(c *cli.Context) error {
 	fmt.Printf("Version: %s\n", version)
 	fmt.Printf("Git Commit Hash: %s\n", commit)
 	fmt.Printf("Build Date: %s\n", date)
 	return nil
 }
-func initCMD(c *cli.Context) error {
-	var contact string
 
+// init creates the home dir and the files
+func mkhome(c *cli.Context) error {
 	usr, _ := user.Current()
 	home := filepath.Join(usr.HomeDir, ".webexec")
 	_, err := os.Stat(home)
 	if os.IsNotExist(err) {
 		os.Mkdir(home, 0755)
-		fmt.Println("Please enter an email or phone number (starting with + and country code):")
-		fmt.Scanln(&contact)
-		config := map[string]string{
-			"username": usr.Username,
-			"userid":   usr.Uid,
-			"contact":  contact,
-		}
+		fmt.Printf(
+			"First run, created %q and \"config.json\" and \"authorized_tokens\"\n",
+			home)
+		config := defaultConfig
 		confFile, err := os.Create(filepath.Join(home, "config.json"))
 		defer confFile.Close()
 		if err != nil {
@@ -160,15 +143,12 @@ func initCMD(c *cli.Context) error {
 			return fmt.Errorf("Failed to create the tokens file at %q: %w",
 				TokensFilePath, err)
 		}
-	} else {
-		return fmt.Errorf("Can not initialize webexec as directory ~/.webexec already exists")
 	}
 	return nil
 }
 
 // stop - stops the agent
 func stop(c *cli.Context) error {
-
 	pidf, err := pidfile.Open(ConfPath("agent.pid"))
 	if os.IsNotExist(err) {
 		return ErrAgentNotRunning
@@ -304,8 +284,11 @@ func status(c *cli.Context) error {
 
 func main() {
 	app := &cli.App{
-		Name:  "webexec",
-		Usage: "execute commands and pipe their stdin&stdout over webrtc",
+		Name:        "webexec",
+		Usage:       "execute commands and pipe their stdin&stdout over webrtc",
+		HideVersion: true,
+		Before:      mkhome,
+
 		Commands: []*cli.Command{
 			/* TODO: Add clipboard commands
 			{
@@ -362,10 +345,6 @@ func main() {
 				Name:   "stop",
 				Usage:  "stop the user's agent",
 				Action: stop,
-			}, {
-				Name:   "init",
-				Usage:  "initialize user settings",
-				Action: initCMD,
 			},
 		},
 	}
