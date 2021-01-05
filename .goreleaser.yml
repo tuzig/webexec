@@ -2,25 +2,42 @@ before:
   hooks:
     - go generate .
 builds:
-  - env:
+  - 
+    env:
       - CGO_ENABLED=0
     goos:
       - linux
       - darwin
+      - freebsd
+    goarch:
+      - 386
+      - amd64
+      - arm
+      - arm64
+    goarm:
+      - 6
+      - 7
 archives:
   - replacements:
-      darwin: Darwin
+      darwin: macOS
       linux: Linux
-      386: i386
+      386: _i386_
       amd64: x86_64
-      arm: ARM
-checksum:
-  name_template: 'checksums.txt'
-snapshot:
-  name_template: "{{ .Tag }}-next"
-changelog:
-  sort: asc
-  filters:
-    exclude:
-      - '^docs:'
-      - '^test:'
+      arm: ARM32_
+      arm64: ARM64_
+    checksum:
+      name_template: 'checksums.txt'
+    snapshot:
+      name_template: "{{ .Tag }}-next"
+    wrap_in_directory: true
+    changelog:
+      sort: asc
+      filters:
+        exclude:
+          - '^docs:'
+          - '^test:'
+    files:
+      - README.md
+      - LICENSE
+      - CHANGELOG.md
+
