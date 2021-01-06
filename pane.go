@@ -22,13 +22,12 @@ type Pane struct {
 	IsRunning bool
 	Tty       *os.File
 	Buffer    *Buffer
-	dcs       *DCsDB
 	Ws        *pty.Winsize
 	vt        vt10x.VT
 }
 
 // NewPane opens a new pane and start its command and pty
-func NewPane(command []string, d *webrtc.DataChannel,
+func NewPane(command []string, d *webrtc.DataChannel, peer *Peer,
 	ws *pty.Winsize) (*Pane, error) {
 
 	var (
@@ -57,12 +56,10 @@ func NewPane(command []string, d *webrtc.DataChannel,
 		IsRunning: true,
 		Tty:       tty,
 		Buffer:    NewBuffer(100000), //TODO: get the number from conf
-		dcs:       NewDCsDB(),
 		Ws:        ws,
 		vt:        vt,
 	}
 	Panes.Add(pane) // This will set pane.ID
-	pane.dcs.Add(d)
 	return pane, nil
 }
 
@@ -86,23 +83,19 @@ func (pane *Pane) ReadLoop() {
 		}
 		// We need to get the dcs from Panes for an updated version
 		pane := Panes.Get(id)
-		Logger.Infof("@%d: Sending output to %d dcs", pane.ID, pane.dcs.Len())
-		for _, dc := range pane.dcs.All() {
-			s := dc.ReadyState()
+		cs := cdb.All4Pane(pane)
+		Logger.Infof("@%d: Sending output to %d dcs", pane.ID, len(cs))
+		for _, d := range cs {
+			s := d.dc.ReadyState()
 			if s == webrtc.DataChannelStateOpen {
-				err = dc.Send(b[:l])
+				err = d.dc.Send(b[:l])
 				if err != nil {
 					Logger.Errorf("got an error when sending message: %v", err)
 				}
 			} else {
 				Logger.Infof("closing & removing dc because state: %q", s)
-				id := dc.ID()
-				if id == nil {
-					Logger.Error("Failed to delete a data channel with no id")
-					return
-				}
-				pane.dcs.Delete(*id)
-				dc.Close()
+				cdb.Delete(d)
+				d.dc.Close()
 			}
 		}
 		if pane.vt != nil {
@@ -123,7 +116,13 @@ func (pane *Pane) ReadLoop() {
 // Kill takes a pane to the sands of Rishon and buries it
 func (pane *Pane) Kill() {
 	Logger.Infof("Killing pane: %d", pane.ID)
-	pane.dcs.CloseAll()
+
+	for _, d := range cdb.All4Pane(pane) {
+		if d.dc.ReadyState() == webrtc.DataChannelStateOpen {
+			d.dc.Close()
+		}
+		cdb.Delete(d)
+	}
 	if pane.IsRunning {
 		pane.Tty.Close()
 		err := pane.C.Process.Kill()
@@ -135,18 +134,12 @@ func (pane *Pane) Kill() {
 	}
 }
 
-// OnCloseDC is called when the client closes a pane
-func (pane *Pane) OnCloseDC() {
-	// TODO: remove the dc from the slice
-	Logger.Infof("pane #%d: Data channel closed", pane.ID)
-}
-
 // OnMessage is called when a new client message is recieved
 func (pane *Pane) OnMessage(msg webrtc.DataChannelMessage) {
 	p := msg.Data
 	l, err := pane.Tty.Write(p)
 	if err == os.ErrClosed {
-		pane.dcs.CloseAll()
+		pane.Kill()
 		return
 	}
 	if err != nil {
@@ -220,6 +213,7 @@ func (pane *Pane) Restore(d *webrtc.DataChannel, marker int) {
 			Logger.Warn("not restoring as st is null")
 		}
 	} else {
+		Logger.Infof("Sending history buffer since marker: %d", marker)
 		d.Send(pane.Buffer.GetSinceMarker(marker))
 	}
 }

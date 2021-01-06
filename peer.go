@@ -46,7 +46,6 @@ type Peer struct {
 	PendingChannelReq chan *webrtc.DataChannel
 	// Marker is used to restore the buffer, set with auth message
 	Marker int
-	dcs    *DCsDB
 }
 
 // NewPeer funcions starts listening to incoming peer connection from a remote
@@ -84,7 +83,6 @@ func NewPeer(remote string) (*Peer, error) {
 		cdc:               nil,
 		PendingChannelReq: make(chan *webrtc.DataChannel, 5),
 		Marker:            -1,
-		dcs:               NewDCsDB(),
 	}
 	Peers = append(Peers, peer)
 	m.Unlock()
@@ -160,8 +158,13 @@ func (peer *Peer) OnChannelReq(d *webrtc.DataChannel) {
 	d.OnOpen(func() {
 		pane := peer.GetOrCreatePane(d)
 		if pane != nil {
+			c := cdb.Add(d, pane, peer)
 			d.OnMessage(pane.OnMessage)
-			d.OnClose(pane.OnCloseDC)
+			d.OnClose(func() {
+				cdb.Delete(c)
+			})
+		} else {
+			Logger.Errorf("Failed to get or create pane for dc %v", d)
 		}
 	})
 }
@@ -227,10 +230,8 @@ func (peer *Peer) GetOrCreatePane(d *webrtc.DataChannel) *Pane {
 		return peer.Reconnect(d, id)
 	}
 	// TODO: get the default exec  the users shell or the command from the channel's name
-	pane, err = NewPane(fields[cmdIndex:], d, ws)
+	pane, err = NewPane(fields[cmdIndex:], d, peer, ws)
 	if pane != nil {
-		// start the read loop and Send the pane id as the first message
-		peer.dcs.Add(d)
 		pane.SendID(d)
 		go pane.ReadLoop()
 		return pane
@@ -249,12 +250,11 @@ func (peer *Peer) Reconnect(d *webrtc.DataChannel, id int) *Pane {
 		return nil
 	}
 	if pane.IsRunning {
-		peer.dcs.Add(d)
-		pane.dcs.Add(d)
 		pane.SendID(d)
 		pane.Restore(d, peer.Marker)
 		return pane
 	}
+	d.Send([]byte("Can not reconnect as pane is not running"))
 	Logger.Infof("Reconnect request to %d denied", id)
 	d.Close()
 	return nil
@@ -340,19 +340,17 @@ func (peer *Peer) OnCTRLMsg(msg webrtc.DataChannelMessage) {
 		Logger.Infof("Setting payload to: %s", payloadArgs.Payload)
 		Payload = payloadArgs.Payload
 		err = peer.SendAck(m, Payload)
-	// TODO: add more commands here: mouse, copy, paste, etc.
+	// TODO: acdb more commands here: mouse, copy, paste, etc.
 	case "mark":
-		// add a marker and store it in each pane
+		// acdb a marker and store it in each pane
 		markerM.Lock()
 		lastMarker++
 		peer.Marker = lastMarker
 		markerM.Unlock()
-		for _, p := range Panes.All() {
-			for _, d := range peer.dcs.All() {
-				// this will usually fail, but delete what's needed
-				_ = p.dcs.Delete(*d.ID())
-			}
-			p.Buffer.Mark(peer.Marker)
+		for _, dc := range cdb.All4Peer(peer) {
+			// this will usually fail, but delete what's needed
+			dc.pane.Buffer.Mark(peer.Marker)
+			cdb.Delete(dc)
 		}
 		err = peer.SendAck(m, []byte(fmt.Sprintf("%d", peer.Marker)))
 

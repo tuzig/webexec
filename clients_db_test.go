@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-func TestNewDCsDB(t *testing.T) {
-	db := NewDCsDB()
+func TestClientsDB(t *testing.T) {
+	db := NewClientsDB()
 	require.NotNil(t, db)
 }

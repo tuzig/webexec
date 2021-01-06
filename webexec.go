@@ -29,6 +29,7 @@ var (
 	commit             = "0000000"
 	version            = "UNRELEASED"
 	date               = "0000-00-00T00:00:00+0000"
+	cdb                = NewClientsDB()
 	ErrAgentNotRunning = errors.New("agent is not running")
 	gotExitSignal      chan bool
 	Conf               *toml.Tree
