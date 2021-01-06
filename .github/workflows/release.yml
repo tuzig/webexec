@@ -14,6 +14,8 @@ jobs:
         shell: bash
       - name: Checkout
         uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
       - name: Set up Go
         uses: actions/setup-go@v2
         with:
@@ -24,21 +26,9 @@ jobs:
         with:
           version: ${{ steps.tag_name.outputs.current_version }}
           path: ./CHANGELOG.md
-      - name: Create Release
-        id: create_release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tag_name: ${{ steps.changelog_reader.outputs.version }}
-          release_name: Release ${{ steps.changelog_reader.outputs.version }}
-          body: ${{ steps.changelog_reader.outputs.changes }}
-          prerelease: ${{ steps.changelog_reader.outputs.status == 'prereleased' }}
-          draft: ${{ steps.changelog_reader.outputs.status == 'unreleased' }}
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v2
         with:
-          version: latest
-          args: release --rm-dist
+          args: release --rm-dist --release-notes <(echo ${{ steps.changelog_reader.outputs.changes }})
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
