@@ -321,7 +321,11 @@ func TestChannelRestore(t *testing.T) {
 		})
 	})
 	SignalPair(client, peer.PC)
-	<-gotFirst
+	select {
+	case <-time.After(3 * time.Second):
+		t.Error("Timeout waiting for data in DC")
+	case <-gotFirst:
+	}
 	// Now that we have a channel open, let's close the channel and reconnect
 	dc2, err := client.CreateDataChannel(">"+cID, nil)
 	require.Nil(t, err, "Failed to create the second data channel: %q", err)
@@ -363,6 +367,7 @@ func TestMarkerRestore(t *testing.T) {
 	gotAuthAck2 := make(chan bool)
 	gotFirst := make(chan bool)
 	gotSecondAgain := make(chan bool)
+	gotMarker := make(chan bool)
 	// start the server
 	peer, err := NewPeer("")
 	require.Nil(t, err, "NewPeer failed with: %s", err)
@@ -388,6 +393,7 @@ func TestMarkerRestore(t *testing.T) {
 				if args.Ref == markerRef {
 					json.Unmarshal(args.Body, &marker)
 					fmt.Printf("Got marker: %d", marker)
+					gotMarker <- true
 				}
 				gotAuthAck <- true
 			}
@@ -413,9 +419,17 @@ func TestMarkerRestore(t *testing.T) {
 		})
 	})
 	SignalPair(client, peer.PC)
-	<-gotFirst
-
+	select {
+	case <-time.After(6 * time.Second):
+		t.Error("Timeout waiting for first datfirst data data")
+	case <-gotFirst:
+	}
 	markerRef = getMarker(cdc)
+	select {
+	case <-time.After(6 * time.Second):
+		t.Error("Timeout waiting for marker ack")
+	case <-gotMarker:
+	}
 	peer2, err := NewPeer("")
 	require.Nil(t, err, "NewPeer2 failed with: %s", err)
 	client2, err := webrtc.NewPeerConnection(webrtc.Configuration{})
