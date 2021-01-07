@@ -106,7 +106,7 @@ func NewPeer(remote string) (*Peer, error) {
 	return &peer, nil
 }
 
-// Listen get's a client offer, starts listens to it and return its offer
+// Listen get's a client offer, starts listens to it and returns an answear
 func (peer *Peer) Listen(remote string) error {
 	offer := webrtc.SessionDescription{}
 	err := DecodeOffer(remote, &offer)
@@ -156,7 +156,10 @@ func (peer *Peer) OnChannelReq(d *webrtc.DataChannel) {
 	}
 
 	d.OnOpen(func() {
-		pane := peer.GetOrCreatePane(d)
+		pane, err := peer.GetOrCreatePane(d)
+		if err != nil {
+			d.Send([]byte(fmt.Sprintf("%s", err)))
+		}
 		if pane != nil {
 			c := cdb.Add(d, pane, peer)
 			d.OnMessage(pane.OnMessage)
@@ -179,7 +182,7 @@ func (peer *Peer) OnChannelReq(d *webrtc.DataChannel) {
 //      simple form with no pty: `echo,Hello world`
 //		to start bash: `24x80,bash`
 //		to reconnect to pane id 123: `>123`
-func (peer *Peer) GetOrCreatePane(d *webrtc.DataChannel) *Pane {
+func (peer *Peer) GetOrCreatePane(d *webrtc.DataChannel) (*Pane, error) {
 	var (
 		err      error
 		cmdIndex int
@@ -197,36 +200,32 @@ func (peer *Peer) GetOrCreatePane(d *webrtc.DataChannel) *Pane {
 		Logger.Info("Got a request to open a control channel")
 		peer.cdc = d
 		d.OnMessage(peer.OnCTRLMsg)
-		return nil
+		return nil, nil
 	}
 	// if the label starts witha digit, i.e. "80x24" it needs a pty
 	if unicode.IsDigit(rune(l[0])) {
 		cmdIndex = 1
 		// no command, don't create the pane
 		if cmdIndex > len(fields)-1 {
-			Logger.Errorf("Got an invalid pane label: %q", l)
-			return nil
+			return nil, fmt.Errorf("Got an invalid pane label: %q", l)
 		}
 		ws, err = ParseWinsize(fields[0])
 		if err != nil {
-			Logger.Errorf("Failed to parse winsize: %v", err)
-			return nil
+			return nil, fmt.Errorf("Failed to parse winsize: %v", err)
 		}
 	}
 	if len(fields[cmdIndex]) < 2 {
-		Logger.Errorf("Command is too short")
-		return nil
+		return nil, fmt.Errorf("Command is too short")
 	}
 
 	// If it's a reconnect, parse the id and reconnnect to the pane
 	if rune(fields[cmdIndex][0]) == '>' {
 		id, err := strconv.Atoi(fields[cmdIndex][1:])
-		Logger.Infof("Got a reconnect request to pane %d", id)
 		if err != nil {
-			Logger.Errorf("Got an error converting incoming reconnect id : %q",
+			return nil, fmt.Errorf("Got an error converting incoming reconnect id : %q",
 				fields[cmdIndex])
-			return nil
 		}
+		Logger.Infof("Got a reconnect request to pane %d", id)
 		return peer.Reconnect(d, id)
 	}
 	// TODO: get the default exec  the users shell or the command from the channel's name
@@ -234,30 +233,27 @@ func (peer *Peer) GetOrCreatePane(d *webrtc.DataChannel) *Pane {
 	if pane != nil {
 		pane.SendID(d)
 		go pane.ReadLoop()
-		return pane
+		return pane, nil
 	}
-	Logger.Error("Failed to create new pane: %q", err)
-	return nil
+
+	return nil, fmt.Errorf("Failed to create new pane: %q", err)
 }
 
 // Reconnect reconnects to a pane and restore the screen/buffer
 // buffer from that marker if not we use our headless terminal emulator to
 // send over the current screen.
-func (peer *Peer) Reconnect(d *webrtc.DataChannel, id int) *Pane {
+func (peer *Peer) Reconnect(d *webrtc.DataChannel, id int) (*Pane, error) {
 	pane := Panes.Get(id)
 	if pane == nil {
-		Logger.Errorf("Got a bad pane id: %d", id)
-		return nil
+		return nil, fmt.Errorf("Got a bad pane id: %d", id)
 	}
 	if pane.IsRunning {
 		pane.SendID(d)
 		pane.Restore(d, peer.Marker)
-		return pane
+		return pane, nil
 	}
-	d.Send([]byte("Can not reconnect as pane is not running"))
-	Logger.Infof("Reconnect request to %d denied", id)
 	d.Close()
-	return nil
+	return nil, fmt.Errorf("Can not reconnect as pane is not running")
 }
 
 // SendAck sends an ack for a given control message
