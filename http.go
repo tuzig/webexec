@@ -3,9 +3,9 @@ package main
 import (
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 
+	"github.com/pion/webrtc/v3"
 	"github.com/rs/cors"
 )
 
@@ -30,6 +30,7 @@ func ConnectHandler() (http.Handler, error) {
 // it should be a post and the body webrtc's client offer.
 // In reponse the handlers send the server's webrtc's offer.
 func handleConnect(w http.ResponseWriter, r *http.Request) {
+	var offer webrtc.SessionDescription
 	if r.Method != "POST" {
 		Logger.Infof("Got an http request with bad method %q\n", r.Method)
 		http.Error(w, "This endpoint accepts only POST requests",
@@ -37,19 +38,43 @@ func handleConnect(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Access-Control-Allow-Origin", "*")
-	offer, e := ioutil.ReadAll(io.LimitReader(r.Body, 4096))
-	if e != nil {
-		Logger.Errorf("Failed to read http request body: %s", e)
+	remote := make([]byte, 4096)
+	l, err := r.Body.Read(remote)
+	if err != nil && err != io.EOF {
+		Logger.Errorf("Failed to read http request body: %s", err)
 	}
 	// Logger.Infof("Got a valid POST request with offer of len: %d", l)
-	peer, err := NewPeer(string(offer))
+	err = DecodeOffer(&offer, remote[:l])
+	fmt.Printf("len: %d", len(remote))
+	if err != nil {
+		msg := fmt.Sprintf("Failed to decode offer: %s\n%q", err, remote)
+		Logger.Error(msg)
+		http.Error(w, msg, http.StatusBadRequest)
+		return
+	}
+	Logger.Infof("New Peer from: %s", remote)
+	peer, err := NewPeer()
 	if err != nil {
 		msg := fmt.Sprintf("Failed to create a new peer: %s", err)
 		Logger.Error(msg)
 		http.Error(w, msg, http.StatusInternalServerError)
 		return
 	}
+	err = peer.Listen(offer)
+	if err != nil {
+		msg := fmt.Sprintf("Peer failed to listen : %s", err)
+		Logger.Error(msg)
+		http.Error(w, msg, http.StatusInternalServerError)
+		return
+	}
 	// reply with server's key
-	payload := []byte(peer.Answer)
-	w.Write(payload)
+	payload := make([]byte, 4096)
+	l, err = EncodeOffer(payload, peer.Answer)
+	if err != nil {
+		msg := fmt.Sprintf("Failed to encode offer : %s", err)
+		Logger.Error(msg)
+		http.Error(w, msg, http.StatusBadRequest)
+		return
+	}
+	w.Write(payload[:l])
 }

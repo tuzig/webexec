@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"github.com/creack/pty"
 	"github.com/hinshun/vt10x"
-	"github.com/pion/webrtc/v2"
+	"github.com/pion/webrtc/v3"
 	"os"
 	"os/exec"
 	"strconv"
