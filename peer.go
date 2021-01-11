@@ -40,7 +40,6 @@ type Peer struct {
 	LastContact       *time.Time
 	LastRef           int
 	PC                *webrtc.PeerConnection
-	Answer            *webrtc.SessionDescription
 	cdc               *webrtc.DataChannel
 	PendingChannelReq chan *webrtc.DataChannel
 	// Marker is used to restore the buffer, set with auth message
@@ -59,6 +58,8 @@ func NewPeer() (*Peer, error) {
 		WebRTCAPI = webrtc.NewAPI(webrtc.WithSettingEngine(s))
 	}
 	m.Unlock()
+	config := webrtc.Configuration{}
+	/* TODO: restore support for serving beyond a NAT
 	config := webrtc.Configuration{
 		ICEServers: []webrtc.ICEServer{
 			{
@@ -67,6 +68,7 @@ func NewPeer() (*Peer, error) {
 			},
 		},
 	}
+	*/
 	pc, err := WebRTCAPI.NewPeerConnection(config)
 	if err != nil {
 		return nil, fmt.Errorf("NewPeerConnection failed")
@@ -84,29 +86,20 @@ func NewPeer() (*Peer, error) {
 	}
 	Peers = append(Peers, peer)
 	m.Unlock()
-	// Status changes happend when the peer has connected/disconnected
-	pc.OnConnectionStateChange(func(connectionState webrtc.PeerConnectionState) {
-		s := connectionState.String()
-		Logger.Infof("WebRTC Connection State change: %s", s)
-		if s == "failed" {
-			peer.PC.Close()
-			peer.PC = nil
-		}
-	})
 	pc.OnDataChannel(peer.OnChannelReq)
 	return &peer, nil
 }
 
 // Listen get's a client offer, starts listens to it and returns an answear
-func (peer *Peer) Listen(offer webrtc.SessionDescription) error {
+func (peer *Peer) Listen(offer webrtc.SessionDescription) (*webrtc.SessionDescription, error) {
 	Logger.Infof("Listening to: %v", offer)
 	err := peer.PC.SetRemoteDescription(offer)
 	if err != nil {
-		return fmt.Errorf("Failed to set remote description: %s", err)
+		return nil, fmt.Errorf("Failed to set remote description: %s", err)
 	}
 	answer, err := peer.PC.CreateAnswer(nil)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	// Sets the LocalDescription, and starts listning for UDP packets
 	// Create channel that is blocked until ICE Gathering is complete
@@ -114,11 +107,23 @@ func (peer *Peer) Listen(offer webrtc.SessionDescription) error {
 	gatherComplete := webrtc.GatheringCompletePromise(peer.PC)
 	err = peer.PC.SetLocalDescription(answer)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	<-gatherComplete
-	peer.Answer = &answer
-	return nil
+	select {
+	case <-time.After(Conf.gatheringTimeout):
+		return nil, fmt.Errorf("timed out waiting to finish gathering ICE candidates")
+	case <-gatherComplete:
+	}
+	// Status changes happend when the peer has connected/disconnected
+	peer.PC.OnConnectionStateChange(func(connectionState webrtc.PeerConnectionState) {
+		s := connectionState.String()
+		Logger.Infof("WebRTC Connection State change: %s", s)
+		if s == "failed" {
+			peer.PC.Close()
+			peer.PC = nil
+		}
+	})
+	return peer.PC.LocalDescription(), nil
 }
 
 // OnChannelReq starts a system command over a pty.

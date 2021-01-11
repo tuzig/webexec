@@ -19,11 +19,11 @@ func EncodeOffer(dst []byte, obj interface{}) (int, error) {
 // DecodeOffer decodes the input from base64
 func DecodeOffer(dst interface{}, src []byte) error {
 	b := make([]byte, base64.StdEncoding.DecodedLen(len(src)))
-	_, err := base64.StdEncoding.Decode(b, src)
+	l, err := base64.StdEncoding.Decode(b, src)
 	if err != nil {
 		return err
 	}
-	err = json.Unmarshal(b, dst)
+	err = json.Unmarshal(b[:l], dst)
 	if err != nil {
 		return err
 	}

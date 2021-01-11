@@ -4,17 +4,18 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap/zaptest"
 )
 
 func TestEncodeDecodeStringArray(t *testing.T) {
-	Logger = zaptest.NewLogger(t).Sugar()
-
+	initTest(t)
 	a := []string{"Hello", "World"}
-	b := EncodeOffer(a)
-	Logger.Infof("encode offer to: %q", b)
+	b := make([]byte, 4096)
+	l, err := EncodeOffer(b, a)
+	require.Nil(t, err, "Failed to encode offer: %s", err)
+	Logger.Infof("encode offer to: %q", b[:l])
 
-	var c []string
-	DecodeOffer(b, &c)
+	c := make([]string, 2)
+	err = DecodeOffer(&c, b[:l])
+	require.Nil(t, err, "Failed to decode offer: %s", err)
 	require.Equal(t, a, c)
 }

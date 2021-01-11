@@ -1,14 +1,14 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
-	"strings"
 	"testing"
 	"time"
 
-	"github.com/pion/webrtc/v2"
+	"github.com/pion/webrtc/v3"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap/zaptest"
 )
@@ -18,10 +18,8 @@ const TestingHost = "127.0.0.1:7888"
 func TestConnect(t *testing.T) {
 	Logger = zaptest.NewLogger(t).Sugar()
 	done := make(chan bool)
-	offerChan := make(chan webrtc.SessionDescription, 1)
 	// Start the https server
 	go func() {
-
 		err := HTTPGo(TestingHost)
 		require.Nil(t, err, "HTTP Listen and Server returns an error: %q", err)
 	}()
@@ -33,44 +31,37 @@ func TestConnect(t *testing.T) {
 			},
 		}})
 	require.Nil(t, err, "Failed to start a new server", err)
-	iceGatheringState := client.ICEGatheringState()
-	if iceGatheringState != webrtc.ICEGatheringStateComplete {
-		client.OnICECandidate(func(candidate *webrtc.ICECandidate) {
-			if candidate == nil {
-				offerChan <- *client.PendingLocalDescription()
-			}
-		})
-	}
+	cdc, err := client.CreateDataChannel("%", nil)
+	require.Nil(t, err, "Failed to create the control data channel: %q", err)
 	clientOffer, err := client.CreateOffer(nil)
 	require.Nil(t, err, "Failed to create client offer: %q", err)
+	gatherComplete := webrtc.GatheringCompletePromise(client)
 	err = client.SetLocalDescription(clientOffer)
 	require.Nil(t, err, "Failed to set client's local Description client offer: %q", err)
-	if iceGatheringState == webrtc.ICEGatheringStateComplete {
-		offerChan <- clientOffer
-	}
 	select {
 	case <-time.After(3 * time.Second):
 		t.Errorf("timed out waiting to ice gathering to complete")
-	case offer := <-offerChan:
+	case <-gatherComplete:
 		var sd webrtc.SessionDescription
-		cob := EncodeOffer(&offer)
-		offerReader := strings.NewReader(cob)
+		buf := make([]byte, 4096)
+		l, err := EncodeOffer(buf, *client.LocalDescription())
+		require.Nil(t, err, "Failed ending an offer: %v", clientOffer)
+		cob := bytes.NewReader(buf[:l])
 		url := fmt.Sprintf("http://%s/connect", TestingHost)
-		r, err := http.Post(url, "application/json", offerReader)
+		r, err := http.Post(url, "application/json", cob)
 		require.Nil(t, err, "Failed sending a post request: %q", err)
 		defer r.Body.Close()
 		require.Equal(t, r.StatusCode, http.StatusOK,
-			"Server returned error status: %v", r)
+			"Server returned error status: %r", r)
 		// read server offer
-		serverOffer, err := ioutil.ReadAll(r.Body)
-		sob := string(serverOffer)
-		require.Nil(t, err, "Failed reading resonse body: %v", err)
-		require.Less(t, 1000, len(serverOffer),
-			"Got a bad length response: %d", len(serverOffer))
-		err = DecodeOffer(sob, &sd)
+		serverOffer := make([]byte, 4096)
+		l, err = r.Body.Read(serverOffer)
+		require.Equal(t, err, io.EOF, "Failed reading resonse body: %v", err)
+		require.Less(t, 1000, l,
+			"Got a bad length response: %d", l)
+		err = DecodeOffer(&sd, serverOffer[:l])
+		require.Nil(t, err, "Failed decoding an offer: %v", clientOffer)
 		client.SetRemoteDescription(sd)
-		cdc, err := client.CreateDataChannel("%", nil)
-		require.Nil(t, err, "Failed to create the control data channel: %q", err)
 		// count the incoming messages
 		cdc.OnOpen(func() {
 			done <- true

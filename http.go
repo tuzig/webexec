@@ -45,7 +45,6 @@ func handleConnect(w http.ResponseWriter, r *http.Request) {
 	}
 	// Logger.Infof("Got a valid POST request with offer of len: %d", l)
 	err = DecodeOffer(&offer, remote[:l])
-	fmt.Printf("len: %d", len(remote))
 	if err != nil {
 		msg := fmt.Sprintf("Failed to decode offer: %s\n%q", err, remote)
 		Logger.Error(msg)
@@ -60,7 +59,7 @@ func handleConnect(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, msg, http.StatusInternalServerError)
 		return
 	}
-	err = peer.Listen(offer)
+	answer, err := peer.Listen(offer)
 	if err != nil {
 		msg := fmt.Sprintf("Peer failed to listen : %s", err)
 		Logger.Error(msg)
@@ -69,7 +68,7 @@ func handleConnect(w http.ResponseWriter, r *http.Request) {
 	}
 	// reply with server's key
 	payload := make([]byte, 4096)
-	l, err = EncodeOffer(payload, peer.Answer)
+	l, err = EncodeOffer(payload, answer)
 	if err != nil {
 		msg := fmt.Sprintf("Failed to encode offer : %s", err)
 		Logger.Error(msg)

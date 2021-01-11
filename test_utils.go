@@ -8,8 +8,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pion/webrtc/v2"
+	"github.com/pion/webrtc/v3"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap/zaptest"
 	"golang.org/x/sys/unix"
 )
 
@@ -19,6 +20,8 @@ const AValidTokenForTests = "THEoneANDonlyTOKEN"
 
 // TestAckRef is the ref to use in tests
 const TestAckRef = 123
+
+var testSD = webrtc.SessionDescription{Type: webrtc.SDPTypeAnswer, SDP: ""}
 
 // used to keep track of sent control messages
 var lastRef int
@@ -88,18 +91,8 @@ func getMarker(cdc *webrtc.DataChannel) int {
 	return ref
 }
 
-// SignalPair is used to start a connection between two peers
-func SignalPair(pcOffer *webrtc.PeerConnection, pcAnswer *webrtc.PeerConnection) error {
-	iceGatheringState := pcOffer.ICEGatheringState()
-	offerChan := make(chan webrtc.SessionDescription, 1)
-
-	if iceGatheringState != webrtc.ICEGatheringStateComplete {
-		pcOffer.OnICECandidate(func(candidate *webrtc.ICECandidate) {
-			if candidate == nil {
-				offerChan <- *pcOffer.PendingLocalDescription()
-			}
-		})
-	}
+// signalPair is used to start a connection between two peers
+func SignalPair(pcOffer *webrtc.PeerConnection, peer *Peer) error {
 	// Note(albrow): We need to create a data channel in order to trigger ICE
 	// candidate gathering in the background for the JavaScript/Wasm bindings. If
 	// we don't do this, the complete offer including ICE candidates will never be
@@ -112,31 +105,19 @@ func SignalPair(pcOffer *webrtc.PeerConnection, pcAnswer *webrtc.PeerConnection)
 	if err != nil {
 		return err
 	}
+	gatherComplete := webrtc.GatheringCompletePromise(pcOffer)
 	if err := pcOffer.SetLocalDescription(offer); err != nil {
 		return err
 	}
-
-	if iceGatheringState == webrtc.ICEGatheringStateComplete {
-		offerChan <- offer
-	}
 	select {
-	case <-time.After(3 * time.Second):
-		return fmt.Errorf("timed mockedMsgs waiting to receive offer")
-	case offer := <-offerChan:
-		if err := pcAnswer.SetRemoteDescription(offer); err != nil {
-			return err
-		}
-
-		answer, err := pcAnswer.CreateAnswer(nil)
+	case <-time.After(5 * time.Second):
+		return fmt.Errorf("timed mockedMsgs waiting to finish gathering ICE candidates")
+	case <-gatherComplete:
+		answer, err := peer.Listen(*pcOffer.LocalDescription())
 		if err != nil {
 			return err
 		}
-
-		if err = pcAnswer.SetLocalDescription(answer); err != nil {
-			return err
-		}
-
-		err = pcOffer.SetRemoteDescription(answer)
+		err = pcOffer.SetRemoteDescription(*answer)
 		if err != nil {
 			return err
 		}
@@ -157,4 +138,10 @@ func waitForChild(pid int, timeout time.Duration) error {
 		time.Sleep(10 * time.Millisecond)
 	}
 	return fmt.Errorf("process %d still alive (timeout=%v)", pid, timeout)
+}
+func initTest(t *testing.T) {
+	Logger = zaptest.NewLogger(t).Sugar()
+	TokensFilePath = "./test_tokens"
+	err := LoadConf(defaultConf)
+	require.Nil(t, err, "NewPeer failed with: %s", err)
 }

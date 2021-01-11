@@ -11,19 +11,17 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pion/webrtc/v2"
+	"github.com/pion/webrtc/v3"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap/zaptest"
 )
 
 const timeout = 3 * time.Second
 
 func TestSimpleEcho(t *testing.T) {
-	Logger = zaptest.NewLogger(t).Sugar()
-	TokensFilePath = "./test_tokens"
+	initTest(t)
 	closed := make(chan bool)
 	gotAuthAck := make(chan bool)
-	peer, err := NewPeer("")
+	peer, err := NewPeer()
 	require.Nil(t, err, "NewPeer failed with: %s", err)
 	client, err := webrtc.NewPeerConnection(webrtc.Configuration{})
 	require.Nil(t, err, "Failed to start a new server", err)
@@ -66,7 +64,7 @@ func TestSimpleEcho(t *testing.T) {
 			closed <- true
 		})
 	})
-	SignalPair(client, peer.PC)
+	SignalPair(client, peer)
 	// TODO: add timeout
 	<-closed
 	panes := Panes.All()
@@ -78,11 +76,10 @@ func TestSimpleEcho(t *testing.T) {
 }
 
 func TestResizeCommand(t *testing.T) {
-	Logger = zaptest.NewLogger(t).Sugar()
-	TokensFilePath = "./test_tokens"
+	initTest(t)
 	gotAuthAck := make(chan bool)
 	done := make(chan bool)
-	peer, err := NewPeer("")
+	peer, err := NewPeer()
 	require.Nil(t, err, "NewPeer failed with: %s", err)
 	client, err := webrtc.NewPeerConnection(webrtc.Configuration{})
 	require.Nil(t, err, "Failed to start a new peer connection %v", err)
@@ -128,20 +125,19 @@ func TestResizeCommand(t *testing.T) {
 			})
 		})
 	})
-	SignalPair(client, peer.PC)
+	SignalPair(client, peer)
 	<-done
 }
 
 func TestChannelReconnect(t *testing.T) {
-	Logger = zaptest.NewLogger(t).Sugar()
-	TokensFilePath = "./test_tokens"
+	initTest(t)
 	var cID string
 	var dc *webrtc.DataChannel
 	done := make(chan bool)
 	gotAuthAck := make(chan bool)
 	gotID := make(chan bool)
 	// start the server
-	peer, err := NewPeer("")
+	peer, err := NewPeer()
 	require.Nil(t, err, "NewPeer failed with: %s", err)
 	// and the client
 	client, err := webrtc.NewPeerConnection(webrtc.Configuration{})
@@ -181,7 +177,7 @@ func TestChannelReconnect(t *testing.T) {
 			count++
 		})
 	})
-	SignalPair(client, peer.PC)
+	SignalPair(client, peer)
 	<-gotID
 	// Now that we have a channel open, let's close the channel and reconnect
 	dc2, err := client.CreateDataChannel(">"+cID, nil)
@@ -217,11 +213,10 @@ func TestChannelReconnect(t *testing.T) {
 	// dc2.Close()
 }
 func TestPayloadOperations(t *testing.T) {
-	Logger = zaptest.NewLogger(t).Sugar()
-	TokensFilePath = "./test_tokens"
+	initTest(t)
 	done := make(chan bool)
 	gotAuthAck := make(chan bool)
-	peer, err := NewPeer("")
+	peer, err := NewPeer()
 	require.Nil(t, err, "NewPeer failed with: %s", err)
 	client, err := webrtc.NewPeerConnection(webrtc.Configuration{})
 	require.Nil(t, err, "Failed to start a new server", err)
@@ -251,7 +246,7 @@ func TestPayloadOperations(t *testing.T) {
 			}
 		})
 	})
-	SignalPair(client, peer.PC)
+	SignalPair(client, peer)
 	select {
 	case <-time.After(3 * time.Second):
 		t.Error("Timeout waiting for an ack")
@@ -270,15 +265,14 @@ func TestPayloadOperations(t *testing.T) {
 	<-done
 }
 func TestChannelRestore(t *testing.T) {
-	Logger = zaptest.NewLogger(t).Sugar()
-	TokensFilePath = "./test_tokens"
+	initTest(t)
 	var cID string
 	var dc *webrtc.DataChannel
 	done := make(chan bool)
 	gotAuthAck := make(chan bool)
 	gotFirst := make(chan bool)
 	// start the server
-	peer, err := NewPeer("")
+	peer, err := NewPeer()
 	require.Nil(t, err, "NewPeer failed with: %s", err)
 	// and the client
 	client, err := webrtc.NewPeerConnection(webrtc.Configuration{})
@@ -320,7 +314,7 @@ func TestChannelRestore(t *testing.T) {
 			count++
 		})
 	})
-	SignalPair(client, peer.PC)
+	SignalPair(client, peer)
 	select {
 	case <-time.After(3 * time.Second):
 		t.Error("Timeout waiting for data in DC")
@@ -355,8 +349,7 @@ func TestChannelRestore(t *testing.T) {
 	}
 }
 func TestMarkerRestore(t *testing.T) {
-	Logger = zaptest.NewLogger(t).Sugar()
-	TokensFilePath = "./test_tokens"
+	initTest(t)
 	var (
 		cID       string
 		dc        *webrtc.DataChannel
@@ -369,7 +362,7 @@ func TestMarkerRestore(t *testing.T) {
 	gotSecondAgain := make(chan bool)
 	gotMarker := make(chan bool)
 	// start the server
-	peer, err := NewPeer("")
+	peer, err := NewPeer()
 	require.Nil(t, err, "NewPeer failed with: %s", err)
 	// and the client
 	client, err := webrtc.NewPeerConnection(webrtc.Configuration{})
@@ -418,7 +411,7 @@ func TestMarkerRestore(t *testing.T) {
 			count++
 		})
 	})
-	SignalPair(client, peer.PC)
+	SignalPair(client, peer)
 	select {
 	case <-time.After(6 * time.Second):
 		t.Error("Timeout waiting for first datfirst data data")
@@ -430,12 +423,12 @@ func TestMarkerRestore(t *testing.T) {
 		t.Error("Timeout waiting for marker ack")
 	case <-gotMarker:
 	}
-	peer2, err := NewPeer("")
+	peer2, err := NewPeer()
 	require.Nil(t, err, "NewPeer2 failed with: %s", err)
 	client2, err := webrtc.NewPeerConnection(webrtc.Configuration{})
 	require.Nil(t, err, "Failed to start a new server %v", err)
 	// create the command & control data channel
-	SignalPair(client2, peer2.PC)
+	SignalPair(client2, peer2)
 	cdc2, err := client2.CreateDataChannel("%", nil)
 	require.Nil(t, err, "Failed to create the control data channel: %v", err)
 	// count the incoming messages

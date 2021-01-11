@@ -15,7 +15,6 @@ import (
 	"time"
 
 	"github.com/kardianos/osext"
-	"github.com/pelletier/go-toml"
 	"github.com/tuzig/webexec/pidfile"
 	"github.com/urfave/cli/v2"
 	"go.uber.org/zap"
@@ -32,25 +31,16 @@ var (
 	cdb                = NewClientsDB()
 	ErrAgentNotRunning = errors.New("agent is not running")
 	gotExitSignal      chan bool
-	Conf               *toml.Tree
-	defaultConf        = `# webexec's toml configuration file
-[log]
-level = "error"
-# for absolute path by starting with a /
-file = "agent.log"
-[http]
-address = "0.0.0.0:7777"
-`
 )
 
 // InitAgentLogger intializes the global `Logger` with agent's settings
 func InitAgentLogger() {
 	var fs string
-	f := Conf.Get("log.file")
+	f := Conf.T.Get("log.file")
 	if f == nil {
 		fs = ConfPath("agent.log")
 	} else {
-		fs = Conf.Get("log.file").(string)
+		fs = Conf.T.Get("log.file").(string)
 		if fs[0] != '/' {
 			fs = ConfPath(fs)
 		}
@@ -64,7 +54,7 @@ func InitAgentLogger() {
 	})
 	// set the level
 	level := zapcore.InfoLevel
-	l := Conf.Get("log.level").(string)
+	l := Conf.T.Get("log.level").(string)
 	if l == "error" {
 		level = zapcore.ErrorLevel
 	} else if l == "warn" {
@@ -94,7 +84,7 @@ func InitDevLogger() {
 	zapConf := []byte(`{
 		  "level": "debug",
 		  "encoding": "console",
-		  "outputPaths": ["stdout", "/tmp/logs"],
+		  "outputPaths": ["stdout"],
 		  "errorOutputPaths": ["stderr"],
 		  "encoderConfig": {
 		    "messageKey": "message",
@@ -167,7 +157,7 @@ func load_conf(c *cli.Context) error {
 			return fmt.Errorf("Failed to create config file: %q", err)
 		}
 		confFile.WriteString(defaultConf)
-		Conf, err = toml.Load(defaultConf)
+		err = LoadConf(defaultConf)
 		if err != nil {
 			return fmt.Errorf("Failed to parse default conf: %s", err)
 		}
@@ -184,7 +174,7 @@ func load_conf(c *cli.Context) error {
 				err)
 		}
 
-		Conf, err = toml.Load(string(b))
+		err = LoadConf(string(b))
 		if err != nil {
 			return fmt.Errorf("Failed to parse conf file %q: %s", conf_path,
 				err)
@@ -261,7 +251,7 @@ func start(c *cli.Context) error {
 		address = c.String("address")
 	} else {
 		// no address is set, let's see if the conf file has it
-		a := Conf.Get("http.address")
+		a := Conf.T.Get("http.address")
 		if a != nil {
 			address = a.(string)
 		} else {
