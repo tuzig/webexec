@@ -13,7 +13,6 @@ import (
 
 func TestUnauthincatedBlocked(t *testing.T) {
 	initTest(t)
-	TokensFilePath = "./test_tokens"
 	failed := make(chan bool)
 	peer, err := NewPeer()
 	require.Nil(t, err, "NewPeer failed with: %s", err)
@@ -44,7 +43,6 @@ func TestUnauthincatedBlocked(t *testing.T) {
 
 func TestAuthorization(t *testing.T) {
 	initTest(t)
-	TokensFilePath = "./test_tokens"
 	gotAuthAck := make(chan bool)
 	gotTokenAck := make(chan bool)
 	peer, err := NewPeer()
@@ -102,7 +100,6 @@ func TestAuthorization(t *testing.T) {
 
 func TestBadToken(t *testing.T) {
 	initTest(t)
-	TokensFilePath = "./test_tokens"
 	gotNAck := make(chan bool)
 	peer, err := NewPeer()
 	require.Nil(t, err, "NewPeer failed with: %s", err)
