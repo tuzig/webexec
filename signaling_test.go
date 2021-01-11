@@ -57,7 +57,7 @@ func TestConnect(t *testing.T) {
 		serverOffer := make([]byte, 4096)
 		l, err = r.Body.Read(serverOffer)
 		require.Equal(t, err, io.EOF, "Failed reading resonse body: %v", err)
-		require.Less(t, 1000, l,
+		require.Less(t, 600, l,
 			"Got a bad length response: %d", l)
 		err = DecodeOffer(&sd, serverOffer[:l])
 		require.Nil(t, err, "Failed decoding an offer: %v", clientOffer)
