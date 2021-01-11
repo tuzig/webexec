@@ -125,7 +125,7 @@ func TestIsAuthorized(t *testing.T) {
 	initTest(t)
 	file, err := ioutil.TempFile("", "authorized_tokens")
 	TokensFilePath = file.Name()
-	require.Nil(t, err, "Failed to create a temp tokens file: %s", err)
+	require.Nil(t, err, "Failed to create a temp tokens file: %s", err)
 	file.WriteString("GOODTOKEN\nANOTHERGOODTOKEN\n")
 	file.Close()
 	require.True(t, IsAuthorized("GOODTOKEN"))

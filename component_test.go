@@ -15,8 +15,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const timeout = 3 * time.Second
-
 func TestSimpleEcho(t *testing.T) {
 	initTest(t)
 	closed := make(chan bool)
@@ -58,7 +56,8 @@ func TestSimpleEcho(t *testing.T) {
 					"Got bad msg: %q", msg.Data)
 			}
 			// message ghosts are not counted
-			if len(msg.Data) > 0 {
+			empty := len(msg.Data) == 1 && msg.Data[0] == 0
+			if len(msg.Data) > 0 && !empty {
 				count++
 			}
 		})
@@ -75,7 +74,8 @@ func TestSimpleEcho(t *testing.T) {
 
 	waitForChild(lp.C.Process.Pid, time.Second)
 	require.False(t, lp.IsRunning)
-	require.Equal(t, count, 2, "Expected to recieve 2 messages and got %d", count)
+	//require.GreaterOrEqual(t, 2, count, "Expected to recieve 2 messages and got %d", count)
+	require.Equal(t, 2, count, "Expected to recieve 2 messages and got %d", count)
 }
 
 func TestResizeCommand(t *testing.T) {

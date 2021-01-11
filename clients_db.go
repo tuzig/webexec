@@ -72,16 +72,16 @@ func (db *ClientsDB) All4Pane(pane *Pane) []*Client {
 	return r
 }
 
-func (db *ClientsDB) Delete(i *Client) error {
+func (db *ClientsDB) Delete(c *Client) error {
 	db.m.Lock()
 	defer db.m.Unlock()
 
-	for i, v := range db.clients {
-		if v.dc.ID() == v.dc.ID() && v.pane.ID == v.pane.ID {
-			Logger.Infof("Deleting data channel %d", i)
-			delete(db.clients, i)
+	for k, v := range db.clients {
+		if v.dc.ID() == c.dc.ID() && v.pane.ID == c.pane.ID {
+			Logger.Infof("Deleting data channel %d", k)
+			delete(db.clients, k)
 			return nil
 		}
 	}
-	return fmt.Errorf("Failed to delete as data channel not found: %v", i)
+	return fmt.Errorf("Failed to delete as data channel not found: %v", c)
 }

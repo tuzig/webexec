@@ -6,6 +6,7 @@ import (
 	"github.com/creack/pty"
 	"github.com/hinshun/vt10x"
 	"github.com/pion/webrtc/v3"
+	"io"
 	"os"
 	"os/exec"
 	"strconv"
@@ -77,7 +78,10 @@ func (pane *Pane) ReadLoop() {
 	b := make([]byte, 4096)
 	id := pane.ID
 	for {
-		l, err := pane.Tty.Read(b)
+		l, rerr := pane.Tty.Read(b)
+		if rerr != nil && rerr != io.EOF {
+			Logger.Errorf("Got an error reqading from pty#%d: %s", id, rerr)
+		}
 		if l == 0 {
 			break
 		}
@@ -88,7 +92,7 @@ func (pane *Pane) ReadLoop() {
 		for _, d := range cs {
 			s := d.dc.ReadyState()
 			if s == webrtc.DataChannelStateOpen {
-				err = d.dc.Send(b[:l])
+				err := d.dc.Send(b[:l])
 				if err != nil {
 					Logger.Errorf("got an error when sending message: %v", err)
 				}
@@ -102,6 +106,9 @@ func (pane *Pane) ReadLoop() {
 			pane.vt.Write(b[:l])
 		}
 		pane.Buffer.Add(b[:l])
+		if rerr == io.EOF {
+			break
+		}
 	}
 
 	Logger.Infof("Killing pane %d", id)

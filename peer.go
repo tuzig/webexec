@@ -86,6 +86,14 @@ func NewPeer() (*Peer, error) {
 	}
 	Peers = append(Peers, peer)
 	m.Unlock()
+	// Status changes happend when the peer has connected/disconnected
+	pc.OnConnectionStateChange(func(state webrtc.PeerConnectionState) {
+		Logger.Infof("WebRTC Connection State change: %s", state.String())
+		if state == webrtc.PeerConnectionStateFailed {
+			peer.PC.Close()
+			peer.PC = nil
+		}
+	})
 	pc.OnDataChannel(peer.OnChannelReq)
 	return &peer, nil
 }
@@ -114,15 +122,6 @@ func (peer *Peer) Listen(offer webrtc.SessionDescription) (*webrtc.SessionDescri
 		return nil, fmt.Errorf("timed out waiting to finish gathering ICE candidates")
 	case <-gatherComplete:
 	}
-	// Status changes happend when the peer has connected/disconnected
-	peer.PC.OnConnectionStateChange(func(connectionState webrtc.PeerConnectionState) {
-		s := connectionState.String()
-		Logger.Infof("WebRTC Connection State change: %s", s)
-		if s == "failed" {
-			peer.PC.Close()
-			peer.PC = nil
-		}
-	})
 	return peer.PC.LocalDescription(), nil
 }
 
