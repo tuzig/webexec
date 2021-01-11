@@ -2,6 +2,8 @@ on: [push, pull_request]
 name: Test
 jobs:
   test:
+    env:
+      CGO_ENABLED: 0
     strategy:
       matrix:
         go-version: [1.14.x, 1.15.x]

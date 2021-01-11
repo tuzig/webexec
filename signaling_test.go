@@ -13,14 +13,15 @@ import (
 	"go.uber.org/zap/zaptest"
 )
 
-const TestingHost = "127.0.0.1:7888"
-
 func TestConnect(t *testing.T) {
 	Logger = zaptest.NewLogger(t).Sugar()
 	done := make(chan bool)
+	port, err := GetFreePort()
+	host := fmt.Sprintf("127.0.0.1:%d", port)
 	// Start the https server
 	go func() {
-		err := HTTPGo(TestingHost)
+		require.Nil(t, err, "Fauiled to find a free tcp port", err)
+		err := HTTPGo(host)
 		require.Nil(t, err, "HTTP Listen and Server returns an error: %q", err)
 	}()
 	// start the webrtc client
@@ -47,7 +48,7 @@ func TestConnect(t *testing.T) {
 		l, err := EncodeOffer(buf, *client.LocalDescription())
 		require.Nil(t, err, "Failed ending an offer: %v", clientOffer)
 		cob := bytes.NewReader(buf[:l])
-		url := fmt.Sprintf("http://%s/connect", TestingHost)
+		url := fmt.Sprintf("http://%s/connect", host)
 		r, err := http.Post(url, "application/json", cob)
 		require.Nil(t, err, "Failed sending a post request: %q", err)
 		defer r.Body.Close()

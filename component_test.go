@@ -57,7 +57,10 @@ func TestSimpleEcho(t *testing.T) {
 				require.EqualValues(t, string(msg.Data)[:11], "hello world",
 					"Got bad msg: %q", msg.Data)
 			}
-			count++
+			// message ghosts are not counted
+			if len(msg.Data) > 0 {
+				count++
+			}
 		})
 		dc.OnClose(func() {
 			fmt.Println("Client Data channel closed")
@@ -453,7 +456,7 @@ func TestMarkerRestore(t *testing.T) {
 		})
 		dc.OnMessage(func(msg webrtc.DataChannelMessage) {
 			// ignore null messages
-			if msg.Data[0] != 0 || len(msg.Data) > 1 {
+			if len(msg.Data) > 0 {
 				if count == 0 {
 					require.Equal(t, cID, string(msg.Data))
 				}

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"net"
 	"testing"
 	"time"
 
@@ -144,4 +145,20 @@ func initTest(t *testing.T) {
 	TokensFilePath = "./test_tokens"
 	err := LoadConf(defaultConf)
 	require.Nil(t, err, "NewPeer failed with: %s", err)
+}
+
+// GetFreePort asks the kernel for a free open port that is ready to use.
+// copied from https://github.com/phayes/freeport
+func GetFreePort() (int, error) {
+	addr, err := net.ResolveTCPAddr("tcp", "localhost:0")
+	if err != nil {
+		return 0, err
+	}
+
+	l, err := net.ListenTCP("tcp", addr)
+	if err != nil {
+		return 0, err
+	}
+	defer l.Close()
+	return l.Addr().(*net.TCPAddr).Port, nil
 }
