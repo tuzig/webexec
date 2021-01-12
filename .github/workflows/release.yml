@@ -4,13 +4,18 @@ on:
     tags: ['v*']
 
 jobs:
-  goreleaser:
+  release:
     runs-on: ubuntu-latest
     steps:
       - name: Get version from tag
         id: tag_name
         run: |
-          echo ::set-output name=current_version::${GITHUB_REF#refs/tags/v}
+          if [[ ${GITHUB_REF#refs/tags/v} == refs* ]]; then
+            echo ::set-output name=current_version::"Unreleased"
+          else
+            echo ::set-output name=current_version::${GITHUB_REF#refs/tags/v}
+          fi
+          echo ::set-output name=current_version::"0.6.0"
         shell: bash
       - name: Checkout
         uses: actions/checkout@v2
@@ -29,6 +34,7 @@ jobs:
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v2
         with:
-          args: release --rm-dist --release-notes <(echo ${{ steps.changelog_reader.outputs.changes }})
+          args:
+            release --rm-dist --release-notes "${{ steps.changelog_reader.outputs.changes }}"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
