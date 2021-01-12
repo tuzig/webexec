@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-const DefaultHTTPServer = "0.0.0.0:7777"
+const defaultHTTPServer = "0.0.0.0:7777"
 const defaultConf = `# webexec's toml configuration file
 [log]
 level = "error"
@@ -22,6 +22,7 @@ keep_alive = 1000
 ice_gathering = 5000
 `
 
+// Conf hold the configuration variables
 var Conf struct {
 	T                 *toml.Tree
 	disconnectTimeout time.Duration
@@ -32,6 +33,8 @@ var Conf struct {
 	httpServer        string
 }
 
+// LoadConf loads a configuration from a toml string and fills all Conf value.
+//			If a key is missing LoadConf will load the default value
 func LoadConf(s string) error {
 	t, err := toml.Load(s)
 	if err != nil {
@@ -76,7 +79,7 @@ func LoadConf(s string) error {
 		Conf.httpServer = v.(string)
 	} else {
 		// when no address is given, this is the default address
-		Conf.httpServer = DefaultHTTPServer
+		Conf.httpServer = defaultHTTPServer
 	}
 	return nil
 }

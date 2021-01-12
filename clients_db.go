@@ -15,19 +15,19 @@ type Client struct {
 	id   int
 }
 
-// ClientDB represents a data channels data base
+// ClientsDB represents a data channels data base
 type ClientsDB struct {
 	clients map[int]*Client
 	m       sync.RWMutex
 	lastID  int
 }
 
-// NewClientDB return new data channels data base
+// NewClientsDB return new data channels data base
 func NewClientsDB() *ClientsDB {
 	return &ClientsDB{clients: make(map[int]*Client)}
 }
 
-// Adb adds a Client to the db
+// Add adds a Client to the db
 func (db *ClientsDB) Add(dc *webrtc.DataChannel, pane *Pane, peer *Peer) *Client {
 	db.m.Lock()
 	defer db.m.Unlock()
@@ -72,6 +72,7 @@ func (db *ClientsDB) All4Pane(pane *Pane) []*Client {
 	return r
 }
 
+// Delete removes a client from the database
 func (db *ClientsDB) Delete(c *Client) error {
 	db.m.Lock()
 	defer db.m.Unlock()

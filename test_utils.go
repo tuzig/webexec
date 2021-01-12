@@ -92,7 +92,7 @@ func getMarker(cdc *webrtc.DataChannel) int {
 	return ref
 }
 
-// signalPair is used to start a connection between two peers
+// SignalPair is used to start a connection between two peers
 func SignalPair(pcOffer *webrtc.PeerConnection, peer *Peer) error {
 	// Note(albrow): We need to create a data channel in order to trigger ICE
 	// candidate gathering in the background for the JavaScript/Wasm bindings. If
