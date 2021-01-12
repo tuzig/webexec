@@ -143,14 +143,14 @@ func versionCMD(c *cli.Context) error {
 func load_conf(c *cli.Context) error {
 	usr, _ := user.Current()
 	home := filepath.Join(usr.HomeDir, ".webexec")
-	conf_path := filepath.Join(home, "webexec.conf")
 	_, err := os.Stat(home)
 	if os.IsNotExist(err) {
 		os.Mkdir(home, 0755)
-		fmt.Printf(
-			"First run, created %q and \"config.json\" and \"authorized_tokens\"\n",
-			home)
-
+		fmt.Printf("First run, created %q directory\n", home)
+	}
+	conf_path := filepath.Join(home, "webexec.conf")
+	_, err = os.Stat(conf_path)
+	if os.IsNotExist(err) {
 		confFile, err := os.Create(conf_path)
 		defer confFile.Close()
 		if err != nil {
@@ -161,24 +161,29 @@ func load_conf(c *cli.Context) error {
 		if err != nil {
 			return fmt.Errorf("Failed to parse default conf: %s", err)
 		}
-		tokensFile, err := os.Create(TokensFilePath)
-		defer tokensFile.Close()
-		if err != nil {
-			return fmt.Errorf("Failed to create the tokens file at %q: %w",
-				TokensFilePath, err)
-		}
+		fmt.Printf("Created %q default config file\n", conf_path)
 	} else {
 		b, err := ioutil.ReadFile(conf_path)
 		if err != nil {
 			return fmt.Errorf("Failed to read conf file %q: %s", conf_path,
 				err)
 		}
-
 		err = LoadConf(string(b))
 		if err != nil {
 			return fmt.Errorf("Failed to parse conf file %q: %s", conf_path,
 				err)
 		}
+		fmt.Printf("Read configuration from %q\n", conf_path)
+	}
+	_, err = os.Stat(TokensFilePath)
+	if os.IsNotExist(err) {
+		tokensFile, err := os.Create(TokensFilePath)
+		defer tokensFile.Close()
+		if err != nil {
+			return fmt.Errorf("Failed to create the tokens file at %q: %w",
+				TokensFilePath, err)
+		}
+		fmt.Printf("Created %q tokens file\n", conf_path)
 	}
 	return nil
 }
@@ -250,14 +255,7 @@ func start(c *cli.Context) error {
 	if c.IsSet("address") {
 		address = c.String("address")
 	} else {
-		// no address is set, let's see if the conf file has it
-		a := Conf.T.Get("http.address")
-		if a != nil {
-			address = a.(string)
-		} else {
-			// when no address is given, this is the default address
-			address = c.String("address")
-		}
+		address = Conf.httpServer
 	}
 	debug := c.Bool("debug")
 	if debug {

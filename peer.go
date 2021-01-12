@@ -58,17 +58,9 @@ func NewPeer() (*Peer, error) {
 		WebRTCAPI = webrtc.NewAPI(webrtc.WithSettingEngine(s))
 	}
 	m.Unlock()
-	config := webrtc.Configuration{}
-	/* TODO: restore support for serving beyond a NAT
 	config := webrtc.Configuration{
-		ICEServers: []webrtc.ICEServer{
-			{
-				//TODO: move to conf
-				URLs: []string{"stun:stun.l.google.com:19302"},
-			},
-		},
+		ICEServers: []webrtc.ICEServer{{URLs: Conf.stunURLs}},
 	}
-	*/
 	pc, err := WebRTCAPI.NewPeerConnection(config)
 	if err != nil {
 		return nil, fmt.Errorf("NewPeerConnection failed")

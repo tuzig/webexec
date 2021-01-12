@@ -51,7 +51,7 @@ func handleConnect(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, msg, http.StatusBadRequest)
 		return
 	}
-	Logger.Infof("New Peer from: %s", remote)
+	Logger.Info("Got New Peer")
 	peer, err := NewPeer()
 	if err != nil {
 		msg := fmt.Sprintf("Failed to create a new peer: %s", err)
