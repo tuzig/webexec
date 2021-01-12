@@ -12,10 +12,9 @@ import (
 	"unicode"
 
 	"github.com/creack/pty"
-	"github.com/pion/webrtc/v2"
+	"github.com/pion/webrtc/v3"
 )
 
-const connectionTimeout = 10 * time.Second
 const keepAliveInterval = 2 * time.Second
 
 var (
@@ -41,7 +40,6 @@ type Peer struct {
 	LastContact       *time.Time
 	LastRef           int
 	PC                *webrtc.PeerConnection
-	Answer            string
 	cdc               *webrtc.DataChannel
 	PendingChannelReq chan *webrtc.DataChannel
 	// Marker is used to restore the buffer, set with auth message
@@ -49,23 +47,19 @@ type Peer struct {
 }
 
 // NewPeer funcions starts listening to incoming peer connection from a remote
-func NewPeer(remote string) (*Peer, error) {
+func NewPeer() (*Peer, error) {
 	var m sync.Mutex
 
-	Logger.Infof("New Peer from: %s", remote)
 	m.Lock()
 	if WebRTCAPI == nil {
 		s := webrtc.SettingEngine{}
-		s.SetConnectionTimeout(connectionTimeout, keepAliveInterval)
+		s.SetICETimeouts(
+			Conf.disconnectTimeout, Conf.failedTimeout, Conf.keepAliveInterval)
 		WebRTCAPI = webrtc.NewAPI(webrtc.WithSettingEngine(s))
 	}
 	m.Unlock()
 	config := webrtc.Configuration{
-		ICEServers: []webrtc.ICEServer{
-			{
-				URLs: []string{"stun:stun.l.google.com:19302"},
-			},
-		},
+		ICEServers: []webrtc.ICEServer{{URLs: Conf.stunURLs}},
 	}
 	pc, err := WebRTCAPI.NewPeerConnection(config)
 	if err != nil {
@@ -79,57 +73,48 @@ func NewPeer(remote string) (*Peer, error) {
 		LastContact:       nil,
 		LastRef:           0,
 		PC:                pc,
-		Answer:            "",
-		cdc:               nil,
 		PendingChannelReq: make(chan *webrtc.DataChannel, 5),
 		Marker:            -1,
 	}
 	Peers = append(Peers, peer)
 	m.Unlock()
 	// Status changes happend when the peer has connected/disconnected
-	pc.OnConnectionStateChange(func(connectionState webrtc.PeerConnectionState) {
-		s := connectionState.String()
-		Logger.Infof("WebRTC Connection State change: %s", s)
-		if s == "failed" {
+	pc.OnConnectionStateChange(func(state webrtc.PeerConnectionState) {
+		Logger.Infof("WebRTC Connection State change: %s", state.String())
+		if state == webrtc.PeerConnectionStateFailed {
 			peer.PC.Close()
 			peer.PC = nil
 		}
 	})
-	// testing uses special signaling, so there's no remote information
-	if len(remote) > 0 {
-		err := peer.Listen(remote)
-		if err != nil {
-			return nil, fmt.Errorf("#%d: Failed to listen: %s", peer.ID, err)
-		}
-	}
 	pc.OnDataChannel(peer.OnChannelReq)
 	return &peer, nil
 }
 
 // Listen get's a client offer, starts listens to it and returns an answear
-func (peer *Peer) Listen(remote string) error {
-	offer := webrtc.SessionDescription{}
-	err := DecodeOffer(remote, &offer)
+func (peer *Peer) Listen(offer webrtc.SessionDescription) (*webrtc.SessionDescription, error) {
+	Logger.Infof("Listening to: %v", offer)
+	err := peer.PC.SetRemoteDescription(offer)
 	if err != nil {
-		return fmt.Errorf("Failed to decode offer: %s", err)
-	}
-	Logger.Infof("Listening to: %q\n%v", remote, offer)
-	err = peer.PC.SetRemoteDescription(offer)
-	if err != nil {
-		return fmt.Errorf("Failed to set remote description: %s", err)
+		return nil, fmt.Errorf("Failed to set remote description: %s", err)
 	}
 	answer, err := peer.PC.CreateAnswer(nil)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	// Sets the LocalDescription, and starts listning for UDP packets
+	// Create channel that is blocked until ICE Gathering is complete
+	// TODO: remove this and erplace with ICE trickle
+	gatherComplete := webrtc.GatheringCompletePromise(peer.PC)
 	err = peer.PC.SetLocalDescription(answer)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	peer.Answer = EncodeOffer(answer)
-	Logger.Infof("Got an answer %q into %q", answer, peer.Answer)
-	return nil
+	select {
+	case <-time.After(Conf.gatheringTimeout):
+		return nil, fmt.Errorf("timed out waiting to finish gathering ICE candidates")
+	case <-gatherComplete:
+	}
+	return peer.PC.LocalDescription(), nil
 }
 
 // OnChannelReq starts a system command over a pty.

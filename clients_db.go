@@ -3,7 +3,7 @@ package main
 
 import (
 	"fmt"
-	"github.com/pion/webrtc/v2"
+	"github.com/pion/webrtc/v3"
 	"sync"
 )
 
@@ -15,19 +15,19 @@ type Client struct {
 	id   int
 }
 
-// ClientDB represents a data channels data base
+// ClientsDB represents a data channels data base
 type ClientsDB struct {
 	clients map[int]*Client
 	m       sync.RWMutex
 	lastID  int
 }
 
-// NewClientDB return new data channels data base
+// NewClientsDB return new data channels data base
 func NewClientsDB() *ClientsDB {
 	return &ClientsDB{clients: make(map[int]*Client)}
 }
 
-// Adb adds a Client to the db
+// Add adds a Client to the db
 func (db *ClientsDB) Add(dc *webrtc.DataChannel, pane *Pane, peer *Peer) *Client {
 	db.m.Lock()
 	defer db.m.Unlock()
@@ -72,16 +72,17 @@ func (db *ClientsDB) All4Pane(pane *Pane) []*Client {
 	return r
 }
 
-func (db *ClientsDB) Delete(i *Client) error {
+// Delete removes a client from the database
+func (db *ClientsDB) Delete(c *Client) error {
 	db.m.Lock()
 	defer db.m.Unlock()
 
-	for i, v := range db.clients {
-		if v.dc.ID() == v.dc.ID() && v.pane.ID == v.pane.ID {
-			Logger.Infof("Deleting data channel %d", i)
-			delete(db.clients, i)
+	for k, v := range db.clients {
+		if v.dc.ID() == c.dc.ID() && v.pane.ID == c.pane.ID {
+			Logger.Infof("Deleting data channel %d", k)
+			delete(db.clients, k)
 			return nil
 		}
 	}
-	return fmt.Errorf("Failed to delete as data channel not found: %v", i)
+	return fmt.Errorf("Failed to delete as data channel not found: %v", c)
 }

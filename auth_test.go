@@ -7,16 +7,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/pion/webrtc/v2"
+	"github.com/pion/webrtc/v3"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap/zaptest"
 )
 
 func TestUnauthincatedBlocked(t *testing.T) {
-	Logger = zaptest.NewLogger(t).Sugar()
-	TokensFilePath = "./test_tokens"
+	initTest(t)
 	failed := make(chan bool)
-	peer, err := NewPeer("")
+	peer, err := NewPeer()
 	require.Nil(t, err, "NewPeer failed with: %s", err)
 	client, err := webrtc.NewPeerConnection(webrtc.Configuration{})
 	require.Nil(t, err, "Failed to start a new peer connection: %q", err)
@@ -33,8 +31,8 @@ func TestUnauthincatedBlocked(t *testing.T) {
 			})
 		})
 	})
-	SignalPair(client, peer.PC)
-
+	err = SignalPair(client, peer)
+	require.Nil(t, err, "failed to signal pair: %q", err)
 	select {
 	case <-time.After(3 * time.Second):
 	case <-failed:
@@ -44,11 +42,10 @@ func TestUnauthincatedBlocked(t *testing.T) {
 }
 
 func TestAuthorization(t *testing.T) {
-	Logger = zaptest.NewLogger(t).Sugar()
-	TokensFilePath = "./test_tokens"
+	initTest(t)
 	gotAuthAck := make(chan bool)
 	gotTokenAck := make(chan bool)
-	peer, err := NewPeer("")
+	peer, err := NewPeer()
 	require.Nil(t, err, "NewPeer failed with: %s", err)
 	client, err := webrtc.NewPeerConnection(webrtc.Configuration{})
 	require.Nil(t, err, "Failed to start a new peer connection %q", err)
@@ -65,8 +62,13 @@ func TestAuthorization(t *testing.T) {
 		})
 
 	})
-	SignalPair(client, peer.PC)
-	<-gotAuthAck
+	err = SignalPair(client, peer)
+	require.Nil(t, err, "failed to signal pair: %q", err)
+	select {
+	case <-time.After(3 * time.Second):
+		t.Error("Timeout waiting for auth ack")
+	case <-gotAuthAck:
+	}
 	log.Printf("Got Auth Ack")
 	// got auth ack now close the channel and start over, this time using
 	// the token
@@ -74,7 +76,7 @@ func TestAuthorization(t *testing.T) {
 	client.Close()
 	Shutdown()
 	require.Nil(t, err, "Failed to start a new WebRTC server %v", err)
-	peer2, err := NewPeer("")
+	peer2, err := NewPeer()
 	require.Nil(t, err, "NewPeer failed with: %s", err)
 	client, err = webrtc.NewPeerConnection(webrtc.Configuration{})
 	require.Nil(t, err, "Failed to start a new peer connection %v", err)
@@ -92,15 +94,14 @@ func TestAuthorization(t *testing.T) {
 			gotTokenAck <- true
 		})
 	})
-	SignalPair(client, peer2.PC)
+	SignalPair(client, peer2)
 	<-gotTokenAck
 }
 
 func TestBadToken(t *testing.T) {
-	Logger = zaptest.NewLogger(t).Sugar()
-	TokensFilePath = "./test_tokens"
+	initTest(t)
 	gotNAck := make(chan bool)
-	peer, err := NewPeer("")
+	peer, err := NewPeer()
 	require.Nil(t, err, "NewPeer failed with: %s", err)
 	client, err := webrtc.NewPeerConnection(webrtc.Configuration{})
 	require.Nil(t, err, "Failed to start a new peer connection %q", err)
@@ -116,14 +117,15 @@ func TestBadToken(t *testing.T) {
 			gotNAck <- true
 		})
 	})
-	SignalPair(client, peer.PC)
+	SignalPair(client, peer)
 	<-gotNAck
 }
 func TestIsAuthorized(t *testing.T) {
 	// create the token file and test good & bad tokens
+	initTest(t)
 	file, err := ioutil.TempFile("", "authorized_tokens")
 	TokensFilePath = file.Name()
-	require.Nil(t, err, "Failed to create a temp tokens file: %s", err)
+	require.Nil(t, err, "Failed to create a temp tokens file: %s", err)
 	file.WriteString("GOODTOKEN\nANOTHERGOODTOKEN\n")
 	file.Close()
 	require.True(t, IsAuthorized("GOODTOKEN"))
