@@ -15,7 +15,6 @@ jobs:
           else
             echo ::set-output name=current_version::${GITHUB_REF#refs/tags/v}
           fi
-          echo ::set-output name=current_version::"0.6.0"
         shell: bash
       - name: Checkout
         uses: actions/checkout@v2
