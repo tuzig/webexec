@@ -1,16 +1,24 @@
-# ChangeLog
+# Change Log
 
 All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.6.0]
+
+### Added
+
+- extended the conf file to include timeouts, stun server, etc.
 
 ### Changed
 
 - upgraded pion/webrtc to v3
--
+
+### Fixed 
+
+- improved stability by introducting the client database 
+
 ## [0.5.5] - 2020-1-6
 
 ### Fixed
