@@ -33,8 +33,9 @@ jobs:
       - name: Save ChangeLog to file
         id: save_changes
         run: |
-          echo ::set-output name=changesfile::$(mktemp)
-          echo "${{ steps.changelog_reader.outputs.changes }}" > ${{ steps.save_changes.outputs.changesfile }}
+          export CF=$(mktemp)
+          echo ::set-output name=changesfile::$CF
+          echo "${{ steps.changelog_reader.outputs.changes }}" > $CF
         shell: bash
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v2
