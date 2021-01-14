@@ -143,7 +143,9 @@ func (peer *Peer) OnChannelReq(d *webrtc.DataChannel) {
 	d.OnOpen(func() {
 		pane, err := peer.GetOrCreatePane(d)
 		if err != nil {
-			d.Send([]byte(fmt.Sprintf("%s", err)))
+			msg := fmt.Sprintf("Failed to get or create pane for dc %v", d)
+			d.Send([]byte(msg))
+			Logger.Errorf(msg)
 		}
 		if pane != nil {
 			c := cdb.Add(d, pane, peer)
@@ -151,8 +153,6 @@ func (peer *Peer) OnChannelReq(d *webrtc.DataChannel) {
 			d.OnClose(func() {
 				cdb.Delete(c)
 			})
-		} else {
-			Logger.Errorf("Failed to get or create pane for dc %v", d)
 		}
 	})
 }
