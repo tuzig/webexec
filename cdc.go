@@ -23,6 +23,7 @@ type NAckArgs struct {
 type AuthArgs struct {
 	Token  string `json:"token"`
 	Marker int    `json:"marker"`
+	ApiVer int    `json:"api_version"`
 }
 
 // AckArgs is a type to hold the args for an Ack message

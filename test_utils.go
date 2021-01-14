@@ -59,7 +59,7 @@ func SendAuth(cdc *webrtc.DataChannel, token string, marker int) {
 		Time: time.Now().UnixNano(),
 		Type: "auth",
 		Ref:  TestAckRef,
-		Args: AuthArgs{token, marker},
+		Args: AuthArgs{token, marker, 2},
 	}
 	authMsg, err := json.Marshal(msg)
 	if err != nil {
