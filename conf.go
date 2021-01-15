@@ -14,7 +14,7 @@ level = "error"
 file = "agent.log"
 [net]
 http_server = "0.0.0.0:7777"
-# stun_urls = [ "stun:stun.l.google.com:19302" ]
+ice_servers = [ "stun:stun.l.google.com:19302" ]
 [timeouts]
 disconnect = 3000
 failed = 6000
@@ -29,7 +29,7 @@ var Conf struct {
 	failedTimeout     time.Duration
 	keepAliveInterval time.Duration
 	gatheringTimeout  time.Duration
-	stunURLs          []string
+	iceServers        []string
 	httpServer        string
 }
 
@@ -65,12 +65,12 @@ func LoadConf(s string) error {
 	} else {
 		Conf.gatheringTimeout = 3 * time.Second
 	}
-	v = t.Get("net.stun_urls")
+	v = t.Get("net.ice_servers")
 	if v != nil {
 		urls := v.([]interface{})
-		Conf.stunURLs = []string{}
+		Conf.iceServers = []string{}
 		for _, u := range urls {
-			Conf.stunURLs = append(Conf.stunURLs, u.(string))
+			Conf.iceServers = append(Conf.iceServers, u.(string))
 		}
 	}
 	// no address is set, let's see if the conf file has it

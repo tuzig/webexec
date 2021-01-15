@@ -59,7 +59,7 @@ func NewPeer() (*Peer, error) {
 	}
 	m.Unlock()
 	config := webrtc.Configuration{
-		ICEServers: []webrtc.ICEServer{{URLs: Conf.stunURLs}},
+		ICEServers: []webrtc.ICEServer{{URLs: Conf.iceServers}},
 	}
 	pc, err := WebRTCAPI.NewPeerConnection(config)
 	if err != nil {
