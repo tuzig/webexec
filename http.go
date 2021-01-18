@@ -51,6 +51,7 @@ func handleConnect(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, msg, http.StatusBadRequest)
 		return
 	}
+
 	Logger.Info("Got New Peer")
 	peer, err := NewPeer()
 	if err != nil {

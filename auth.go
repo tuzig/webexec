@@ -3,7 +3,9 @@ package main
 import (
 	"bufio"
 	"fmt"
+	"github.com/pion/webrtc/v3"
 	"os"
+	"regexp"
 )
 
 // TokensFilePath holds the path to a file where each authorized token has a line
@@ -41,4 +43,12 @@ func IsAuthorized(token string) bool {
 		}
 	}
 	return false
+}
+
+// Authenticate gets a client's offer and ensure its fingerprint is on file
+func Authenticate(offer *webrtc.SessionDescription) bool {
+	r, _ := regexp.Compile("(?:a=fingerprint:)[a-z0-9]+ ([0-9][A-Z]{2}(?::))+")
+	fp := r.FindString(offer.SDP)
+	Logger.Infof("fingerprint=%s", fp)
+	return IsAuthorized(fp[14:])
 }

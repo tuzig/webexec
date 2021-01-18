@@ -81,7 +81,17 @@ func NewPeer() (*Peer, error) {
 	// Status changes happend when the peer has connected/disconnected
 	pc.OnConnectionStateChange(func(state webrtc.PeerConnectionState) {
 		Logger.Infof("WebRTC Connection State change: %s", state.String())
-		if state == webrtc.PeerConnectionStateFailed {
+		if state == webrtc.PeerConnectionStateConnected {
+			rsdp := pc.CurrentRemoteDescription()
+			if !Authenticate(rsdp) {
+				msg := "Unknown client key"
+				Logger.Error(msg)
+				peer.PC.Close()
+				peer.PC = nil
+			} else {
+				Logger.Info("Authenticated!")
+			}
+		} else if state == webrtc.PeerConnectionStateFailed {
 			peer.PC.Close()
 			peer.PC = nil
 		}
