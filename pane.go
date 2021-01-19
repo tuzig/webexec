@@ -9,7 +9,6 @@ import (
 	"io"
 	"os"
 	"os/exec"
-	"strconv"
 )
 
 // Panes is an array that hol;ds all the panes
@@ -64,13 +63,15 @@ func NewPane(command []string, d *webrtc.DataChannel, peer *Peer,
 	return pane, nil
 }
 
-// SendID sends the pane id as a message on the channel
-// In APIv1 the client expects this message as the first in the channel
-func (pane *Pane) SendID(dc *webrtc.DataChannel) {
-	s := strconv.Itoa(pane.ID)
-	bs := []byte(s)
-	// TODO: send the channel in a control message
-	dc.Send(bs)
+// sendFirstMessage sends the pane id and dimensions
+func (pane *Pane) sendFirstMessage(dc *webrtc.DataChannel) {
+	var r string
+	if pane.Ws != nil {
+		r = fmt.Sprintf("%d,%dx%d", pane.ID, pane.Ws.Rows, pane.Ws.Cols)
+	} else {
+		r = fmt.Sprintf("%d", pane.ID)
+	}
+	dc.Send([]byte(r))
 }
 
 // ReadLoop reads the tty and send data it finds to the open data channels

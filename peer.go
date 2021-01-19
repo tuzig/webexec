@@ -30,11 +30,8 @@ var (
 )
 
 // Peer is a type used to remember a client.
-// a peer can be either authenticated or not. When not a peer can only accept
-// an auth msg over the control data channel - `cdc`
 type Peer struct {
 	ID                int
-	Authenticated     bool
 	Remote            string
 	Token             string
 	LastContact       *time.Time
@@ -42,12 +39,11 @@ type Peer struct {
 	PC                *webrtc.PeerConnection
 	cdc               *webrtc.DataChannel
 	PendingChannelReq chan *webrtc.DataChannel
-	// Marker is used to restore the buffer, set with auth message
-	Marker int
+	Marker            int
 }
 
 // NewPeer funcions starts listening to incoming peer connection from a remote
-func NewPeer() (*Peer, error) {
+func NewPeer(fingerprint string) (*Peer, error) {
 	var m sync.Mutex
 
 	m.Lock()
@@ -69,7 +65,6 @@ func NewPeer() (*Peer, error) {
 	peer := Peer{
 		ID:                len(Peers),
 		Token:             "",
-		Authenticated:     false,
 		LastContact:       nil,
 		LastRef:           0,
 		PC:                pc,
@@ -83,8 +78,10 @@ func NewPeer() (*Peer, error) {
 		Logger.Infof("WebRTC Connection State change: %s", state.String())
 		if state == webrtc.PeerConnectionStateConnected {
 			rsdp := pc.CurrentRemoteDescription()
-			if !Authenticate(rsdp) {
-				msg := "Unknown client key"
+			// ensure it's the same fingerprint as the one signalling got
+			fp := GetFingerprint(rsdp)
+			if fp != fingerprint {
+				msg := "Mismatching fingerprints - closing connection"
 				Logger.Error(msg)
 				peer.PC.Close()
 				peer.PC = nil
@@ -135,20 +132,8 @@ func (peer *Peer) OnChannelReq(d *webrtc.DataChannel) {
 	if d.Label() == "signaling" {
 		return
 	}
-	authenticated := peer.Authenticated
 	label := d.Label()
-	Logger.Infof("Got a channel request: peer authenticate: %v, channel label %q",
-		authenticated, label)
-
-	// let the command channel through as without it we can't authenticate
-	// TODO: check if we need to track pending pane requests
-	if label != "%" && !authenticated {
-		Logger.Infof(
-			"Bufferinga a channel request from an unauthenticated peer: %q",
-			label)
-		peer.PendingChannelReq <- d
-		return
-	}
+	Logger.Infof("Got a channel request: channel label %q", label)
 
 	d.OnOpen(func() {
 		pane, err := peer.GetOrCreatePane(d)
@@ -226,7 +211,7 @@ func (peer *Peer) GetOrCreatePane(d *webrtc.DataChannel) (*Pane, error) {
 	// TODO: get the default exec  the users shell or the command from the channel's name
 	pane, err = NewPane(fields[cmdIndex:], d, peer, ws)
 	if pane != nil {
-		pane.SendID(d)
+		pane.sendFirstMessage(d)
 		go pane.ReadLoop()
 		return pane, nil
 	}
@@ -243,7 +228,7 @@ func (peer *Peer) Reconnect(d *webrtc.DataChannel, id int) (*Pane, error) {
 		return nil, fmt.Errorf("Got a bad pane id: %d", id)
 	}
 	if pane.IsRunning {
-		pane.SendID(d)
+		pane.sendFirstMessage(d)
 		pane.Restore(d, peer.Marker)
 		return pane, nil
 	}
@@ -298,31 +283,11 @@ func (peer *Peer) OnCTRLMsg(msg webrtc.DataChannelMessage) {
 			Logger.Errorf("#%d: Failed to send a resize ack: %v", peer.ID, err)
 			return
 		}
-	case "auth":
-		var authArgs AuthArgs
-		err = json.Unmarshal(raw, &authArgs)
-		if IsAuthorized(authArgs.Token) {
-			peer.Authenticated = true
-			err = json.Unmarshal(raw, &authArgs)
-			peer.Token = authArgs.Token
-			if authArgs.Marker == 0 {
-				peer.Marker = -1
-			} else {
-				peer.Marker = authArgs.Marker
-			}
-			// handle pending channel requests
-			handlePendingChannelRequests := func() {
-				for d := range peer.PendingChannelReq {
-					Logger.Infof("Handling pennding channel Req: %q", d.Label())
-					peer.OnChannelReq(d)
-				}
-			}
-			go handlePendingChannelRequests()
-			err = peer.SendAck(m, Payload)
-		} else {
-			Logger.Infof("Authentication failed")
-			err = peer.SendNAck(m, "Unknown token")
-		}
+	case "restore":
+		var args RestoreArgs
+		err = json.Unmarshal(raw, &args)
+		peer.Marker = args.Marker
+		err = peer.SendAck(m, Payload)
 	case "get_payload":
 		err = peer.SendAck(m, Payload)
 	case "set_payload":
@@ -331,7 +296,6 @@ func (peer *Peer) OnCTRLMsg(msg webrtc.DataChannelMessage) {
 		Logger.Infof("Setting payload to: %s", payloadArgs.Payload)
 		Payload = payloadArgs.Payload
 		err = peer.SendAck(m, Payload)
-	// TODO: acdb more commands here: mouse, copy, paste, etc.
 	case "mark":
 		// acdb a marker and store it in each pane
 		markerM.Lock()
@@ -344,12 +308,11 @@ func (peer *Peer) OnCTRLMsg(msg webrtc.DataChannelMessage) {
 			cdb.Delete(dc)
 		}
 		err = peer.SendAck(m, []byte(fmt.Sprintf("%d", peer.Marker)))
-
 	default:
 		Logger.Errorf("Got a control message with unknown type: %q", m.Type)
 	}
 	if err != nil {
-		Logger.Errorf("#%d: Failed to send auth [n]ack: %v", peer.ID, err)
+		Logger.Errorf("#%d: Failed to send [n]ack: %v", peer.ID, err)
 		return
 	}
 }

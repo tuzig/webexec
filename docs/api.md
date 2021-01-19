@@ -1,127 +1,109 @@
 # webexec API
 
-The webexec server executes client commands on a remote server and pipe their
-input & output over a web real time communication (aka WebRTC) connection.
+The webexec server executes client commands on a remote server and pipes their
+input & output over a WebRTC peer connections.
+If the client provides terminal dimenstions commands are connected 
+through a pseudo tty. The client can change the dimensions through a `resize`
+command.
 
-webexec extends the WebRTC protocol to support signals over HTTP.
+Each command can be connected to mutiple clients, multi casting output to all 
+connected data channels and receiving input from them all.
+
+To better support clients synchronization, webexec saves a payload that 
+clients can get and set, This was added on request from out first frontend -
+Terminal 7 - that needed a way to store the screen layout.
+
 	
-## Flow
-
-1. Client -> Token -> Server (HTTP)
-2. Server -> Token -> Client (HTTP)
-3. Client -> Connect -> Server (WebRTC, using tokens)
-
-Once the control data channel is open, it can be used to:
-
-
-- Authenticate the user
-- Start a command, optionally over a pseudo terminal
-- Resize panes
-- Pass clipboard content
-- ...
-
-The control channel is labeled `%`. Initially the client should send an AUTH
-message with, and the server will verify that the client token is found in
-`~/.webexec/authorized_tokens`. Up successful authentication, the server will
-send an ACK message with the client latest payload in the `body` of the
-response.
-
-Once authenticated, there's no limit on the number the client data channels.
-
-## Panes
-
-A pane is a process running client command, a pane also holds the current
-active data channels communicating with it.
-
-Clients use WebRTC's channel name to specify the command and tty, if any.
-
-webexec parses the data channel label by splitting it with commas.
-
-In the simple case, data is passed to exec and input and output are piped over
-WebRTC i.e. `echo,Hello World`
-
-In the more advanced case, the first value is a tty dimension as in "24x80".
-In this case, webexec uses [the pty package](https://github.com/creack/pty) to
-exec the command over a pseudo terminal  i.e. `24x80,zsh`.
-
-After starting a process webexec sends a message with the pane's id (a number),
-a comma and the dimension.
-
-To reconnect to pane 12 client opens a data channel with a ">12" as a label.
-
-When the peer disconnects, webexec buffers command output.
-
 ## HTTP API
 
 The HTTP API contains a single endpoint: `/connect`.
 
-The endpoint accepts a POST requests with the client's offer in the body as 
-`plain/text`.
+The endpoint accepts a POST requests with the a json encoded body with
+two fields: `offer` is a base64 client's offer to connect. 
+`fingerprint` holds the public key of the client's certificate. 
 
-Upon receiving a request webexec listens for incoming connection requests from
-the client and return the server's token in the HTTP response.
+```json
+{
+  "fingerprint": "sha-256 B5:00:66:8D:0D:53:0E:F2:8B:D6:70:AF:AA:14:63:6F:B7:F7:E9:B0:54:20:FB:5D:5C:1F:33:28:69:51:2C:CD",
+  "offer":  "FGFGFGFG..."
+}
+
+```
+
+Upon receiving a request, webexec checks if the token is in 
+`~/.webexec/autherized_tokens`. If it's not, the server will reply
+with a 401 error code.  If it's in the file, webexec will start listening for
+a webrtc peer connection request that offer and reply with his webrtc answer
+in the http body.
+
+After the client connects, webexec ensure the same fingerprint is used by 
+the peer connection.
+
 
 ## WebRTC API
 
 After receiving the server's offer using HTTP API, the client establishes
-a webrtc peer connection.
+a webrtc peer connection. Once connected, the client can execute commands 
+by opening data channels that connect it with a pane.
 
-Next, the client opens a bi-directional command & control data channel, labeled
+### Connect to Pane
+
+A `Pane` is a class that connect a process, a pseudo tty and a set of 
+data channels. When a client wants to launch a new pane or connects to an
+existing one, it opens a data channel. The channel name tells webexec which pane
+to connect to. 
+
+In the simple case, the channel lable includes just a comma sperated list
+of strings to pass to exec. e.g. `echo,Hello World`. This will result in webexec
+running the command and sending it output over the data channel. Once echo exits
+the channel is closed.
+
+If the label starts with dimensions, e.g.`24x80,nvim,README.md` webexec starts
+the command over a pseudo pty.
+
+If the label starts with `>` followed by pane id - a number - webexec finds
+the requested pane and adds the channel to its set.
+
+Whatever form the label is, the first message from webexec will be
+either a number - pane if - or a string - an error message. 
+
+## Control Channel
+
+Smart clients can do more than just exec commands. They can resize pane,
+mark & restore and access a payload to use as it pleases. To send these commands
+the client opens a bi-directional command & control data channel, labeled
 `%`.
 
-While WebRTC data channels are peer to peer, webexec protocol is a client-server
-one. The client send a message with a command and the server replies 
-with either an ACK message or an error.
+Webexec replies to each command with with a `ack` or a `nack` message.
 
-Each message includes a `time` key, as milliseconds since epoch, to track
-performance and identify disconnects.
+### Mark
 
-### Authentication
+When a client knows it is about to disconnect he should send a mark message
+to make the restore seemles. Upon recieving this message webexec will stop
+sending output to the client and mark all the connected output buffer location
+with a `marker_id`. This is sent as an int in the `body` field of the 
+Ack message.
+
+
+### Restore
+
+This request is used when reconnecting after an orderly disconnect.
+this request erquires a marker recieved in the ack to the "mark" message.
+After getting this message and new channels the client reconnects to will first
+be send all ithe output cwsince the marker was received.
 
 Example JSON request:
 
 ```json
 {
   "time": 1257894000000,
-  "message_id": 123,
-  "type": "auth",
+  "message_id": 12,
+  "type": "restore",
   "args": {
-    "token": "l;sdfjkghqop3i5utqiowrdhjfklasdjfhopqwi9rtujipw",
     "marker": 123
   }
 }
 ```
-
-The token should exist in `~/.webexec/autherized_tokens`. webexec will reply
-with an ACK that includes the latest payload.
-
-The `marker` field is optional and is used orderly restore.
-If the client was lucky to do an orderly shutdown, he sent a `mark` command 
-and got a marker in the body of the ack. Upon a data channel reconnect, t
-his marker is used to collect all the output the client missed and send it over.
-
-Example JSON reply:
-
-```json
-{
-  "time": 1257894000000,
-  "message_id": 123,
-  "type": "ack",
-  "args": {
-    "ref": 12,
-    "body": <payload>
-  }
-}
-```
-
-### Mark
-
-When a client knows it is about to siconnect he should send a mark message
-to make the restore seemles. Upon recieving this message webexec will stop
-sending output to the client and mark all the connected output buffer location
-with a `marker_id`. This is sent as an int in the `body` field of the 
-Ack message.
-
 
 ### Resize
 

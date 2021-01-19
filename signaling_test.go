@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -10,11 +11,10 @@ import (
 
 	"github.com/pion/webrtc/v3"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap/zaptest"
 )
 
 func TestConnect(t *testing.T) {
-	Logger = zaptest.NewLogger(t).Sugar()
+	initTest(t)
 	done := make(chan bool)
 	port, err := GetFreePort()
 	host := fmt.Sprintf("127.0.0.1:%d", port)
@@ -25,12 +25,7 @@ func TestConnect(t *testing.T) {
 		require.Nil(t, err, "HTTP Listen and Server returns an error: %q", err)
 	}()
 	// start the webrtc client
-	client, err := webrtc.NewPeerConnection(webrtc.Configuration{
-		ICEServers: []webrtc.ICEServer{
-			{
-				URLs: []string{"stun:stun.l.google.com:19302"},
-			},
-		}})
+	client, cert, err := NewClient(true)
 	require.Nil(t, err, "Failed to start a new server", err)
 	cdc, err := client.CreateDataChannel("%", nil)
 	require.Nil(t, err, "Failed to create the control data channel: %q", err)
@@ -47,9 +42,11 @@ func TestConnect(t *testing.T) {
 		buf := make([]byte, 4096)
 		l, err := EncodeOffer(buf, *client.LocalDescription())
 		require.Nil(t, err, "Failed ending an offer: %v", clientOffer)
-		cob := bytes.NewReader(buf[:l])
+		p := ConnectRequest{cert, string(buf[:l])}
+		b, err := json.Marshal(p)
+		require.Nil(t, err, "Failed to marshal the connect request: %s", err)
 		url := fmt.Sprintf("http://%s/connect", host)
-		r, err := http.Post(url, "application/json", cob)
+		r, err := http.Post(url, "application/json", bytes.NewBuffer(b))
 		require.Nil(t, err, "Failed sending a post request: %q", err)
 		defer r.Body.Close()
 		require.Equal(t, r.StatusCode, http.StatusOK,

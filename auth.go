@@ -45,10 +45,13 @@ func IsAuthorized(token string) bool {
 	return false
 }
 
-// Authenticate gets a client's offer and ensure its fingerprint is on file
-func Authenticate(offer *webrtc.SessionDescription) bool {
-	r, _ := regexp.Compile("(?:a=fingerprint:)[a-z0-9]+ ([0-9][A-Z]{2}(?::))+")
+// GetFingerprint extract the fingerprints from a client's offer
+func GetFingerprint(offer *webrtc.SessionDescription) string {
+	r, _ := regexp.Compile("a=fingerprint:.+ ([0-9A-Z]{2}:)+[0-9A-Z]{2}")
 	fp := r.FindString(offer.SDP)
-	Logger.Infof("fingerprint=%s", fp)
-	return IsAuthorized(fp[14:])
+	Logger.Infof("fingerprint=%s sdp=%s", fp, offer.SDP)
+	if len(fp) > 14 {
+		return fp[14:]
+	}
+	return ""
 }

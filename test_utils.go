@@ -2,10 +2,15 @@
 package main
 
 import (
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
 	"encoding/json"
 	"fmt"
 	"log"
 	"net"
+	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -51,25 +56,6 @@ func ParseAck(t *testing.T, msg webrtc.DataChannelMessage) AckArgs {
 	return ackArgs
 }
 
-// SendAuth sends an authorization message
-func SendAuth(cdc *webrtc.DataChannel, token string, marker int) {
-	time.Sleep(10 * time.Millisecond)
-	//TODO we need something like peer.LastMsgId++ below
-	msg := CTRLMessage{
-		Time: time.Now().UnixNano(),
-		Type: "auth",
-		Ref:  TestAckRef,
-		Args: AuthArgs{token, marker, 2},
-	}
-	authMsg, err := json.Marshal(msg)
-	if err != nil {
-		log.Printf("Failed to marshal the auth args: %v", err)
-	} else {
-		log.Print("Test is sending an auth message")
-		cdc.Send(authMsg)
-	}
-}
-
 func getMarker(cdc *webrtc.DataChannel) int {
 	lastRef++
 	ref := lastRef
@@ -90,6 +76,37 @@ func getMarker(cdc *webrtc.DataChannel) int {
 	log.Print("Test is sending a mark message")
 	cdc.Send(markMsg)
 	return ref
+}
+
+func NewClient(known bool) (*webrtc.PeerConnection, string, error) {
+	secretKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		return nil, "", err
+	}
+	certificate, err := webrtc.GenerateCertificate(secretKey)
+	if err != nil {
+		return nil, "", err
+	}
+	fp, err := certificate.GetFingerprints()
+	if known {
+		f, err := os.OpenFile(
+			TokensFilePath, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0644)
+		if err != nil {
+			return nil, "", err
+		}
+		defer f.Close()
+		line := fmt.Sprintf(
+			"%s %s\r\n", fp[0].Algorithm, strings.ToUpper(fp[0].Value))
+		_, err = f.WriteString(line)
+		if err != nil {
+			return nil, "", err
+		}
+	}
+
+	client, err := webrtc.NewPeerConnection(webrtc.Configuration{
+		Certificates: []webrtc.Certificate{*certificate}})
+	r := fmt.Sprintf("%s %s", fp[0].Algorithm, strings.ToUpper(fp[0].Value))
+	return client, r, nil
 }
 
 // SignalPair is used to start a connection between two peers
@@ -161,4 +178,22 @@ func GetFreePort() (int, error) {
 	}
 	defer l.Close()
 	return l.Addr().(*net.TCPAddr).Port, nil
+}
+
+// SendRestore sends an restore message
+func SendRestore(cdc *webrtc.DataChannel, ref int, marker int) error {
+	time.Sleep(10 * time.Millisecond)
+	msg := CTRLMessage{
+		Time: time.Now().UnixNano(),
+		Type: "restore",
+		Ref:  ref,
+		Args: RestoreArgs{marker},
+	}
+	restoreMsg, err := json.Marshal(msg)
+	if err != nil {
+		return fmt.Errorf("Failed to marshal the auth args: %v", err)
+	}
+	log.Print("Test is sending a restore message")
+	cdc.Send(restoreMsg)
+	return nil
 }

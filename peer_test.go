@@ -18,49 +18,31 @@ import (
 func TestSimpleEcho(t *testing.T) {
 	initTest(t)
 	closed := make(chan bool)
-	gotAuthAck := make(chan bool)
-	peer, err := NewPeer()
+	client, cert, err := NewClient(true)
+	peer, err := NewPeer(cert)
 	require.Nil(t, err, "NewPeer failed with: %s", err)
-	client, err := webrtc.NewPeerConnection(webrtc.Configuration{})
-	require.Nil(t, err, "Failed to start a new server", err)
-	cdc, err := client.CreateDataChannel("%", nil)
-	require.Nil(t, err, "Failed to create the control data channel: %v", err)
 	// count the incoming messages
 	count := 0
-	cdc.OnOpen(func() {
-		go SendAuth(cdc, AValidTokenForTests, -1)
-		cdc.OnMessage(func(msg webrtc.DataChannelMessage) {
-			// we should get an ack for the auth message
-			var cm CTRLMessage
-			log.Printf("Got a ctrl msg: %s", msg.Data)
-			err := json.Unmarshal(msg.Data, &cm)
-			require.Nil(t, err, "Failed to marshal the server msg: %v", err)
-			if cm.Type == "ack" {
-				gotAuthAck <- true
-			}
-		})
-		<-gotAuthAck
-		dc, err := client.CreateDataChannel("echo,hello world", nil)
-		require.Nil(t, err, "Failed to create the echo data channel: %v", err)
-		dc.OnOpen(func() {
-			log.Printf("Channel %q opened", dc.Label())
-		})
-		dc.OnMessage(func(msg webrtc.DataChannelMessage) {
-			// first get a channel Id and then "hello world" text
-			log.Printf("got message: #%d %q", count, string(msg.Data))
-			if count == 0 {
-				_, err = strconv.Atoi(string(msg.Data))
-				require.Nil(t, err, "Failed to cover channel it to int: %v", err)
-			} else if count == 1 {
-				require.EqualValues(t, string(msg.Data)[:11], "hello world",
-					"Got bad msg: %q", msg.Data)
-			}
-			count++
-		})
-		dc.OnClose(func() {
-			fmt.Println("Client Data channel closed")
-			closed <- true
-		})
+	dc, err := client.CreateDataChannel("echo,hello world", nil)
+	require.Nil(t, err, "Failed to create the echo data channel: %v", err)
+	dc.OnOpen(func() {
+		log.Printf("Channel %q opened", dc.Label())
+	})
+	dc.OnMessage(func(msg webrtc.DataChannelMessage) {
+		// first get a channel Id and then "hello world" text
+		log.Printf("got message: #%d %q", count, string(msg.Data))
+		if count == 0 {
+			_, err = strconv.Atoi(string(msg.Data))
+			require.Nil(t, err, "Failed to cover channel it to int: %v", err)
+		} else if count == 1 {
+			require.EqualValues(t, string(msg.Data)[:11], "hello world",
+				"Got bad msg: %q", msg.Data)
+		}
+		count++
+	})
+	dc.OnClose(func() {
+		fmt.Println("Client Data channel closed")
+		closed <- true
 	})
 	SignalPair(client, peer)
 	// TODO: add timeout
@@ -76,26 +58,20 @@ func TestSimpleEcho(t *testing.T) {
 
 func TestResizeCommand(t *testing.T) {
 	initTest(t)
-	gotAuthAck := make(chan bool)
 	done := make(chan bool)
-	peer, err := NewPeer()
+	client, cert, err := NewClient(true)
+	require.Nil(t, err, "Failed to create a new client %v", err)
+	peer, err := NewPeer(cert)
 	require.Nil(t, err, "NewPeer failed with: %s", err)
-	client, err := webrtc.NewPeerConnection(webrtc.Configuration{})
-	require.Nil(t, err, "Failed to start a new peer connection %v", err)
 	cdc, err := client.CreateDataChannel("%", nil)
 	require.Nil(t, err, "failed to create the control data channel: %v", err)
 	cdc.OnOpen(func() {
-		go SendAuth(cdc, AValidTokenForTests, -1)
 		cdc.OnMessage(func(msg webrtc.DataChannelMessage) {
 			ack := ParseAck(t, msg)
-			if ack.Ref == TestAckRef {
-				gotAuthAck <- true
-			}
 			if ack.Ref == 456 {
 				done <- true
 			}
 		})
-		<-gotAuthAck
 		// control channel is open let's open another one, so we'll have
 		// what to resize
 		dc, err := client.CreateDataChannel("12x34,bash", nil)
@@ -107,11 +83,16 @@ func TestResizeCommand(t *testing.T) {
 			// send something to get the channel going
 			// dc.Send([]byte{'#'})
 			dc.OnMessage(func(msg webrtc.DataChannelMessage) {
+				var rows int
+				var cols int
 				log.Printf("Got data channel message: %q", string(msg.Data))
 				if paneID == -1 {
-					paneID, err = strconv.Atoi(string(msg.Data))
+					_, err := fmt.Sscanf(
+						string(msg.Data), "%d,%dx%d", &paneID, &rows, &cols)
 					require.Nil(t, err,
-						"Got a bad first message: %q", string(msg.Data))
+						"Failed to parse first message: %q", string(msg.Data))
+					require.Equal(t, 12, rows, "Got aa bad number of rows")
+					require.Equal(t, 34, cols, "Got aa bad number of cols")
 					resizeArgs := ResizeArgs{paneID, 80, 24}
 					m := CTRLMessage{time.Now().UnixNano(), 456, "resize",
 						&resizeArgs}
@@ -125,7 +106,11 @@ func TestResizeCommand(t *testing.T) {
 		})
 	})
 	SignalPair(client, peer)
-	<-done
+	select {
+	case <-time.After(3 * time.Second):
+		t.Error("Timeout waiting for dat ain reconnected pane")
+	case <-done:
+	}
 }
 
 func TestChannelReconnect(t *testing.T) {
@@ -133,48 +118,29 @@ func TestChannelReconnect(t *testing.T) {
 	var cID string
 	var dc *webrtc.DataChannel
 	done := make(chan bool)
-	gotAuthAck := make(chan bool)
 	gotID := make(chan bool)
 	// start the server
-	peer, err := NewPeer()
+	client, cert, err := NewClient(true)
+	require.Nil(t, err, "Failed to create a new client %v", err)
+	peer, err := NewPeer(cert)
 	require.Nil(t, err, "NewPeer failed with: %s", err)
-	// and the client
-	client, err := webrtc.NewPeerConnection(webrtc.Configuration{})
-	require.Nil(t, err, "Failed to start a new server %v", err)
-	// create the command & control data channel
-	cdc, err := client.CreateDataChannel("%", nil)
-	require.Nil(t, err, "Failed to create the control data channel: %v", err)
 	// count the incoming messages
 	count := 0
-	cdc.OnOpen(func() {
-		log.Println("cdc is opened")
-		go SendAuth(cdc, AValidTokenForTests, -1)
-		cdc.OnMessage(func(msg webrtc.DataChannelMessage) {
-			// we should get an ack for the auth message
-			var cm CTRLMessage
-			log.Printf("Got a ctrl msg: %s", msg.Data)
-			err := json.Unmarshal(msg.Data, &cm)
-			require.Nil(t, err, "Failed to marshal the server msg: %v", err)
-			if cm.Type == "ack" {
-				gotAuthAck <- true
-			}
-		})
-		<-gotAuthAck
-		dc, err = client.CreateDataChannel("bash,-c,sleep 1; echo 123456", nil)
-		require.Nil(t, err, "Failed to create the echo data channel: %v", err)
-		dc.OnOpen(func() {
-			log.Printf("Channel %q opened", dc.Label())
-		})
-		dc.OnMessage(func(msg webrtc.DataChannelMessage) {
-			log.Printf("DC Got msg #%d: %s", count, msg.Data)
-			if count == 0 {
-				cID = string(msg.Data)
-				log.Printf("Client got a channel id: %q", cID)
-				dc.Close()
-				gotID <- true
-			}
-			count++
-		})
+	log.Println("cdc is opened")
+	dc, err = client.CreateDataChannel("bash,-c,sleep 1; echo 123456", nil)
+	require.Nil(t, err, "Failed to create the echo data channel: %v", err)
+	dc.OnOpen(func() {
+		log.Printf("Channel %q opened", dc.Label())
+	})
+	dc.OnMessage(func(msg webrtc.DataChannelMessage) {
+		log.Printf("DC Got msg #%d: %s", count, msg.Data)
+		if count == 0 {
+			cID = string(msg.Data)
+			log.Printf("Client got a channel id: %q", cID)
+			dc.Close()
+			gotID <- true
+		}
+		count++
 	})
 	SignalPair(client, peer)
 	<-gotID
@@ -208,36 +174,31 @@ func TestChannelReconnect(t *testing.T) {
 		t.Error("Timeout waiting for dat ain reconnected pane")
 	case <-done:
 	}
-	// dc.Close()
-	// dc2.Close()
 }
 func TestPayloadOperations(t *testing.T) {
 	initTest(t)
 	done := make(chan bool)
-	gotAuthAck := make(chan bool)
-	peer, err := NewPeer()
+	client, cert, err := NewClient(true)
+	require.Nil(t, err, "Failed to create a new client %v", err)
+	peer, err := NewPeer(cert)
 	require.Nil(t, err, "NewPeer failed with: %s", err)
-	client, err := webrtc.NewPeerConnection(webrtc.Configuration{})
-	require.Nil(t, err, "Failed to start a new server", err)
 	cdc, err := client.CreateDataChannel("%", nil)
 	require.Nil(t, err, "Failed to create the control data channel: %v", err)
-	Payload = []byte("[\"This is a simple payload\"]")
 	payload2 := []byte("[\"Better payload\"]")
 	cdc.OnOpen(func() {
+		args := SetPayloadArgs{payload2}
+		setPayload := CTRLMessage{time.Now().UnixNano(), 777,
+			"set_payload", &args}
+		setMsg, err := json.Marshal(setPayload)
+		require.Nil(t, err, "Failed to marshal the auth args: %v", err)
+		cdc.Send(setMsg)
 		// there's only one payload
-		// TODO: support sessions and multi payloads
-		go SendAuth(cdc, AValidTokenForTests, -1)
 		cdc.OnMessage(func(msg webrtc.DataChannelMessage) {
 			// we should get an ack for the auth message and the get payload
 			log.Printf("Got a ctrl msg: %s", msg.Data)
 			args := ParseAck(t, msg)
 			var payload []byte
 			err = json.Unmarshal(args.Body, &payload)
-			if args.Ref == TestAckRef {
-				require.Equal(t, []byte(args.Body), Payload,
-					"Got the wrong payload: %q", args.Body)
-				gotAuthAck <- true
-			}
 			if args.Ref == 777 {
 				require.Equal(t, []byte(args.Body), payload2,
 					"Got the wrong payload: %q", args.Body)
@@ -248,70 +209,41 @@ func TestPayloadOperations(t *testing.T) {
 	SignalPair(client, peer)
 	select {
 	case <-time.After(3 * time.Second):
-		t.Error("Timeout waiting for an ack")
-	case <-gotAuthAck:
+		t.Error("Timeout waiting for payload data")
+	case <-done:
 	}
-	args := SetPayloadArgs{payload2}
-	setPayload := CTRLMessage{time.Now().UnixNano(), 777,
-		"set_payload", &args}
-	getMsg, err := json.Marshal(setPayload)
-	if err != nil {
-		log.Printf("Failed to marshal the auth args: %v", err)
-	} else {
-		log.Print("Test is sending an auth message")
-		cdc.Send(getMsg)
-	}
-	<-done
+	// TODO: now get_payload and make sure it's the same
 }
 func TestChannelRestore(t *testing.T) {
 	initTest(t)
 	var cID string
 	var dc *webrtc.DataChannel
 	done := make(chan bool)
-	gotAuthAck := make(chan bool)
 	gotFirst := make(chan bool)
+	// start the client
+	client, cert, err := NewClient(true)
+	require.Nil(t, err, "Failed to create a new client %v", err)
 	// start the server
-	peer, err := NewPeer()
+	peer, err := NewPeer(cert)
 	require.Nil(t, err, "NewPeer failed with: %s", err)
-	// and the client
-	client, err := webrtc.NewPeerConnection(webrtc.Configuration{})
-	require.Nil(t, err, "Failed to start a new server %v", err)
-	// create the command & control data channel
-	cdc, err := client.CreateDataChannel("%", nil)
-	require.Nil(t, err, "Failed to create the control data channel: %v", err)
 	// count the incoming messages
 	count := 0
-	cdc.OnOpen(func() {
-		log.Println("cdc is opened")
-		go SendAuth(cdc, AValidTokenForTests, -1)
-		cdc.OnMessage(func(msg webrtc.DataChannelMessage) {
-			// we should get an ack for the auth message
-			var cm CTRLMessage
-			log.Printf("Got a ctrl msg: %s", msg.Data)
-			err := json.Unmarshal(msg.Data, &cm)
-			require.Nil(t, err, "Failed to marshal the server msg: %v", err)
-			if cm.Type == "ack" {
-				gotAuthAck <- true
-			}
-		})
-		<-gotAuthAck
-		dc, err = client.CreateDataChannel("24x80,bash,-c,echo 123456 ; sleep 1", nil)
-		require.Nil(t, err, "Failed to create the echo data channel: %v", err)
-		dc.OnOpen(func() {
-			log.Printf("Channel %q opened", dc.Label())
-		})
-		dc.OnMessage(func(msg webrtc.DataChannelMessage) {
-			log.Printf("DC Got msg #%d: %s", count, msg.Data)
-			if count == 0 {
-				cID = string(msg.Data)
-				log.Printf("Client got a channel id: %q", cID)
-			}
-			if count == 1 {
-				require.Contains(t, string(msg.Data), "123456")
-				gotFirst <- true
-			}
-			count++
-		})
+	dc, err = client.CreateDataChannel("24x80,bash,-c,echo 123456 ; sleep 1", nil)
+	require.Nil(t, err, "Failed to create the echo data channel: %v", err)
+	dc.OnOpen(func() {
+		log.Printf("Channel %q opened", dc.Label())
+	})
+	dc.OnMessage(func(msg webrtc.DataChannelMessage) {
+		log.Printf("DC Got msg #%d: %s", count, msg.Data)
+		if count == 0 {
+			cID = string(msg.Data)
+			log.Printf("Client got a channel id: %q", cID)
+		}
+		if count == 1 {
+			require.Contains(t, string(msg.Data), "123456")
+			gotFirst <- true
+		}
+		count++
 	})
 	SignalPair(client, peer)
 	select {
@@ -355,16 +287,15 @@ func TestMarkerRestore(t *testing.T) {
 		markerRef int
 		marker    int
 	)
-	gotAuthAck := make(chan bool)
-	gotAuthAck2 := make(chan bool)
+	gotSetMarkerAck := make(chan bool)
 	gotFirst := make(chan bool)
 	gotSecondAgain := make(chan bool)
-	gotMarker := make(chan bool)
+	gotAck := make(chan bool)
+	client, cert, err := NewClient(true)
+	require.Nil(t, err, "Failed to create a new client %v", err)
 	// start the server
-	peer, err := NewPeer()
+	peer, err := NewPeer(cert)
 	require.Nil(t, err, "NewPeer failed with: %s", err)
-	// and the client
-	client, err := webrtc.NewPeerConnection(webrtc.Configuration{})
 	require.Nil(t, err, "Failed to start a new server %v", err)
 	// create the command & control data channel
 	cdc, err := client.CreateDataChannel("%", nil)
@@ -373,7 +304,6 @@ func TestMarkerRestore(t *testing.T) {
 	count := 0
 	cdc.OnOpen(func() {
 		log.Println("cdc is opened")
-		go SendAuth(cdc, AValidTokenForTests, -1)
 		cdc.OnMessage(func(msg webrtc.DataChannelMessage) {
 			// we should get an ack for the auth message
 			var cm CTRLMessage
@@ -385,12 +315,10 @@ func TestMarkerRestore(t *testing.T) {
 				if args.Ref == markerRef {
 					json.Unmarshal(args.Body, &marker)
 					fmt.Printf("Got marker: %d", marker)
-					gotMarker <- true
+					gotSetMarkerAck <- true
 				}
-				gotAuthAck <- true
 			}
 		})
-		<-gotAuthAck
 		dc, err = client.CreateDataChannel(
 			"24x80,bash,-c,echo 123456 ; sleep 1; echo 789; sleep 9", nil)
 		require.Nil(t, err, "Failed to create the echo data channel: %v", err)
@@ -420,11 +348,12 @@ func TestMarkerRestore(t *testing.T) {
 	select {
 	case <-time.After(6 * time.Second):
 		t.Error("Timeout waiting for marker ack")
-	case <-gotMarker:
+	case <-gotSetMarkerAck:
 	}
-	peer2, err := NewPeer()
+	client2, cert, err := NewClient(true)
+	require.Nil(t, err, "Failed to create the second client %v", err)
+	peer2, err := NewPeer(cert)
 	require.Nil(t, err, "NewPeer2 failed with: %s", err)
-	client2, err := webrtc.NewPeerConnection(webrtc.Configuration{})
 	require.Nil(t, err, "Failed to start a new server %v", err)
 	// create the command & control data channel
 	SignalPair(client2, peer2)
@@ -433,17 +362,19 @@ func TestMarkerRestore(t *testing.T) {
 	// count the incoming messages
 	count = 0
 	cdc2.OnOpen(func() {
-		go SendAuth(cdc2, AValidTokenForTests, marker)
+		// send the restore message "marker"
+		go SendRestore(cdc2, 345, marker)
 		cdc2.OnMessage(func(msg webrtc.DataChannelMessage) {
 			// we should get an ack for the auth message
 			var cm CTRLMessage
 			err := json.Unmarshal(msg.Data, &cm)
 			require.Nil(t, err, "Failed to marshal the server msg: %v", err)
+			Logger.Info("client2 got msg: %v", cm)
 			if cm.Type == "ack" {
-				gotAuthAck2 <- true
+				gotAck <- true
 			}
 		})
-		<-gotAuthAck2
+		<-gotAck
 		time.Sleep(time.Second)
 		dc, err = client2.CreateDataChannel(">"+cID, nil)
 		require.Nil(t, err, "Failed to create the echo data channel: %v", err)

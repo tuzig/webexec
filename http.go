@@ -1,13 +1,18 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 
 	"github.com/pion/webrtc/v3"
 	"github.com/rs/cors"
 )
+
+type ConnectRequest struct {
+	Fingerprint string `json:"fingerprint"`
+	Offer       string `json:"offer"`
+}
 
 // HTTPGo starts to listen and serve http requests
 func HTTPGo(address string) error {
@@ -31,29 +36,38 @@ func ConnectHandler() (http.Handler, error) {
 // In reponse the handlers send the server's webrtc's offer.
 func handleConnect(w http.ResponseWriter, r *http.Request) {
 	var offer webrtc.SessionDescription
+	var req ConnectRequest
+
 	if r.Method != "POST" {
 		Logger.Infof("Got an http request with bad method %q\n", r.Method)
 		http.Error(w, "This endpoint accepts only POST requests",
 			http.StatusMethodNotAllowed)
 		return
 	}
+	Logger.Info("Got a new post request")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
-	remote := make([]byte, 4096)
-	l, err := r.Body.Read(remote)
-	if err != nil && err != io.EOF {
+	dec := json.NewDecoder(r.Body)
+	err := dec.Decode(&req)
+	if err != nil {
 		Logger.Errorf("Failed to read http request body: %s", err)
+		return
+	}
+	if !IsAuthorized(req.Fingerprint) {
+		msg := "Unknown client fingerprint"
+		Logger.Info(msg)
+		http.Error(w, msg, http.StatusUnauthorized)
+		return
 	}
 	// Logger.Infof("Got a valid POST request with offer of len: %d", l)
-	err = DecodeOffer(&offer, remote[:l])
+	err = DecodeOffer(&offer, []byte(req.Offer))
 	if err != nil {
-		msg := fmt.Sprintf("Failed to decode offer: %s\n%q", err, remote)
-		Logger.Error(msg)
+		msg := fmt.Sprintf("Failed to decode offer: %s", err)
+		Logger.Info(msg)
 		http.Error(w, msg, http.StatusBadRequest)
 		return
 	}
 
-	Logger.Info("Got New Peer")
-	peer, err := NewPeer()
+	peer, err := NewPeer(req.Fingerprint)
 	if err != nil {
 		msg := fmt.Sprintf("Failed to create a new peer: %s", err)
 		Logger.Error(msg)
@@ -69,7 +83,7 @@ func handleConnect(w http.ResponseWriter, r *http.Request) {
 	}
 	// reply with server's key
 	payload := make([]byte, 4096)
-	l, err = EncodeOffer(payload, answer)
+	l, err := EncodeOffer(payload, answer)
 	if err != nil {
 		msg := fmt.Sprintf("Failed to encode offer : %s", err)
 		Logger.Error(msg)
