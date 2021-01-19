@@ -52,7 +52,7 @@ func TestSimpleEcho(t *testing.T) {
 	waitForChild(lp.C.Process.Pid, time.Second)
 	require.False(t, lp.IsRunning)
 	// For some reason we sometimes get an empty message and count can be 3
-	require.GreaterOrEqual(t, 2, count, "Expected to recieve 2 messages and got %d", count)
+	require.GreaterOrEqual(t, count, 2, "Expected to recieve 2 messages and got %d", count)
 }
 
 func TestResizeCommand(t *testing.T) {
