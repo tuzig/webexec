@@ -11,6 +11,7 @@ import (
 
 type ConnectRequest struct {
 	Fingerprint string `json:"fingerprint"`
+	APIVer      int    `json:"api_version"`
 	Offer       string `json:"offer"`
 }
 

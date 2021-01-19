@@ -19,11 +19,14 @@ Terminal 7 - that needed a way to store the screen layout.
 The HTTP API contains a single endpoint: `/connect`.
 
 The endpoint accepts a POST requests with the a json encoded body with
-two fields: `offer` is a base64 client's offer to connect. 
-`fingerprint` holds the public key of the client's certificate. 
-
+three fields: 
+- `offer` a base64 client's offer to connect. 
+- `fingerprint` holds the public key of the client's certificate. 
+- `api_version` for the API version
+ 
 ```json
 {
+  "api_version": 1,
   "fingerprint": "sha-256 B5:00:66:8D:0D:53:0E:F2:8B:D6:70:AF:AA:14:63:6F:B7:F7:E9:B0:54:20:FB:5D:5C:1F:33:28:69:51:2C:CD",
   "offer":  "FGFGFGFG..."
 }

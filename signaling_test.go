@@ -42,7 +42,7 @@ func TestConnect(t *testing.T) {
 		buf := make([]byte, 4096)
 		l, err := EncodeOffer(buf, *client.LocalDescription())
 		require.Nil(t, err, "Failed ending an offer: %v", clientOffer)
-		p := ConnectRequest{cert, string(buf[:l])}
+		p := ConnectRequest{cert, 1, string(buf[:l])}
 		b, err := json.Marshal(p)
 		require.Nil(t, err, "Failed to marshal the connect request: %s", err)
 		url := fmt.Sprintf("http://%s/connect", host)
