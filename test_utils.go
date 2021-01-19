@@ -7,6 +7,7 @@ import (
 	"crypto/rand"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"net"
 	"os"
 	"strings"
@@ -18,15 +19,6 @@ import (
 	"go.uber.org/zap/zaptest"
 	"golang.org/x/sys/unix"
 )
-
-// AValidTokenForTests token is stored in the file "./test_tokens"
-// tests that use it should add `TokensFilePath = "./test_tokens"`
-const AValidTokenForTests = "THEoneANDonlyTOKEN"
-
-// TestAckRef is the ref to use in tests
-const TestAckRef = 123
-
-var testSD = webrtc.SessionDescription{Type: webrtc.SDPTypeAnswer, SDP: ""}
 
 // used to keep track of sent control messages
 var lastRef int
@@ -157,8 +149,11 @@ func waitForChild(pid int, timeout time.Duration) error {
 }
 func initTest(t *testing.T) {
 	Logger = zaptest.NewLogger(t).Sugar()
-	TokensFilePath = "./test_tokens"
-	err := LoadConf(defaultConf)
+	f, err := ioutil.TempFile("", "authorized_tokens")
+	f.Close()
+	TokensFilePath = f.Name()
+	require.Nil(t, err, "Failed setting a temp tokens file: %s", err)
+	err = LoadConf(defaultConf)
 	require.Nil(t, err, "NewPeer failed with: %s", err)
 }
 
@@ -193,4 +188,13 @@ func SendRestore(cdc *webrtc.DataChannel, ref int, marker int) error {
 	}
 	cdc.Send(restoreMsg)
 	return nil
+}
+
+func TestMain(m *testing.M) {
+	code := m.Run()
+	// If we've used a temporary file, remove it
+	if TokensFilePath != ConfPath("authorized_tokens") {
+		os.Remove(TokensFilePath)
+	}
+	os.Exit(code)
 }
