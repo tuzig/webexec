@@ -12,27 +12,18 @@ import (
 func TestWrongFingerprint(t *testing.T) {
 	initTest(t)
 	failed := make(chan bool)
-	closed := make(chan bool)
 	// create an unknown client
-	client, _, err := NewClient(true)
+	client, _, err := NewClient(false)
 	require.Nil(t, err, "Failed to create a new client %v", err)
 	peer, err := NewPeer("BAD CERT")
 	require.Nil(t, err, "NewPeer failed with: %s", err)
-	client.OnConnectionStateChange(func(state webrtc.PeerConnectionState) {
-		Logger.Infof("Client's Connection State change: %s", state.String())
-		if state == webrtc.PeerConnectionStateFailed {
-			closed <- true
-		}
-	})
-
+	err = SignalPair(client, peer)
 	dc, err := client.CreateDataChannel("echo,Failed", nil)
 	require.Nil(t, err, "failed to create the a channel: %q", err)
-	dc.OnOpen(func() { failed <- true })
-	err = SignalPair(client, peer)
+	dc.OnMessage(func(_ webrtc.DataChannelMessage) { failed <- true })
 	require.Nil(t, err, "failed to signal pair: %q", err)
 	select {
 	case <-time.After(3 * time.Second):
-	case <-closed:
 	case <-failed:
 		t.Error("Data channel is opened even though no authentication")
 	}

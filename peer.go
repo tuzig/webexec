@@ -31,15 +31,14 @@ var (
 
 // Peer is a type used to remember a client.
 type Peer struct {
-	ID                int
-	Remote            string
-	Token             string
-	LastContact       *time.Time
-	LastRef           int
-	PC                *webrtc.PeerConnection
-	cdc               *webrtc.DataChannel
-	PendingChannelReq chan *webrtc.DataChannel
-	Marker            int
+	ID          int
+	Remote      string
+	Token       string
+	LastContact *time.Time
+	LastRef     int
+	PC          *webrtc.PeerConnection
+	cdc         *webrtc.DataChannel
+	Marker      int
 }
 
 // NewPeer funcions starts listening to incoming peer connection from a remote
@@ -63,13 +62,12 @@ func NewPeer(fingerprint string) (*Peer, error) {
 	}
 	m.Lock()
 	peer := Peer{
-		ID:                len(Peers),
-		Token:             "",
-		LastContact:       nil,
-		LastRef:           0,
-		PC:                pc,
-		PendingChannelReq: make(chan *webrtc.DataChannel, 5),
-		Marker:            -1,
+		ID:          len(Peers),
+		Token:       "",
+		LastContact: nil,
+		LastRef:     0,
+		PC:          pc,
+		Marker:      -1,
 	}
 	Peers = append(Peers, peer)
 	m.Unlock()

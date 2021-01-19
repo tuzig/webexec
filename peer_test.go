@@ -5,7 +5,6 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"log"
 	"strconv"
 	"strings"
 	"testing"
@@ -26,11 +25,11 @@ func TestSimpleEcho(t *testing.T) {
 	dc, err := client.CreateDataChannel("echo,hello world", nil)
 	require.Nil(t, err, "Failed to create the echo data channel: %v", err)
 	dc.OnOpen(func() {
-		log.Printf("Channel %q opened", dc.Label())
+		Logger.Infof("Channel %q opened", dc.Label())
 	})
 	dc.OnMessage(func(msg webrtc.DataChannelMessage) {
 		// first get a channel Id and then "hello world" text
-		log.Printf("got message: #%d %q", count, string(msg.Data))
+		Logger.Infof("got message: #%d %q", count, string(msg.Data))
 		if count == 0 {
 			_, err = strconv.Atoi(string(msg.Data))
 			require.Nil(t, err, "Failed to cover channel it to int: %v", err)
@@ -41,7 +40,7 @@ func TestSimpleEcho(t *testing.T) {
 		count++
 	})
 	dc.OnClose(func() {
-		fmt.Println("Client Data channel closed")
+		Logger.Info("Client Data channel closed")
 		closed <- true
 	})
 	SignalPair(client, peer)
@@ -79,13 +78,13 @@ func TestResizeCommand(t *testing.T) {
 		// paneID hold the ID of the channel as recieved from the server
 		paneID := -1
 		dc.OnOpen(func() {
-			log.Println("Data channel is open")
+			Logger.Info("Data channel is open")
 			// send something to get the channel going
 			// dc.Send([]byte{'#'})
 			dc.OnMessage(func(msg webrtc.DataChannelMessage) {
 				var rows int
 				var cols int
-				log.Printf("Got data channel message: %q", string(msg.Data))
+				Logger.Infof("Got data channel message: %q", string(msg.Data))
 				if paneID == -1 {
 					_, err := fmt.Sscanf(
 						string(msg.Data), "%d,%dx%d", &paneID, &rows, &cols)
@@ -98,7 +97,7 @@ func TestResizeCommand(t *testing.T) {
 						&resizeArgs}
 					resizeMsg, err := json.Marshal(m)
 					require.Nil(t, err, "failed marshilng ctrl msg: %v", msg)
-					log.Println("Sending the resize message")
+					Logger.Info("Sending the resize message")
 					cdc.Send(resizeMsg)
 				}
 
@@ -126,17 +125,17 @@ func TestChannelReconnect(t *testing.T) {
 	require.Nil(t, err, "NewPeer failed with: %s", err)
 	// count the incoming messages
 	count := 0
-	log.Println("cdc is opened")
+	Logger.Info("cdc is opened")
 	dc, err = client.CreateDataChannel("bash,-c,sleep 1; echo 123456", nil)
 	require.Nil(t, err, "Failed to create the echo data channel: %v", err)
 	dc.OnOpen(func() {
-		log.Printf("Channel %q opened", dc.Label())
+		Logger.Infof("Channel %q opened", dc.Label())
 	})
 	dc.OnMessage(func(msg webrtc.DataChannelMessage) {
-		log.Printf("DC Got msg #%d: %s", count, msg.Data)
+		Logger.Infof("DC Got msg #%d: %s", count, msg.Data)
 		if count == 0 {
 			cID = string(msg.Data)
-			log.Printf("Client got a channel id: %q", cID)
+			Logger.Infof("Client got a channel id: %q", cID)
 			dc.Close()
 			gotID <- true
 		}
@@ -148,11 +147,11 @@ func TestChannelReconnect(t *testing.T) {
 	dc2, err := client.CreateDataChannel(">"+cID, nil)
 	require.Nil(t, err, "Failed to create the second data channel: %q", err)
 	dc2.OnOpen(func() {
-		log.Println("Second channel is open")
+		Logger.Info("Second channel is open")
 	})
 	count2 := 0
 	dc2.OnMessage(func(msg webrtc.DataChannelMessage) {
-		log.Printf("DC2 Got msg #%d: %s", count2, msg.Data)
+		Logger.Infof("DC2 Got msg #%d: %s", count2, msg.Data)
 		// first message is the pane id
 		if count2 == 0 && string(msg.Data) != cID {
 			t.Errorf("Got a bad pane ID on reconnect, expected %q got %q",
@@ -163,12 +162,10 @@ func TestChannelReconnect(t *testing.T) {
 			if !strings.Contains(string(msg.Data), "123456") {
 				t.Errorf("Got an unexpected reply: %s", msg.Data)
 			}
-			log.Print("I'm done")
 			done <- true
 		}
 		count2++
 	})
-	log.Print("Waiting on done")
 	select {
 	case <-time.After(3 * time.Second):
 		t.Error("Timeout waiting for dat ain reconnected pane")
@@ -184,27 +181,27 @@ func TestPayloadOperations(t *testing.T) {
 	require.Nil(t, err, "NewPeer failed with: %s", err)
 	cdc, err := client.CreateDataChannel("%", nil)
 	require.Nil(t, err, "Failed to create the control data channel: %v", err)
-	payload2 := []byte("[\"Better payload\"]")
+	payload := []byte("[\"Better payload\"]")
 	cdc.OnOpen(func() {
-		args := SetPayloadArgs{payload2}
+		time.Sleep(10 * time.Millisecond)
+		args := SetPayloadArgs{payload}
 		setPayload := CTRLMessage{time.Now().UnixNano(), 777,
 			"set_payload", &args}
 		setMsg, err := json.Marshal(setPayload)
 		require.Nil(t, err, "Failed to marshal the auth args: %v", err)
+		Logger.Info("Sending set_payload msg")
 		cdc.Send(setMsg)
-		// there's only one payload
-		cdc.OnMessage(func(msg webrtc.DataChannelMessage) {
-			// we should get an ack for the auth message and the get payload
-			log.Printf("Got a ctrl msg: %s", msg.Data)
-			args := ParseAck(t, msg)
-			var payload []byte
-			err = json.Unmarshal(args.Body, &payload)
-			if args.Ref == 777 {
-				require.Equal(t, []byte(args.Body), payload2,
-					"Got the wrong payload: %q", args.Body)
-				done <- true
-			}
-		})
+	})
+	cdc.OnMessage(func(msg webrtc.DataChannelMessage) {
+		// we should get an ack for the auth message and the get payload
+		Logger.Infof("Got a ctrl msg: %s", msg.Data)
+		args := ParseAck(t, msg)
+		if args.Ref == 777 {
+			require.Nil(t, err, "Failed to unmarshall the control data channel: %v", err)
+			require.Equal(t, payload, []byte(args.Body),
+				"Got the wrong payload: %q", args.Body)
+			done <- true
+		}
 	})
 	SignalPair(client, peer)
 	select {
@@ -231,13 +228,13 @@ func TestChannelRestore(t *testing.T) {
 	dc, err = client.CreateDataChannel("24x80,bash,-c,echo 123456 ; sleep 1", nil)
 	require.Nil(t, err, "Failed to create the echo data channel: %v", err)
 	dc.OnOpen(func() {
-		log.Printf("Channel %q opened", dc.Label())
+		Logger.Infof("Channel %q opened", dc.Label())
 	})
 	dc.OnMessage(func(msg webrtc.DataChannelMessage) {
-		log.Printf("DC Got msg #%d: %s", count, msg.Data)
+		Logger.Infof("DC Got msg #%d: %s", count, msg.Data)
 		if count == 0 {
 			cID = string(msg.Data)
-			log.Printf("Client got a channel id: %q", cID)
+			Logger.Infof("Client got a channel id: %q", cID)
 		}
 		if count == 1 {
 			require.Contains(t, string(msg.Data), "123456")
@@ -255,7 +252,7 @@ func TestChannelRestore(t *testing.T) {
 	dc2, err := client.CreateDataChannel(">"+cID, nil)
 	require.Nil(t, err, "Failed to create the second data channel: %q", err)
 	dc2.OnOpen(func() {
-		log.Println("Second channel is open")
+		Logger.Info("Second channel is open")
 	})
 	count2 := 0
 	dc2.OnMessage(func(msg webrtc.DataChannelMessage) {
@@ -272,7 +269,7 @@ func TestChannelRestore(t *testing.T) {
 		}
 		count2++
 	})
-	log.Print("Waiting on done")
+	Logger.Info("Waiting on done")
 	select {
 	case <-time.After(3 * time.Second):
 		t.Error("Timeout waiting for dat ain reconnected pane")
@@ -303,18 +300,18 @@ func TestMarkerRestore(t *testing.T) {
 	// count the incoming messages
 	count := 0
 	cdc.OnOpen(func() {
-		log.Println("cdc is opened")
+		Logger.Info("cdc is opened")
 		cdc.OnMessage(func(msg webrtc.DataChannelMessage) {
 			// we should get an ack for the auth message
 			var cm CTRLMessage
-			log.Printf("Got a ctrl msg: %s", msg.Data)
+			Logger.Infof("Got a ctrl msg: %s", msg.Data)
 			err := json.Unmarshal(msg.Data, &cm)
 			require.Nil(t, err, "Failed to marshal the server msg: %v", err)
 			if cm.Type == "ack" {
 				args := ParseAck(t, msg)
 				if args.Ref == markerRef {
 					json.Unmarshal(args.Body, &marker)
-					fmt.Printf("Got marker: %d", marker)
+					Logger.Infof("Got marker: %d", marker)
 					gotSetMarkerAck <- true
 				}
 			}
@@ -326,16 +323,18 @@ func TestMarkerRestore(t *testing.T) {
 			Logger.Infof("Channel %q opened", dc.Label())
 		})
 		dc.OnMessage(func(msg webrtc.DataChannelMessage) {
-			log.Printf("DC Got msg #%d: %s", count, msg.Data)
-			if count == 0 {
-				cID = string(msg.Data)
-				Logger.Infof("Client got a channel id: %q", cID)
+			Logger.Infof("DC Got msg #%d: %s", count, msg.Data)
+			if len(msg.Data) > 0 {
+				if count == 0 {
+					cID = string(msg.Data)
+					Logger.Infof("Client got a channel id: %q", cID)
+				}
+				if count == 1 {
+					require.Contains(t, string(msg.Data), "123456")
+					gotFirst <- true
+				}
+				count++
 			}
-			if count == 1 {
-				require.Contains(t, string(msg.Data), "123456")
-				gotFirst <- true
-			}
-			count++
 		})
 	})
 	SignalPair(client, peer)
@@ -397,7 +396,7 @@ func TestMarkerRestore(t *testing.T) {
 		})
 	})
 	select {
-	case <-time.After(6 * time.Second):
+	case <-time.After(3 * time.Second):
 		t.Error("Timeout waiting for restored data")
 	case <-gotSecondAgain:
 	}

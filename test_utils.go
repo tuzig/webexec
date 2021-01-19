@@ -7,7 +7,6 @@ import (
 	"crypto/rand"
 	"encoding/json"
 	"fmt"
-	"log"
 	"net"
 	"os"
 	"strings"
@@ -70,10 +69,9 @@ func getMarker(cdc *webrtc.DataChannel) int {
 	}
 	markMsg, err := json.Marshal(msg)
 	if err != nil {
-		log.Printf("Failed to marshal the makr message: %v", err)
+		Logger.Errorf("Failed to marshal the makr message: %v", err)
 		return -1
 	}
-	log.Print("Test is sending a mark message")
 	cdc.Send(markMsg)
 	return ref
 }
@@ -193,7 +191,6 @@ func SendRestore(cdc *webrtc.DataChannel, ref int, marker int) error {
 	if err != nil {
 		return fmt.Errorf("Failed to marshal the auth args: %v", err)
 	}
-	log.Print("Test is sending a restore message")
 	cdc.Send(restoreMsg)
 	return nil
 }
