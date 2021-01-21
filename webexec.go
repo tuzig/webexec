@@ -139,8 +139,8 @@ func versionCMD(c *cli.Context) error {
 	return nil
 }
 
-// load_conf creates the home dir and the files
-func load_conf(c *cli.Context) error {
+// loadConf creates the home dir and the files
+func loadConf(c *cli.Context) error {
 	usr, _ := user.Current()
 	home := filepath.Join(usr.HomeDir, ".webexec")
 	_, err := os.Stat(home)
@@ -333,7 +333,7 @@ func main() {
 		Name:        "webexec",
 		Usage:       "execute commands and pipe their stdin&stdout over webrtc",
 		HideVersion: true,
-		Before:      load_conf,
+		Before:      loadConf,
 
 		Commands: []*cli.Command{
 			/* TODO: Add clipboard commands
