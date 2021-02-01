@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"github.com/pelletier/go-toml"
+	"os"
 	"time"
 )
 
@@ -31,6 +32,8 @@ var Conf struct {
 	gatheringTimeout  time.Duration
 	iceServers        []string
 	httpServer        string
+	logFilePath       string
+	logLevel          string
 }
 
 // LoadConf loads a configuration from a toml string and fills all Conf value.
@@ -41,7 +44,16 @@ func LoadConf(s string) error {
 		return fmt.Errorf("toml parsing failed: %s", err)
 	}
 	Conf.T = t
-	v := t.Get("timeouts.disconnect")
+	v := t.Get("log.file")
+	if v == nil {
+		Conf.logFilePath = ConfPath("agent.log")
+	} else {
+		Conf.logFilePath = v.(string)
+		if Conf.logFilePath[0] != '/' {
+			Conf.logFilePath = ConfPath(Conf.logFilePath)
+		}
+	}
+	v = t.Get("timeouts.disconnect")
 	if v != nil {
 		Conf.disconnectTimeout = time.Duration(v.(int64)) * time.Millisecond
 	} else {

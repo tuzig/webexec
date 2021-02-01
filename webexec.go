@@ -35,19 +35,9 @@ var (
 
 // InitAgentLogger intializes the global `Logger` with agent's settings
 func InitAgentLogger() {
-	var fs string
-	f := Conf.T.Get("log.file")
-	if f == nil {
-		fs = ConfPath("agent.log")
-	} else {
-		fs = Conf.T.Get("log.file").(string)
-		if fs[0] != '/' {
-			fs = ConfPath(fs)
-		}
-	}
 	// rotate the log file
 	w := zapcore.AddSync(&lumberjack.Logger{
-		Filename:   fs,
+		Filename:   Conf.logFilePath,
 		MaxSize:    10, // megabytes
 		MaxBackups: 3,
 		MaxAge:     28, // days
