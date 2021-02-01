@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"github.com/pelletier/go-toml"
+	"go.uber.org/zap/zapcore"
 	"os"
 	"time"
 )
@@ -33,7 +34,7 @@ var Conf struct {
 	iceServers        []string
 	httpServer        string
 	logFilePath       string
-	logLevel          string
+	logLevel          zapcore.Level
 }
 
 // LoadConf loads a configuration from a toml string and fills all Conf value.
@@ -52,6 +53,15 @@ func LoadConf(s string) error {
 		if Conf.logFilePath[0] != '/' {
 			Conf.logFilePath = ConfPath(Conf.logFilePath)
 		}
+	}
+	Conf.logLevel = zapcore.ErrorLevel
+	l := Conf.T.Get("log.level").(string)
+	if l == "info" {
+		Conf.logLevel = zapcore.InfoLevel
+	} else if l == "warn" {
+		Conf.logLevel = zapcore.WarnLevel
+	} else if l == "debug" {
+		Conf.logLevel = zapcore.DebugLevel
 	}
 	v = t.Get("timeouts.disconnect")
 	if v != nil {
@@ -92,6 +102,21 @@ func LoadConf(s string) error {
 	} else {
 		// when no address is given, this is the default address
 		Conf.httpServer = defaultHTTPServer
+	}
+	// get pion's conf
+	v = t.Get("log.pion_log_trace")
+	if v != nil {
+		err = os.Setenv("PION_LOG_TRACE", v.(string))
+		if err != nil {
+			return fmt.Errorf("Failed setting PION_LOG_TRACE: %s", err)
+		}
+	}
+	v = t.Get("log.pion_log_debug")
+	if v != nil {
+		err = os.Setenv("PION_LOG_DEBUG", v.(string))
+		if err != nil {
+			return fmt.Errorf("Failed setting PION_LOG_DEBUG: %s", err)
+		}
 	}
 	return nil
 }

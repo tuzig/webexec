@@ -42,16 +42,6 @@ func InitAgentLogger() {
 		MaxBackups: 3,
 		MaxAge:     28, // days
 	})
-	// set the level
-	level := zapcore.InfoLevel
-	l := Conf.T.Get("log.level").(string)
-	if l == "error" {
-		level = zapcore.ErrorLevel
-	} else if l == "warn" {
-		level = zapcore.WarnLevel
-	} else if l == "debug" {
-		level = zapcore.DebugLevel
-	}
 
 	core := zapcore.NewCore(
 		zapcore.NewConsoleEncoder(zapcore.EncoderConfig{
@@ -62,7 +52,7 @@ func InitAgentLogger() {
 			EncodeTime:  zapcore.ISO8601TimeEncoder,
 		}),
 		w,
-		level,
+		Conf.logLevel,
 	)
 	logger := zap.New(core)
 	defer logger.Sync()
@@ -206,6 +196,7 @@ func stop(c *cli.Context) error {
 // agentStart starts the user agent
 func agentStart() error {
 	InitAgentLogger()
+	Logger.Infof("os.Environ - %v", os.Environ())
 	pidPath := ConfPath("agent.pid")
 	_, err := pidfile.New(pidPath)
 	if err == pidfile.ErrProcessRunning {
@@ -229,7 +220,10 @@ func launchAgent(address string) error {
 	if err != nil {
 		return fmt.Errorf("Failed to find the executable: %s", err)
 	}
-	cmd := exec.Command(execPath, "start", "--agent", "--address", address)
+	cmd := exec.Command("bash", "-c",
+		fmt.Sprintf("%s start --agent --address %s >> %s",
+			execPath, address, Conf.logFilePath))
+	cmd.Env = nil
 	err = cmd.Start()
 	if err != nil {
 		return fmt.Errorf("agent failed to start :%q", err)
