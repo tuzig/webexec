@@ -57,6 +57,10 @@ func InitAgentLogger() {
 	logger := zap.New(core)
 	defer logger.Sync()
 	Logger = logger.Sugar()
+	// redirect stderr
+	e, _ := os.OpenFile(
+		Conf.errFilePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	syscall.Dup2(int(e.Fd()), 2)
 }
 
 // InitDevLogger starts a logger for development
@@ -200,7 +204,6 @@ func agentStart() error {
 	pidPath := ConfPath("agent.pid")
 	_, err := pidfile.New(pidPath)
 	if err == pidfile.ErrProcessRunning {
-		Logger.Info("agent is already running, doing nothing")
 		return fmt.Errorf("agent is already running, doing nothing")
 	}
 	if err != nil {

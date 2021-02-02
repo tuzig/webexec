@@ -9,11 +9,12 @@ import (
 )
 
 const defaultHTTPServer = "0.0.0.0:7777"
-const defaultConf = `# webexec's toml configuration file
+const defaultConf = `# webexec's default configuration. in toml.
 [log]
 level = "error"
 # for absolute path by starting with a /
 file = "agent.log"
+error = "agent.err"
 [net]
 http_server = "0.0.0.0:7777"
 ice_servers = [ "stun:stun.l.google.com:19302" ]
@@ -35,6 +36,7 @@ var Conf struct {
 	httpServer        string
 	logFilePath       string
 	logLevel          zapcore.Level
+	errFilePath       string
 }
 
 // LoadConf loads a configuration from a toml string and fills all Conf value.
@@ -45,15 +47,8 @@ func LoadConf(s string) error {
 		return fmt.Errorf("toml parsing failed: %s", err)
 	}
 	Conf.T = t
-	v := t.Get("log.file")
-	if v == nil {
-		Conf.logFilePath = ConfPath("agent.log")
-	} else {
-		Conf.logFilePath = v.(string)
-		if Conf.logFilePath[0] != '/' {
-			Conf.logFilePath = ConfPath(Conf.logFilePath)
-		}
-	}
+	Conf.logFilePath = loadFilePath("log.file", "agent.log")
+	Conf.errFilePath = loadFilePath("log.error", "agent.err")
 	Conf.logLevel = zapcore.ErrorLevel
 	l := Conf.T.Get("log.level").(string)
 	if l == "info" {
@@ -63,7 +58,7 @@ func LoadConf(s string) error {
 	} else if l == "debug" {
 		Conf.logLevel = zapcore.DebugLevel
 	}
-	v = t.Get("timeouts.disconnect")
+	v := t.Get("timeouts.disconnect")
 	if v != nil {
 		Conf.disconnectTimeout = time.Duration(v.(int64)) * time.Millisecond
 	} else {
@@ -119,4 +114,16 @@ func LoadConf(s string) error {
 		}
 	}
 	return nil
+}
+
+func loadFilePath(path string, def string) string {
+	v := Conf.T.Get(path)
+	if v == nil {
+		return ConfPath(def)
+	}
+	ret := v.(string)
+	if ret[0] != '/' {
+		ret = ConfPath(def)
+	}
+	return ret
 }
