@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
 
 	"github.com/pion/webrtc/v3"
 	"github.com/rs/cors"
@@ -16,20 +17,12 @@ type ConnectRequest struct {
 }
 
 // HTTPGo starts to listen and serve http requests
-func HTTPGo(address string) error {
-	h, e := ConnectHandler()
-	if e != nil {
-		return e
-	}
-
-	return http.ListenAndServe(address, h)
-}
-
-// ConnectHandler listens for POST requests on /connect.
-// A valid request should have an encoded WebRTC offer as its body.
-func ConnectHandler() (http.Handler, error) {
+func HTTPGo(address string) {
 	http.HandleFunc("/connect", handleConnect)
-	return cors.Default().Handler(http.DefaultServeMux), nil
+	h := cors.Default().Handler(http.DefaultServeMux)
+	err := http.ListenAndServe(address, h)
+	Logger.Errorf("%s", err)
+	gotExit <- os.Interrupt
 }
 
 // handleConnect is called when a client requests the connect endpoint

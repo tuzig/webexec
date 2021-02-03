@@ -17,13 +17,10 @@ func TestConnect(t *testing.T) {
 	initTest(t)
 	done := make(chan bool)
 	port, err := GetFreePort()
+	require.Nil(t, err, "Fauiled to find a free tcp port", err)
 	host := fmt.Sprintf("127.0.0.1:%d", port)
 	// Start the https server
-	go func() {
-		require.Nil(t, err, "Fauiled to find a free tcp port", err)
-		err := HTTPGo(host)
-		require.Nil(t, err, "HTTP Listen and Server returns an error: %q", err)
-	}()
+	go HTTPGo(host)
 	// start the webrtc client
 	client, cert, err := NewClient(true)
 	require.Nil(t, err, "Failed to start a new server", err)

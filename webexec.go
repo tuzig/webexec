@@ -36,6 +36,7 @@ var (
 	gotExitSignal      chan bool
 	logWriter          io.Writer
 	pionLoggerFactory  *logging.DefaultLoggerFactory
+	gotExit            chan os.Signal
 )
 
 func newPionLoggerFactory() *logging.DefaultLoggerFactory {
@@ -306,16 +307,13 @@ func start(c *cli.Context) error {
 	Logger.Infof("Serving http on %q", address)
 	go HTTPGo(address)
 	// signal handling
-	gotExit := make(chan os.Signal, 1)
+	gotExit = make(chan os.Signal, 1)
 	if debug {
-		signal.Notify(gotExit, os.Interrupt, syscall.SIGTERM)
+		signal.Notify(gotExit, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
 	} else {
 		signal.Notify(gotExit, syscall.SIGINT)
 	}
 	<-gotExit
-	if !debug {
-		Logger.Info("Exiting on SIGINT")
-	}
 	return nil
 }
 
@@ -327,7 +325,6 @@ func paste(c *cli.Context) error {
 func copyCMD(c *cli.Context) error {
 	fmt.Println("Soon, we'll be copying data from STDIN to the clipboard")
 	return nil
-}
 */
 // restart function restarts the agent or starts it if it is stopped
 func restart(c *cli.Context) error {
