@@ -9,6 +9,7 @@ require (
 	github.com/hinshun/vt10x v0.0.0-20201217012337-52c1408d37d6
 	github.com/kardianos/osext v0.0.0-20190222173326-2bc1f35cddc0
 	github.com/pelletier/go-toml v1.8.1
+	github.com/pion/logging v0.2.2
 	github.com/pion/webrtc/v3 v3.0.3
 	github.com/rs/cors v1.7.0
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect

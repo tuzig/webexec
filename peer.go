@@ -47,7 +47,13 @@ func NewPeer(fingerprint string) (*Peer, error) {
 
 	m.Lock()
 	if WebRTCAPI == nil {
-		s := webrtc.SettingEngine{}
+		var s webrtc.SettingEngine
+		if pionLoggerFactory != nil {
+			s = webrtc.SettingEngine{LoggerFactory: pionLoggerFactory}
+		} else {
+			// for testing
+			s = webrtc.SettingEngine{}
+		}
 		s.SetICETimeouts(
 			Conf.disconnectTimeout, Conf.failedTimeout, Conf.keepAliveInterval)
 		WebRTCAPI = webrtc.NewAPI(webrtc.WithSettingEngine(s))

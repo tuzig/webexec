@@ -5,16 +5,19 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"os"
 	"os/exec"
 	"os/signal"
 	"os/user"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 
 	"github.com/kardianos/osext"
+	"github.com/pion/logging"
 	"github.com/tuzig/webexec/pidfile"
 	"github.com/urfave/cli/v2"
 	"go.uber.org/zap"
@@ -31,21 +34,63 @@ var (
 	cdb                = NewClientsDB()
 	ErrAgentNotRunning = errors.New("agent is not running")
 	gotExitSignal      chan bool
+	logWriter          io.Writer
+	pionLoggerFactory  *logging.DefaultLoggerFactory
 )
+
+func newPionLoggerFactory() *logging.DefaultLoggerFactory {
+	factory := logging.DefaultLoggerFactory{}
+	factory.DefaultLogLevel = logging.LogLevelError
+	factory.ScopeLevels = make(map[string]logging.LogLevel)
+	factory.Writer = logWriter
+
+	logLevels := map[string]logging.LogLevel{
+		"disable": logging.LogLevelDisabled,
+		"error":   logging.LogLevelError,
+		"warn":    logging.LogLevelWarn,
+		"info":    logging.LogLevelInfo,
+		"debug":   logging.LogLevelDebug,
+		"trace":   logging.LogLevelTrace,
+	}
+
+	for name, level := range logLevels {
+		v := Conf.pionLevels.Get(name)
+		if v == nil {
+			continue
+		}
+		env := v.(string)
+		if env == "" {
+			continue
+		}
+
+		if strings.ToLower(env) == "all" {
+			factory.DefaultLogLevel = level
+			continue
+		}
+
+		scopes := strings.Split(strings.ToLower(env), ",")
+		for _, scope := range scopes {
+			factory.ScopeLevels[scope] = level
+		}
+	}
+	return &factory
+}
 
 // InitAgentLogger intializes the global `Logger` with agent's settings
 func InitAgentLogger() {
 	// rotate the log file
-	w := zapcore.AddSync(&lumberjack.Logger{
+	logWriter = &lumberjack.Logger{
 		Filename:   Conf.logFilePath,
 		MaxSize:    10, // megabytes
 		MaxBackups: 3,
 		MaxAge:     28, // days
-	})
+	}
+	w := zapcore.AddSync(logWriter)
 
+	// TODO: use pion's logging
 	core := zapcore.NewCore(
 		zapcore.NewConsoleEncoder(zapcore.EncoderConfig{
-			MessageKey:  "message",
+			MessageKey:  "webexec",
 			LevelKey:    "level",
 			EncodeLevel: zapcore.CapitalLevelEncoder,
 			TimeKey:     "time",
@@ -200,7 +245,7 @@ func stop(c *cli.Context) error {
 // agentStart starts the user agent
 func agentStart() error {
 	InitAgentLogger()
-	Logger.Infof("os.Environ - %v", os.Environ())
+	pionLoggerFactory = newPionLoggerFactory()
 	pidPath := ConfPath("agent.pid")
 	_, err := pidfile.New(pidPath)
 	if err == pidfile.ErrProcessRunning {

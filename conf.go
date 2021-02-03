@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"github.com/pelletier/go-toml"
 	"go.uber.org/zap/zapcore"
-	"os"
 	"time"
 )
 
@@ -15,6 +14,8 @@ level = "error"
 # for absolute path by starting with a /
 file = "agent.log"
 error = "agent.err"
+# next can be uncommented to debug pion components
+# pion_levels = { trace = "sctp" }
 [net]
 http_server = "0.0.0.0:7777"
 ice_servers = [ "stun:stun.l.google.com:19302" ]
@@ -37,6 +38,7 @@ var Conf struct {
 	logFilePath       string
 	logLevel          zapcore.Level
 	errFilePath       string
+	pionLevels        *toml.Tree
 }
 
 // LoadConf loads a configuration from a toml string and fills all Conf value.
@@ -99,19 +101,11 @@ func LoadConf(s string) error {
 		Conf.httpServer = defaultHTTPServer
 	}
 	// get pion's conf
-	v = t.Get("log.pion_log_trace")
+	v = t.Get("log.pion_levels")
 	if v != nil {
-		err = os.Setenv("PION_LOG_TRACE", v.(string))
-		if err != nil {
-			return fmt.Errorf("Failed setting PION_LOG_TRACE: %s", err)
-		}
-	}
-	v = t.Get("log.pion_log_debug")
-	if v != nil {
-		err = os.Setenv("PION_LOG_DEBUG", v.(string))
-		if err != nil {
-			return fmt.Errorf("Failed setting PION_LOG_DEBUG: %s", err)
-		}
+		Conf.pionLevels = v.(*toml.Tree)
+	} else {
+		Conf.pionLevels = &toml.Tree{}
 	}
 	return nil
 }
