@@ -107,7 +107,7 @@ func InitAgentLogger() {
 	// redirect stderr
 	e, _ := os.OpenFile(
 		Conf.errFilePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-	syscall.Dup3(int(e.Fd()), 2, 0)
+	Dup2(int(e.Fd()), 2)
 }
 
 // InitDevLogger starts a logger for development
