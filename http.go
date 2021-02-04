@@ -10,6 +10,7 @@ import (
 	"github.com/rs/cors"
 )
 
+// ConnectRequest is the schema for the connect POST request
 type ConnectRequest struct {
 	Fingerprint string `json:"fingerprint"`
 	APIVer      int    `json:"api_version"`
