@@ -22,7 +22,7 @@ ice_servers = [ "stun:stun.l.google.com:19302" ]
 [timeouts]
 disconnect = 3000
 failed = 6000
-keep_alive = 1000
+keep_alive = 500
 ice_gathering = 5000
 `
 
