@@ -142,7 +142,8 @@ func (peer *Peer) OnChannelReq(d *webrtc.DataChannel) {
 	d.OnOpen(func() {
 		pane, err := peer.GetOrCreatePane(d)
 		if err != nil {
-			msg := fmt.Sprintf("Failed to get or create pane for dc %v", d)
+			msg := fmt.Sprintf("Failed to get or create pane for dc %q",
+				d.Label())
 			d.Send([]byte(msg))
 			Logger.Errorf(msg)
 		}
@@ -212,7 +213,6 @@ func (peer *Peer) GetOrCreatePane(d *webrtc.DataChannel) (*Pane, error) {
 		Logger.Infof("Got a reconnect request to pane %d", id)
 		return peer.Reconnect(d, id)
 	}
-	// TODO: get the default exec  the users shell or the command from the channel's name
 	pane, err = NewPane(fields[cmdIndex:], d, peer, ws)
 	if pane != nil {
 		pane.sendFirstMessage(d)

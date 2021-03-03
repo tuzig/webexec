@@ -84,6 +84,7 @@ func (pane *Pane) ReadLoop() {
 			Logger.Errorf("Got an error reqading from pty#%d: %s", id, rerr)
 		}
 		if l == 0 {
+			Logger.Infof("Read 0 bytes, Killing pane %d", id)
 			break
 		}
 		// We need to get the dcs from Panes for an updated version
@@ -108,11 +109,11 @@ func (pane *Pane) ReadLoop() {
 		}
 		pane.Buffer.Add(b[:l])
 		if rerr == io.EOF {
+			Logger.Infof("Got an EOF, Killing pane %d", id)
 			break
 		}
 	}
 
-	Logger.Infof("Killing pane %d", id)
 	pane = Panes.Get(id)
 	if pane == nil {
 		Logger.Errorf("no such pane %d", id)
@@ -123,8 +124,6 @@ func (pane *Pane) ReadLoop() {
 
 // Kill takes a pane to the sands of Rishon and buries it
 func (pane *Pane) Kill() {
-	Logger.Infof("Killing pane: %d", pane.ID)
-
 	for _, d := range cdb.All4Pane(pane) {
 		if d.dc.ReadyState() == webrtc.DataChannelStateOpen {
 			d.dc.Close()
