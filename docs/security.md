@@ -2,6 +2,8 @@
 
 Tight security is one of the design goals of webexec and its client, Terminal 7.
 To acheieve it we rely on webrtc's builtin encryption and certificates.
+To learn more about WebRTC's security you are invited to read
+[A study of WebRTC Security](https://webrtc-security.github.io).
 
 webrtc does not include signalling so webexec implments it over http. 
 webexec listens for requests coming on a dedicated port - 7777 by default.
