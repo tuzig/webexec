@@ -68,6 +68,8 @@ func getMarker(cdc *webrtc.DataChannel) int {
 	return ref
 }
 
+// NewClient is used generate a new client return the client, it's fingerprint
+// and an error
 func NewClient(known bool) (*webrtc.PeerConnection, string, error) {
 	secretKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
@@ -190,6 +192,7 @@ func SendRestore(cdc *webrtc.DataChannel, ref int, marker int) error {
 	return nil
 }
 
+// TestMain runs before every tesm
 func TestMain(m *testing.M) {
 	code := m.Run()
 	// If we've used a temporary file, remove it

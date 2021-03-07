@@ -26,30 +26,45 @@ type Pane struct {
 	vt        vt10x.VT
 }
 
-// NewPane opens a new pane and start its command and pty
-func NewPane(command []string, d *webrtc.DataChannel, peer *Peer,
-	ws *pty.Winsize) (*Pane, error) {
-
+// execCommand in ahelper function for executing a command
+func execCommand(command []string, ws *pty.Winsize) (*exec.Cmd, *os.File, error) {
 	var (
-		err error
 		tty *os.File
-		vt  vt10x.VT
+		err error
 	)
-
 	cmd := exec.Command(command[0], command[1:]...)
+	if Conf.env != nil {
+		for k, v := range Conf.env {
+			cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", k, v))
+		}
+	}
 	if ws != nil {
 		tty, err = pty.StartWithSize(cmd, ws)
 		if err != nil {
-			return nil, fmt.Errorf("Failed starting command: %q", err)
+			return nil, nil, fmt.Errorf("Failed starting command: %q", err)
 		}
-		vt = vt10x.New()
-		vt.Resize(int(ws.Cols), int(ws.Rows))
 	} else {
 		// TODO: remove the pty
 		tty, err = pty.Start(cmd)
 	}
 	if err != nil {
-		return nil, fmt.Errorf("Failed launching %q: %q", command, err)
+		return nil, nil, fmt.Errorf("Failed launching %q: %q", command, err)
+	}
+	return cmd, tty, nil
+}
+
+// NewPane opens a new pane and start its command and pty
+func NewPane(command []string, d *webrtc.DataChannel, peer *Peer,
+	ws *pty.Winsize) (*Pane, error) {
+
+	var vt vt10x.VT
+	cmd, tty, err := execCommand(command, ws)
+	if err != nil {
+		return nil, err
+	}
+	if ws != nil {
+		vt = vt10x.New()
+		vt.Resize(int(ws.Cols), int(ws.Rows))
 	}
 	pane := &Pane{
 		C:         cmd,

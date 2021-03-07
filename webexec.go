@@ -27,11 +27,12 @@ import (
 
 var (
 	// Logger is our global logger
-	Logger             *zap.SugaredLogger
-	commit             = "0000000"
-	version            = "UNRELEASED"
-	date               = "0000-00-00T00:00:00+0000"
-	cdb                = NewClientsDB()
+	Logger  *zap.SugaredLogger
+	commit  = "0000000"
+	version = "UNRELEASED"
+	date    = "0000-00-00T00:00:00+0000"
+	cdb     = NewClientsDB()
+	// ErrAgentNotRunning is returned by commands that require a running agent
 	ErrAgentNotRunning = errors.New("agent is not running")
 	gotExitSignal      chan bool
 	logWriter          io.Writer
@@ -106,7 +107,7 @@ func InitAgentLogger() {
 	// redirect stderr
 	e, _ := os.OpenFile(
 		Conf.errFilePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-	syscall.Dup2(int(e.Fd()), 2)
+	Dup2(int(e.Fd()), 2)
 }
 
 // InitDevLogger starts a logger for development
@@ -178,10 +179,10 @@ func loadConf(c *cli.Context) error {
 		os.Mkdir(home, 0755)
 		fmt.Printf("First run, created %q directory\n", home)
 	}
-	conf_path := filepath.Join(home, "webexec.conf")
-	_, err = os.Stat(conf_path)
+	confPath := filepath.Join(home, "webexec.conf")
+	_, err = os.Stat(confPath)
 	if os.IsNotExist(err) {
-		confFile, err := os.Create(conf_path)
+		confFile, err := os.Create(confPath)
 		defer confFile.Close()
 		if err != nil {
 			return fmt.Errorf("Failed to create config file: %q", err)
@@ -191,19 +192,19 @@ func loadConf(c *cli.Context) error {
 		if err != nil {
 			return fmt.Errorf("Failed to parse default conf: %s", err)
 		}
-		fmt.Printf("Created %q default config file\n", conf_path)
+		fmt.Printf("Created %q default config file\n", confPath)
 	} else {
-		b, err := ioutil.ReadFile(conf_path)
+		b, err := ioutil.ReadFile(confPath)
 		if err != nil {
-			return fmt.Errorf("Failed to read conf file %q: %s", conf_path,
+			return fmt.Errorf("Failed to read conf file %q: %s", confPath,
 				err)
 		}
 		err = LoadConf(string(b))
 		if err != nil {
-			return fmt.Errorf("Failed to parse conf file %q: %s", conf_path,
+			return fmt.Errorf("Failed to parse conf file %q: %s", confPath,
 				err)
 		}
-		fmt.Printf("Read configuration from %q\n", conf_path)
+		fmt.Printf("Read configuration from %q\n", confPath)
 	}
 	_, err = os.Stat(TokensFilePath)
 	if os.IsNotExist(err) {
@@ -213,7 +214,7 @@ func loadConf(c *cli.Context) error {
 			return fmt.Errorf("Failed to create the tokens file at %q: %w",
 				TokensFilePath, err)
 		}
-		fmt.Printf("Created %q tokens file\n", conf_path)
+		fmt.Printf("Created %q tokens file\n", confPath)
 	}
 	return nil
 }

@@ -24,6 +24,9 @@ disconnect = 3000
 failed = 6000
 keep_alive = 500
 ice_gathering = 5000
+[env]
+COLORTERM = "truecolor"
+TERM = "xterm"
 `
 
 // Conf hold the configuration variables
@@ -39,6 +42,7 @@ var Conf struct {
 	logLevel          zapcore.Level
 	errFilePath       string
 	pionLevels        *toml.Tree
+	env               map[string]string
 }
 
 // LoadConf loads a configuration from a toml string and fills all Conf value.
@@ -106,6 +110,14 @@ func LoadConf(s string) error {
 		Conf.pionLevels = v.(*toml.Tree)
 	} else {
 		Conf.pionLevels = &toml.Tree{}
+	}
+	// get env vars
+	m := t.Get("env")
+	if m != nil {
+		Conf.env = make(map[string]string)
+		for k, v := range m.(*toml.Tree).ToMap() {
+			Conf.env[k] = v.(string)
+		}
 	}
 	return nil
 }
