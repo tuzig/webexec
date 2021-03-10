@@ -8,7 +8,8 @@ import (
 )
 
 const defaultHTTPServer = "0.0.0.0:7777"
-const defaultConf = `# webexec's default configuration. in toml.
+const defaultConf = `# webexec's configuration. in toml.
+# to learn more: https://github.com/tuzig/webexec/blob/master/docs/conf.md
 [log]
 level = "error"
 # for absolute path by starting with a /
