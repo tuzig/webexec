@@ -15,7 +15,8 @@ Known issues:
 
 ### Added 
 
-- webexec.conf now support `[env]` section for env vars to set in shells.
+- webexec.conf support for `[env]` section for env vars to set in shells.
+- webexec.conf support for `net.upd_port_min` and `net.udp_port_max`
 
 ### Changed
 

@@ -19,6 +19,8 @@ error = "agent.err"
 [net]
 http_server = "0.0.0.0:7777"
 ice_servers = [ "stun:stun.l.google.com:19302" ]
+udp_port_min = 7000
+udp_port_max = 7777
 [timeouts]
 disconnect = 3000
 failed = 6000
@@ -43,6 +45,8 @@ var Conf struct {
 	errFilePath       string
 	pionLevels        *toml.Tree
 	env               map[string]string
+	portMin           uint16
+	portMax           uint16
 }
 
 // LoadConf loads a configuration from a toml string and fills all Conf value.
@@ -104,6 +108,15 @@ func LoadConf(s string) error {
 		// when no address is given, this is the default address
 		Conf.httpServer = defaultHTTPServer
 	}
+	// get the udp ports
+	v = t.Get("net.udp_port_min")
+	if v != nil {
+		Conf.portMin = uint16(v.(int64))
+	}
+	v = t.Get("net.udp_port_max")
+	if v != nil {
+		Conf.portMax = uint16(v.(int64))
+	}
 	// get pion's conf
 	v = t.Get("log.pion_levels")
 	if v != nil {
@@ -120,6 +133,7 @@ func LoadConf(s string) error {
 		}
 	}
 	return nil
+
 }
 
 func loadFilePath(path string, def string) string {
