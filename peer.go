@@ -50,6 +50,9 @@ func NewPeer(fingerprint string) (*Peer, error) {
 		var s webrtc.SettingEngine
 		if pionLoggerFactory != nil {
 			s = webrtc.SettingEngine{LoggerFactory: pionLoggerFactory}
+			if Conf.portMax > 0 {
+				s.SetEphemeralUDPPortRange(Conf.portMin, Conf.portMax)
+			}
 		} else {
 			// for testing
 			s = webrtc.SettingEngine{}
