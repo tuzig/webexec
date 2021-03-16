@@ -1,0 +1,51 @@
+{
+  "users": {
+    "j@example.com": {
+      "clients": {
+        "J's iPad": { 
+          "token": "<client's token>",
+          "candidates": {
+            "<uuid>": {
+              "created_on": "<timestamp>",
+              "address": "<address>",
+              "offer": "<client's offer>"
+            }
+          }
+          },
+        "J's S6": { "token": "<client's token>" }
+      },
+      "sessions": { 
+        "benny's iPad": {
+          "created_at": "<timestamp>",
+          "state": "init",
+          "serverID": "<uuid>",
+          "offer": "<client's offer>" 
+        }
+      }
+    }
+  },
+  "servers": {
+    "<uuid>": {
+      "status": "approved",
+      "name": "pinky",
+      "token": "<server's token>",
+      "users": [ "j@example.com" ],
+      "api_key": "<user's api key>",
+      "candidates": {
+        "<uuid>": {
+          "created_on": "<timestamp>",
+          "address": "<address>",
+          "offer": "<client's offer>",
+          "answer": "<server's token>"
+        }
+      }
+    },
+    "<uuid>": {
+      "status": "pending",
+      "created_on": "timestamp",
+      "name": "brain",
+      "pub_key": "<server's public key>",
+      "users": [ "j@example.com" ]
+    }
+  }
+}
