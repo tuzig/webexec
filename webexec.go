@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -170,57 +169,9 @@ func versionCMD(c *cli.Context) error {
 	return nil
 }
 
-// loadConf creates the home dir and the files
-func loadConf(c *cli.Context) error {
-	usr, _ := user.Current()
-	home := filepath.Join(usr.HomeDir, ".webexec")
-	_, err := os.Stat(home)
-	if os.IsNotExist(err) {
-		os.Mkdir(home, 0755)
-		fmt.Printf("First run, created %q directory\n", home)
-	}
-	confPath := filepath.Join(home, "webexec.conf")
-	_, err = os.Stat(confPath)
-	if os.IsNotExist(err) {
-		confFile, err := os.Create(confPath)
-		defer confFile.Close()
-		if err != nil {
-			return fmt.Errorf("Failed to create config file: %q", err)
-		}
-		confFile.WriteString(defaultConf)
-		err = LoadConf(defaultConf)
-		if err != nil {
-			return fmt.Errorf("Failed to parse default conf: %s", err)
-		}
-		fmt.Printf("Created %q default config file\n", confPath)
-	} else {
-		b, err := ioutil.ReadFile(confPath)
-		if err != nil {
-			return fmt.Errorf("Failed to read conf file %q: %s", confPath,
-				err)
-		}
-		err = LoadConf(string(b))
-		if err != nil {
-			return fmt.Errorf("Failed to parse conf file %q: %s", confPath,
-				err)
-		}
-		fmt.Printf("Read configuration from %q\n", confPath)
-	}
-	_, err = os.Stat(TokensFilePath)
-	if os.IsNotExist(err) {
-		tokensFile, err := os.Create(TokensFilePath)
-		defer tokensFile.Close()
-		if err != nil {
-			return fmt.Errorf("Failed to create the tokens file at %q: %w",
-				TokensFilePath, err)
-		}
-		fmt.Printf("Created %q tokens file\n", confPath)
-	}
-	return nil
-}
-
 // stop - stops the agent
 func stop(c *cli.Context) error {
+	LoadConf()
 	pidf, err := pidfile.Open(ConfPath("agent.pid"))
 	if os.IsNotExist(err) {
 		return ErrAgentNotRunning
@@ -285,6 +236,7 @@ func launchAgent(address string) error {
 
 // start - start the user's agent
 func start(c *cli.Context) error {
+	LoadConf()
 	var address string
 	if c.IsSet("address") {
 		address = c.String("address")
@@ -341,6 +293,7 @@ func restart(c *cli.Context) error {
 
 // status function prints the status of the agent
 func status(c *cli.Context) error {
+	LoadConf()
 	pidf, err := pidfile.Open(ConfPath("agent.pid"))
 	if os.IsNotExist(err) {
 		fmt.Println("agent is not running")
@@ -357,14 +310,32 @@ func status(c *cli.Context) error {
 	fmt.Printf("agent is running with process id %d\n", pid)
 	return nil
 }
-
+func initCMD(c *cli.Context) error {
+	homePath := ConfPath("")
+	_, err := os.Stat(homePath)
+	if os.IsNotExist(err) {
+		os.Mkdir(homePath, 0755)
+		fmt.Printf("First run, created %q directory\n", homePath)
+	}
+	confPath := ConfPath("webexec.conf")
+	_, err = os.Stat(confPath)
+	if os.IsNotExist(err) {
+		err = createConf(confPath)
+	} else {
+		return fmt.Errorf("Configuration file at %q exists. Please backup, remove and re-init.", confPath)
+	}
+	err = LoadConf()
+	if err != nil {
+		return fmt.Errorf("Failed to parse default conf: %s", err)
+	}
+	fmt.Printf("Created %q default config file\n", confPath)
+	return err
+}
 func main() {
 	app := &cli.App{
 		Name:        "webexec",
 		Usage:       "execute commands and pipe their stdin&stdout over webrtc",
 		HideVersion: true,
-		Before:      loadConf,
-
 		Commands: []*cli.Command{
 			/* TODO: Add clipboard commands
 			{
@@ -421,6 +392,10 @@ func main() {
 				Name:   "stop",
 				Usage:  "stop the user's agent",
 				Action: stop,
+			}, {
+				Name:   "init",
+				Usage:  "initialize the conf file",
+				Action: initCMD,
 			},
 		},
 	}

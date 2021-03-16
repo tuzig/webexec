@@ -1,9 +1,14 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
 	"github.com/pelletier/go-toml"
 	"go.uber.org/zap/zapcore"
+	"io/ioutil"
+	"os"
+	"os/user"
+	"path/filepath"
 	"time"
 )
 
@@ -50,9 +55,9 @@ var Conf struct {
 	portMax           uint16
 }
 
-// LoadConf loads a configuration from a toml string and fills all Conf value.
+// parseConf loads a configuration from a toml string and fills all Conf value.
 //			If a key is missing LoadConf will load the default value
-func LoadConf(s string) error {
+func parseConf(s string) error {
 	t, err := toml.Load(s)
 	if err != nil {
 		return fmt.Errorf("toml parsing failed: %s", err)
@@ -147,4 +152,68 @@ func loadFilePath(path string, def string) string {
 		ret = ConfPath(def)
 	}
 	return ret
+}
+
+// loadConf load the conf file
+func LoadConf() error {
+	confPath := ConfPath("webexec.conf")
+	_, err := os.Stat(confPath)
+	if os.IsNotExist(err) {
+		return fmt.Errorf("No configuration file found. Please run `webexec init`")
+	} else {
+		b, err := ioutil.ReadFile(confPath)
+		if err != nil {
+			return fmt.Errorf("Failed to read conf file %q: %s", confPath,
+				err)
+		}
+		err = parseConf(string(b))
+		if err != nil {
+			return fmt.Errorf("Failed to parse conf file %q: %s", confPath,
+				err)
+		}
+		fmt.Printf("Read configuration from %q\n", confPath)
+	}
+	return nil
+}
+func createConf(confPath string) error {
+	confFile, err := os.Create(confPath)
+	defer confFile.Close()
+	if err != nil {
+		return fmt.Errorf("Failed to create config file: %q", err)
+	}
+	conf := defaultConf
+	reader := bufio.NewReader(os.Stdin)
+	fmt.Println("Would you like to use a signaling server?")
+	fmt.Println("It enables behind the NAT connection and")
+	fmt.Println("makes it easier for clients to find this server")
+	fmt.Print("and authenticate (Y/n)")
+	text, _ := reader.ReadString('\n')
+	if text == "\n" || text == "y\n" || text == "yes\n" {
+		fmt.Print("Please enter your email: ")
+		email, err := reader.ReadString('\n')
+		if err != nil {
+			return fmt.Errorf("Failed to read input: %s", err)
+		}
+		usr, _ := user.Current()
+		// TODO: make it configurable
+		tokenPath := filepath.Join(usr.HomeDir, ".ssh", "id_rsa.pub")
+		conf = fmt.Sprintf(`%s[signalling]
+address = "pab.tuzig.com:777"
+users = [ "%s" ]
+token_file = "%s"`, conf, email[:len(email)-1], tokenPath)
+	}
+	fmt.Printf("\n%s\n", conf)
+
+	// creating the token file
+	_, err = os.Stat(TokensFilePath)
+	if os.IsNotExist(err) {
+		tokensFile, err := os.Create(TokensFilePath)
+		defer tokensFile.Close()
+		if err != nil {
+			return fmt.Errorf("Failed to create the tokens file at %q: %w",
+				TokensFilePath, err)
+		}
+		fmt.Printf("Created %q tokens file\n", confPath)
+	}
+	return nil
 }

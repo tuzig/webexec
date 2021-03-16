@@ -155,7 +155,7 @@ func initTest(t *testing.T) {
 	f.Close()
 	TokensFilePath = f.Name()
 	require.Nil(t, err, "Failed setting a temp tokens file: %s", err)
-	err = LoadConf(defaultConf)
+	err = parseConf(defaultConf)
 	Conf.iceServers = nil
 
 	require.Nil(t, err, "NewPeer failed with: %s", err)
