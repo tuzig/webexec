@@ -9,8 +9,6 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
-	"os/user"
-	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
@@ -152,13 +150,6 @@ func Shutdown() {
 			Logger.Error("Failed closing a process: %w", err)
 		}
 	}
-}
-
-// ConfPath returns the full path of a configuration file
-func ConfPath(suffix string) string {
-	usr, _ := user.Current()
-	// TODO: make it configurable
-	return filepath.Join(usr.HomeDir, ".webexec", suffix)
 }
 
 // versionCMD prints version information
@@ -322,7 +313,8 @@ func initCMD(c *cli.Context) error {
 	if os.IsNotExist(err) {
 		err = createConf(confPath)
 	} else {
-		return fmt.Errorf("Configuration file at %q exists. Please backup, remove and re-init.", confPath)
+		return fmt.Errorf(`Configuration file already exists.
+To recreate a fresh file, please backup and remove %q`, confPath)
 	}
 	err = LoadConf()
 	if err != nil {

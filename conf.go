@@ -36,6 +36,8 @@ ice_gathering = 5000
 COLORTERM = "truecolor"
 TERM = "xterm"
 `
+const abConfTemplate = `%s[adrress_book]
+users = [ "%s" ]`
 
 // Conf hold the configuration variables
 var Conf struct {
@@ -53,6 +55,8 @@ var Conf struct {
 	env               map[string]string
 	portMin           uint16
 	portMax           uint16
+	ABUrl             string
+	users             []string
 }
 
 // parseConf loads a configuration from a toml string and fills all Conf value.
@@ -138,6 +142,15 @@ func parseConf(s string) error {
 			Conf.env[k] = v.(string)
 		}
 	}
+	// get address_book
+	v = t.Get("address_book.users")
+	if v != nil {
+		Conf.ABUrl = "https://t7-signalling-default-rtdb.europe-west1.firebasedatabase.app/"
+		Conf.users = []string{}
+		for _, u := range v.([]interface{}) {
+			Conf.users = append(Conf.users, u.(string))
+		}
+	}
 	return nil
 
 }
@@ -171,10 +184,11 @@ func LoadConf() error {
 			return fmt.Errorf("Failed to parse conf file %q: %s", confPath,
 				err)
 		}
-		fmt.Printf("Read configuration from %q\n", confPath)
 	}
 	return nil
 }
+
+// createConf creates the configuration files based on user input
 func createConf(confPath string) error {
 	confFile, err := os.Create(confPath)
 	defer confFile.Close()
@@ -184,7 +198,7 @@ func createConf(confPath string) error {
 	conf := defaultConf
 	reader := bufio.NewReader(os.Stdin)
 	fmt.Println("Would you like to use a signaling server?")
-	fmt.Println("It enables behind the NAT connection and")
+	fmt.Println("It enables behind the NAT connections and")
 	fmt.Println("makes it easier for clients to find this server")
 	fmt.Print("and authenticate (Y/n)")
 	text, _ := reader.ReadString('\n')
@@ -194,16 +208,13 @@ func createConf(confPath string) error {
 		if err != nil {
 			return fmt.Errorf("Failed to read input: %s", err)
 		}
-		usr, _ := user.Current()
 		// TODO: make it configurable
-		tokenPath := filepath.Join(usr.HomeDir, ".ssh", "id_rsa.pub")
-		conf = fmt.Sprintf(`%s[signalling]
-address = "pab.tuzig.com:777"
-users = [ "%s" ]
-token_file = "%s"`, conf, email[:len(email)-1], tokenPath)
+		conf = fmt.Sprintf(abConfTemplate, conf, email[:len(email)-1])
 	}
-	fmt.Printf("\n%s\n", conf)
-
+	_, err = confFile.WriteString(conf)
+	if err != nil {
+		return fmt.Errorf("Failed to write to configuration file: %s", err)
+	}
 	// creating the token file
 	_, err = os.Stat(TokensFilePath)
 	if os.IsNotExist(err) {
@@ -216,4 +227,11 @@ token_file = "%s"`, conf, email[:len(email)-1], tokenPath)
 		fmt.Printf("Created %q tokens file\n", confPath)
 	}
 	return nil
+}
+
+// ConfPath returns the full path of a configuration file
+func ConfPath(suffix string) string {
+	usr, _ := user.Current()
+	// TODO: make it configurable
+	return filepath.Join(usr.HomeDir, ".webexec", suffix)
 }
