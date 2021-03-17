@@ -36,8 +36,9 @@ ice_gathering = 5000
 COLORTERM = "truecolor"
 TERM = "xterm"
 `
-const abConfTemplate = `%s[adrress_book]
+const abConfTemplate = `%s[signaling]
 users = [ "%s" ]`
+const defaultSignalingHOST = "signaling.tuzig.com"
 
 // Conf hold the configuration variables
 var Conf struct {
@@ -55,7 +56,7 @@ var Conf struct {
 	env               map[string]string
 	portMin           uint16
 	portMax           uint16
-	ABUrl             string
+	signalingHost     string
 	users             []string
 }
 
@@ -143,9 +144,15 @@ func parseConf(s string) error {
 		}
 	}
 	// get address_book
-	v = t.Get("address_book.users")
+	v = t.Get("signaling.users")
 	if v != nil {
-		Conf.ABUrl = "https://t7-signalling-default-rtdb.europe-west1.firebasedatabase.app/"
+		url := t.Get("signaling.url")
+		if url != nil {
+			Conf.signalingHost = url.(string)
+		} else {
+			Conf.signalingHost = defaultSignalingHOST
+		}
+
 		Conf.users = []string{}
 		for _, u := range v.([]interface{}) {
 			Conf.users = append(Conf.users, u.(string))

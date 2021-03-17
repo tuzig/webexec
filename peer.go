@@ -5,6 +5,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"strconv"
 	"strings"
 	"sync"
@@ -102,6 +103,21 @@ func NewPeer(fingerprint string) (*Peer, error) {
 	})
 	pc.OnDataChannel(peer.OnChannelReq)
 	return &peer, nil
+}
+
+func parsePeerReq(message io.Reader, cr *ConnectRequest,
+	offer *webrtc.SessionDescription) error {
+
+	dec := json.NewDecoder(message)
+	err := dec.Decode(cr)
+	if err != nil {
+		return fmt.Errorf("Failed to read connection request: %w", err)
+	}
+	err = DecodeOffer(offer, []byte(cr.Offer))
+	if err != nil {
+		return fmt.Errorf("Failed to decode client's offer: %w", err)
+	}
+	return nil
 }
 
 // Listen get's a client offer, starts listens to it and returns an answear

@@ -34,7 +34,7 @@ var (
 	gotExitSignal      chan bool
 	logWriter          io.Writer
 	pionLoggerFactory  *logging.DefaultLoggerFactory
-	gotExit            chan os.Signal
+	done               chan os.Signal
 )
 
 func newPionLoggerFactory() *logging.DefaultLoggerFactory {
@@ -186,8 +186,8 @@ func stop(c *cli.Context) error {
 	return err
 }
 
-// agentStart starts the user agent
-func agentStart() error {
+// createPIDFile creates the pid file or returns an error if it exists
+func createPIDFile() error {
 	InitAgentLogger()
 	pionLoggerFactory = newPionLoggerFactory()
 	pidPath := ConfPath("agent.pid")
@@ -239,9 +239,9 @@ func start(c *cli.Context) error {
 		InitDevLogger()
 	} else {
 		if c.Bool("agent") {
-			err := agentStart()
+			err := createPIDFile()
 			if err != nil {
-				return fmt.Errorf("Failed to start as agent: %w", err)
+				return err
 			}
 		} else {
 			return launchAgent(address)
@@ -249,15 +249,19 @@ func start(c *cli.Context) error {
 	}
 	// the code below runs for --debug and --agent
 	Logger.Infof("Serving http on %q", address)
+	done = make(chan os.Signal, 1)
 	go HTTPGo(address)
-	// signal handling
-	gotExit = make(chan os.Signal, 1)
-	if debug {
-		signal.Notify(gotExit, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
-	} else {
-		signal.Notify(gotExit, syscall.SIGINT)
+	Logger.Infof("%v", Conf.users)
+	if Conf.users != nil {
+		go signalingGo(done)
 	}
-	<-gotExit
+	// signal handling
+	if debug {
+		signal.Notify(done, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
+	} else {
+		signal.Notify(done, syscall.SIGINT, syscall.SIGTERM)
+	}
+	<-done
 	return nil
 }
 

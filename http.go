@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
@@ -23,7 +22,7 @@ func HTTPGo(address string) {
 	h := cors.Default().Handler(http.DefaultServeMux)
 	err := http.ListenAndServe(address, h)
 	Logger.Errorf("%s", err)
-	gotExit <- os.Interrupt
+	done <- os.Interrupt
 }
 
 // handleConnect is called when a client requests the connect endpoint
@@ -41,27 +40,13 @@ func handleConnect(w http.ResponseWriter, r *http.Request) {
 	}
 	Logger.Info("Got a new post request")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
-	dec := json.NewDecoder(r.Body)
-	err := dec.Decode(&req)
-	if err != nil {
-		Logger.Errorf("Failed to read http request body: %s", err)
-		return
-	}
+	err := parsePeerReq(r.Body, &req, &offer)
 	if !IsAuthorized(req.Fingerprint) {
 		msg := "Unknown client fingerprint"
 		Logger.Info(msg)
 		http.Error(w, msg, http.StatusUnauthorized)
 		return
 	}
-	// Logger.Infof("Got a valid POST request with offer of len: %d", l)
-	err = DecodeOffer(&offer, []byte(req.Offer))
-	if err != nil {
-		msg := fmt.Sprintf("Failed to decode offer: %s", err)
-		Logger.Info(msg)
-		http.Error(w, msg, http.StatusBadRequest)
-		return
-	}
-
 	peer, err := NewPeer(req.Fingerprint)
 	if err != nil {
 		msg := fmt.Sprintf("Failed to create a new peer: %s", err)

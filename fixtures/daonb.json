@@ -1,8 +1,10 @@
 {
   "users": {
-    "j@example.com": {
+    "<uuid>": {
+      "email": "<email>",
       "clients": {
-        "J's iPad": { 
+        "<uuid>": {
+          "name": "J's iPad",
           "token": "<client's token>",
           "candidates": {
             "<uuid>": {
@@ -11,8 +13,8 @@
               "offer": "<client's offer>"
             }
           }
-          },
-        "J's S6": { "token": "<client's token>" }
+        },
+        "<uuid>": { "name": "J's S6", "token": "<client's token>" }
       },
       "sessions": { 
         "benny's iPad": {
@@ -35,8 +37,7 @@
         "<uuid>": {
           "created_on": "<timestamp>",
           "address": "<address>",
-          "offer": "<client's offer>",
-          "answer": "<server's token>"
+          "offer": "<client's offer>"
         }
       }
     },
