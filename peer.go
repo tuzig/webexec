@@ -93,7 +93,10 @@ func NewPeer(fingerprint string) (*Peer, error) {
 		if state == webrtc.PeerConnectionStateConnected {
 			rsdp := pc.CurrentRemoteDescription()
 			// ensure it's the same fingerprint as the one signalling got
-			fp := GetFingerprint(rsdp)
+			fp, err := GetFingerprint(rsdp)
+			if err != nil {
+				Logger.Warnf("Failed to get fingerprint from sdp: %w", err)
+			}
 			if fp != fingerprint {
 				msg := "Mismatching fingerprints - closing connection"
 				Logger.Error(msg)

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"github.com/pion/webrtc/v3"
 	"os"
-	"regexp"
 )
 
 // TokensFilePath holds the path to a file where each authorized token has a line
@@ -46,12 +45,23 @@ func IsAuthorized(token string) bool {
 }
 
 // GetFingerprint extract the fingerprints from a client's offer
-func GetFingerprint(offer *webrtc.SessionDescription) string {
-	r, _ := regexp.Compile("a=fingerprint:.+ ([0-9A-Z]{2}:)+[0-9A-Z]{2}")
-	fp := r.FindString(offer.SDP)
-	Logger.Infof("fingerprint=%s sdp=%s", fp, offer.SDP)
-	if len(fp) > 14 {
-		return fp[14:]
+func GetFingerprint(offer *webrtc.SessionDescription) (string, error) {
+	s, err := offer.Unmarshal()
+	if err != nil {
+		return "", fmt.Errorf("Failed to unmarshal sdp: %w", err)
 	}
-	return ""
+
+	fp, ok := s.MediaDescriptions[0].Attribute("fingerprint")
+	if !ok {
+		return "", fmt.Errorf("Failed to get fingerprint from sdp")
+	}
+	Logger.Infof("fingerprint=%s sdp=%s", fp, offer.SDP)
+	/*
+		r, _ := regexp.Compile("a=fingerprint:.+ ([0-9A-Z]{2}:)+[0-9A-Z]{2}")
+		fp := r.FindString(offer.SDP)
+	*/
+	if len(fp) > 14 {
+		return fp[14:], nil
+	}
+	return "", fmt.Errorf("Got a fingerprint that's too short: %q", fp)
 }
