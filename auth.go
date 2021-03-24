@@ -50,16 +50,9 @@ func GetFingerprint(offer *webrtc.SessionDescription) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("Failed to unmarshal sdp: %w", err)
 	}
-	fingerprints := []string{}
 
 	if fingerprint, haveFingerprint := s.Attribute("fingerprint"); haveFingerprint {
-		fingerprints = append(fingerprints, fingerprint)
+		return fingerprint, nil
 	}
-
-	for _, m := range s.MediaDescriptions {
-		if fingerprint, haveFingerprint := m.Attribute("fingerprint"); haveFingerprint {
-			fingerprints = append(fingerprints, fingerprint)
-		}
-	}
-	return fingerprints[0], nil
+	return "", fmt.Errorf("found no fingerprint for %v", offer)
 }
