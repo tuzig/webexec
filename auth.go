@@ -50,18 +50,16 @@ func GetFingerprint(offer *webrtc.SessionDescription) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("Failed to unmarshal sdp: %w", err)
 	}
+	fingerprints := []string{}
 
-	fp, ok := s.MediaDescriptions[0].Attribute("fingerprint")
-	if !ok {
-		return "", fmt.Errorf("Failed to get fingerprint from sdp")
+	if fingerprint, haveFingerprint := s.Attribute("fingerprint"); haveFingerprint {
+		fingerprints = append(fingerprints, fingerprint)
 	}
-	Logger.Infof("fingerprint=%s sdp=%s", fp, offer.SDP)
-	/*
-		r, _ := regexp.Compile("a=fingerprint:.+ ([0-9A-Z]{2}:)+[0-9A-Z]{2}")
-		fp := r.FindString(offer.SDP)
-	*/
-	if len(fp) > 14 {
-		return fp[14:], nil
+
+	for _, m := range s.MediaDescriptions {
+		if fingerprint, haveFingerprint := m.Attribute("fingerprint"); haveFingerprint {
+			fingerprints = append(fingerprints, fingerprint)
+		}
 	}
-	return "", fmt.Errorf("Got a fingerprint that's too short: %q", fp)
+	return fingerprints[0], nil
 }
