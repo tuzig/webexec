@@ -35,6 +35,7 @@ var (
 	logWriter          io.Writer
 	pionLoggerFactory  *logging.DefaultLoggerFactory
 	done               chan os.Signal
+	key                *KeyType
 )
 
 func newPionLoggerFactory() *logging.DefaultLoggerFactory {
@@ -227,7 +228,12 @@ func launchAgent(address string) error {
 
 // start - start the user's agent
 func start(c *cli.Context) error {
+	var err error
 	LoadConf()
+	key, err = loadKey(ConfPath("private.key"))
+	if err != nil {
+		return err
+	}
 	var address string
 	if c.IsSet("address") {
 		address = c.String("address")
@@ -247,13 +253,12 @@ func start(c *cli.Context) error {
 			return launchAgent(address)
 		}
 	}
-	// the code below runs for --debug and --agent
+	// the code below runs for both --debug and --agent
 	Logger.Infof("Serving http on %q", address)
 	done = make(chan os.Signal, 1)
 	go HTTPGo(address)
-	Logger.Infof("%v", Conf.users)
-	if Conf.users != nil {
-		go signalingGo(done)
+	if Conf.email != "" {
+		go signalingGo()
 	}
 	// signal handling
 	if debug {
@@ -318,7 +323,7 @@ func initCMD(c *cli.Context) error {
 		err = createConf(confPath)
 	} else {
 		return fmt.Errorf(`Configuration file already exists.
-To recreate a fresh file, please backup and remove %q`, confPath)
+To recreate a fresh file, please backup, remove & re-run %q`, confPath)
 	}
 	err = LoadConf()
 	if err != nil {

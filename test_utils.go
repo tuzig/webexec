@@ -156,9 +156,14 @@ func initTest(t *testing.T) {
 	TokensFilePath = f.Name()
 	require.Nil(t, err, "Failed setting a temp tokens file: %s", err)
 	err = parseConf(defaultConf)
-	Conf.iceServers = nil
-
 	require.Nil(t, err, "NewPeer failed with: %s", err)
+	Conf.iceServers = nil
+	f, err = ioutil.TempFile("", "private.key")
+	require.Nil(t, err)
+	f.Close()
+	key, err = loadKey(f.Name())
+	require.Nil(t, err)
+
 }
 
 // GetFreePort asks the kernel for a free open port that is ready to use.

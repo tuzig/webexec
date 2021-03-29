@@ -2,10 +2,12 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
+	"fmt"
 	"github.com/gorilla/websocket"
 	"github.com/pion/webrtc/v3"
 	"net/url"
-	"os"
+	"time"
 )
 
 type Candidate struct {
@@ -15,13 +17,34 @@ type Candidate struct {
 	created_on string
 }
 
-func signalingGo(done chan os.Signal) {
-	var req ConnectRequest
-	var offer webrtc.SessionDescription
-	u := url.URL{Scheme: "ws", Host: Conf.signalingHost, Path: "/connect"}
-	c, _, err := websocket.DefaultDialer.Dial(u.String(), nil)
+func signalingGo() {
+	var cstDialer = websocket.Dialer{
+		ReadBufferSize:   1024,
+		WriteBufferSize:  1024,
+		HandshakeTimeout: 30 * time.Second,
+	}
+	certs, err := key.GetCerts()
 	if err != nil {
 		Logger.Error(err)
+	}
+	params := url.Values{}
+	// TODO: is 0 the right choice?
+	fps, err := certs[0].GetFingerprints()
+	if err != nil {
+		Logger.Error("Failed to get fingerprints: %w", err)
+	}
+	fp := fmt.Sprintf("%s %s", fps[0].Algorithm, fps[0].Value)
+
+	params.Add("fp", fp)
+	params.Add("name", "a name")
+	params.Add("kind", "webexec")
+	params.Add("email", Conf.email)
+	u := url.URL{Scheme: "ws", Host: Conf.signalingHost, Path: "/ws",
+		RawQuery: params.Encode()}
+	c, _, err := cstDialer.Dial(u.String(), nil)
+	if err != nil {
+		Logger.Warnf("Failed to dial the signaling server %q: %w", u, err)
+		return
 	}
 	defer c.Close()
 	for {
@@ -30,30 +53,52 @@ func signalingGo(done chan os.Signal) {
 			Logger.Errorf("Signaling read error", err)
 			continue
 		}
-		Logger.Info("Received message", m)
-		r := bytes.NewReader(m)
-		err = parsePeerReq(r, &req, &offer)
+		Logger.Info("Received message", string(m))
+		err = handleMessage(c, m)
 		if err != nil {
-			Logger.Error(err)
-			continue
+			Logger.Errorf("Failed to handle message: %w", err)
 		}
-		peer, err := NewPeer(req.Fingerprint)
+	}
+}
+func handleMessage(c *websocket.Conn, message []byte) error {
+	var m map[string]interface{}
+	r := bytes.NewReader(message)
+	dec := json.NewDecoder(r)
+	err := dec.Decode(&m)
+	if err != nil {
+		return fmt.Errorf("Failed to decode message: %w", err)
+	}
+	code, found := m["code"]
+	if found {
+		Logger.Infof("Got a status message: %v", code)
+		return nil
+	}
+	var offer webrtc.SessionDescription
+	o, found := m["offer"]
+	if found {
+		err = DecodeOffer(offer, []byte(o.(string)))
 		if err != nil {
-			Logger.Errorf("Failed to create a new peer: %w", err)
-			continue
+			return fmt.Errorf("Failed to decode client's offer: %w", err)
+		}
+		fp, found := m["fp"]
+		if !found {
+			return fmt.Errorf("Missing 'fp' paramater")
+		}
+		peer, err := NewPeer(fp.(string))
+		if err != nil {
+			return fmt.Errorf("Failed to create a new peer: %w", err)
 		}
 		answer, err := peer.Listen(offer)
 		if err != nil {
-			Logger.Errorf("Peer failed to listen : %w", err)
-			continue
+			return fmt.Errorf("Peer failed to listen : %w", err)
 		}
 		// reply with server's key
 		payload := make([]byte, 4096)
 		l, err := EncodeOffer(payload, answer)
 		if err != nil {
-			Logger.Errorf("Failed to encode offer : %w", err)
-			continue
+			return fmt.Errorf("Failed to encode offer : %w", err)
 		}
 		c.WriteMessage(websocket.TextMessage, payload[:l])
 	}
+	return nil
 }

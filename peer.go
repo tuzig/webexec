@@ -63,8 +63,14 @@ func NewPeer(fingerprint string) (*Peer, error) {
 		WebRTCAPI = webrtc.NewAPI(webrtc.WithSettingEngine(s))
 	}
 	m.Unlock()
+	certs, err := key.GetCerts()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get certificates: %w", err)
+	}
 	config := webrtc.Configuration{
-		ICEServers: []webrtc.ICEServer{{URLs: Conf.iceServers}},
+		PeerIdentity: "webexec",
+		ICEServers:   []webrtc.ICEServer{{URLs: Conf.iceServers}},
+		Certificates: certs,
 	}
 	pc, err := WebRTCAPI.NewPeerConnection(config)
 	if err != nil {

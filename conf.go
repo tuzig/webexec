@@ -37,8 +37,8 @@ COLORTERM = "truecolor"
 TERM = "xterm"
 `
 const abConfTemplate = `%s[signaling]
-users = [ "%s" ]`
-const defaultSignalingHOST = "signaling.tuzig.com"
+email = "%s"`
+const defaultSignalingHOST = "pb.tuzig.com:1777"
 
 // Conf hold the configuration variables
 var Conf struct {
@@ -57,7 +57,7 @@ var Conf struct {
 	portMin           uint16
 	portMax           uint16
 	signalingHost     string
-	users             []string
+	email             string
 }
 
 // parseConf loads a configuration from a toml string and fills all Conf value.
@@ -144,19 +144,16 @@ func parseConf(s string) error {
 		}
 	}
 	// get address_book
-	v = t.Get("signaling.users")
+	v = t.Get("signaling.email")
 	if v != nil {
-		url := t.Get("signaling.url")
+		url := t.Get("signaling.host")
 		if url != nil {
 			Conf.signalingHost = url.(string)
 		} else {
 			Conf.signalingHost = defaultSignalingHOST
 		}
 
-		Conf.users = []string{}
-		for _, u := range v.([]interface{}) {
-			Conf.users = append(Conf.users, u.(string))
-		}
+		Conf.email = v.(string)
 	}
 	return nil
 
