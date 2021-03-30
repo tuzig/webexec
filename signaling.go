@@ -4,10 +4,11 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"github.com/gorilla/websocket"
-	"github.com/pion/webrtc/v3"
 	"net/url"
 	"time"
+
+	"github.com/gorilla/websocket"
+	"github.com/pion/webrtc/v3"
 )
 
 type Candidate struct {
@@ -48,15 +49,17 @@ func signalingGo() {
 	}
 	defer c.Close()
 	for {
-		_, m, err := c.ReadMessage()
+		mType, m, err := c.ReadMessage()
 		if err != nil {
 			Logger.Errorf("Signaling read error", err)
-			continue
+			return
 		}
-		Logger.Info("Received message", string(m))
-		err = handleMessage(c, m)
-		if err != nil {
-			Logger.Errorf("Failed to handle message: %w", err)
+		if mType == websocket.TextMessage {
+			Logger.Info("Received text message", string(m))
+			err = handleMessage(c, m)
+			if err != nil {
+				Logger.Errorf("Failed to handle message: %w", err)
+			}
 		}
 	}
 }
