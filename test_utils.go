@@ -161,7 +161,7 @@ func initTest(t *testing.T) {
 	f, err = ioutil.TempFile("", "private.key")
 	require.Nil(t, err)
 	f.Close()
-	key, err = loadKey(f.Name())
+	key = &KeyType{Name: f.Name()}
 	require.Nil(t, err)
 
 }
