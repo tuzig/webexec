@@ -230,7 +230,7 @@ func launchAgent(address string) error {
 func start(c *cli.Context) error {
 	var err error
 	LoadConf()
-	key, err = loadKey(ConfPath("private.key"))
+	key = &KeyType{Name: ConfPath("certnkey.pem")}
 	if err != nil {
 		return err
 	}
