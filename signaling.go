@@ -85,15 +85,13 @@ func handleMessage(c *websocket.Conn, message []byte) error {
 	var offer webrtc.SessionDescription
 	o, found := m["offer"]
 	if found {
-		err = DecodeOffer(offer, []byte(o.(string)))
-		if err != nil {
-			return fmt.Errorf("Failed to decode client's offer: %w", err)
-		}
-		fp, found := m["fp"]
+		offer.SDP = o.(string)
+		offer.Type = webrtc.SDPTypeOffer
+		fp, found := m["source_fp"].(string)
 		if !found {
 			return fmt.Errorf("Missing 'fp' paramater")
 		}
-		peer, err := NewPeer(fp.(string))
+		peer, err := NewPeer(fp)
 		if err != nil {
 			return fmt.Errorf("Failed to create a new peer: %w", err)
 		}
@@ -102,12 +100,12 @@ func handleMessage(c *websocket.Conn, message []byte) error {
 			return fmt.Errorf("Peer failed to listen : %w", err)
 		}
 		// reply with server's key
-		payload := make([]byte, 4096)
-		l, err := EncodeOffer(payload, answer)
+		m := map[string]interface{}{"answer": answer.SDP, "target": fp}
+		j, err := json.Marshal(m)
 		if err != nil {
 			return fmt.Errorf("Failed to encode offer : %w", err)
 		}
-		c.WriteMessage(websocket.TextMessage, payload[:l])
+		c.WriteMessage(websocket.TextMessage, j)
 	}
 	return nil
 }
