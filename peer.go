@@ -20,7 +20,7 @@ const keepAliveInterval = 2 * time.Second
 
 var (
 	// Peers holds all the peers (connected and disconnected)
-	Peers []Peer
+	Peers map[string]*Peer
 	// Payload holds the client's payload
 	Payload []byte
 	// WebRTCAPI is the gateway to webrtc calls
@@ -34,7 +34,7 @@ var (
 
 // Peer is a type used to remember a client.
 type Peer struct {
-	ID          int
+	FP          string
 	Remote      string
 	Token       string
 	LastContact *time.Time
@@ -46,7 +46,6 @@ type Peer struct {
 
 // NewPeer funcions starts listening to incoming peer connection from a remote
 func NewPeer(fingerprint string) (*Peer, error) {
-
 	webrtcAPIM.Lock()
 	if WebRTCAPI == nil {
 		var s webrtc.SettingEngine
@@ -77,16 +76,19 @@ func NewPeer(fingerprint string) (*Peer, error) {
 	if err != nil {
 		return nil, fmt.Errorf("NewPeerConnection failed")
 	}
-	peersM.Lock()
 	peer := Peer{
-		ID:          len(Peers),
+		FP:          fingerprint,
 		Token:       "",
 		LastContact: nil,
 		LastRef:     0,
 		PC:          pc,
 		Marker:      -1,
 	}
-	Peers = append(Peers, peer)
+	peersM.Lock()
+	if Peers == nil {
+		Peers = make(map[string]*Peer)
+	}
+	Peers[fingerprint] = &peer
 	peersM.Unlock()
 	// Status changes happend when the peer has connected/disconnected
 	pc.OnConnectionStateChange(func(state webrtc.PeerConnectionState) {
@@ -313,7 +315,7 @@ func (peer *Peer) OnCTRLMsg(msg webrtc.DataChannelMessage) {
 		pane.Resize(&ws)
 		err = peer.SendAck(m, nil)
 		if err != nil {
-			Logger.Errorf("#%d: Failed to send a resize ack: %v", peer.ID, err)
+			Logger.Errorf("#%d: Failed to send a resize ack: %v", peer.FP, err)
 			return
 		}
 	case "restore":
@@ -345,7 +347,7 @@ func (peer *Peer) OnCTRLMsg(msg webrtc.DataChannelMessage) {
 		Logger.Errorf("Got a control message with unknown type: %q", m.Type)
 	}
 	if err != nil {
-		Logger.Errorf("#%d: Failed to send [n]ack: %v", peer.ID, err)
+		Logger.Errorf("#%d: Failed to send [n]ack: %v", peer.FP, err)
 		return
 	}
 }
