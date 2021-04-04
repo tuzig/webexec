@@ -28,6 +28,8 @@ var (
 	// the id of the last marker used
 	lastMarker = 0
 	markerM    sync.RWMutex
+	webrtcAPIM sync.Mutex
+	peersM     sync.Mutex
 )
 
 // Peer is a type used to remember a client.
@@ -44,9 +46,8 @@ type Peer struct {
 
 // NewPeer funcions starts listening to incoming peer connection from a remote
 func NewPeer(fingerprint string) (*Peer, error) {
-	var m sync.Mutex
 
-	m.Lock()
+	webrtcAPIM.Lock()
 	if WebRTCAPI == nil {
 		var s webrtc.SettingEngine
 		if pionLoggerFactory != nil {
@@ -62,7 +63,7 @@ func NewPeer(fingerprint string) (*Peer, error) {
 			Conf.disconnectTimeout, Conf.failedTimeout, Conf.keepAliveInterval)
 		WebRTCAPI = webrtc.NewAPI(webrtc.WithSettingEngine(s))
 	}
-	m.Unlock()
+	webrtcAPIM.Unlock()
 	certs, err := key.GetCerts()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get certificates: %w", err)
@@ -76,7 +77,7 @@ func NewPeer(fingerprint string) (*Peer, error) {
 	if err != nil {
 		return nil, fmt.Errorf("NewPeerConnection failed")
 	}
-	m.Lock()
+	peersM.Lock()
 	peer := Peer{
 		ID:          len(Peers),
 		Token:       "",
@@ -86,7 +87,7 @@ func NewPeer(fingerprint string) (*Peer, error) {
 		Marker:      -1,
 	}
 	Peers = append(Peers, peer)
-	m.Unlock()
+	peersM.Unlock()
 	// Status changes happend when the peer has connected/disconnected
 	pc.OnConnectionStateChange(func(state webrtc.PeerConnectionState) {
 		Logger.Infof("WebRTC Connection State change: %s", state.String())
