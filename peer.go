@@ -93,22 +93,7 @@ func NewPeer(fingerprint string) (*Peer, error) {
 	// Status changes happend when the peer has connected/disconnected
 	pc.OnConnectionStateChange(func(state webrtc.PeerConnectionState) {
 		Logger.Infof("WebRTC Connection State change: %s", state.String())
-		if state == webrtc.PeerConnectionStateConnected {
-			rsdp := pc.CurrentRemoteDescription()
-			// ensure it's the same fingerprint as the one signalling got
-			fp, err := GetFingerprint(rsdp)
-			if err != nil {
-				Logger.Warnf("Failed to get fingerprint from sdp: %w", err)
-			}
-			if fp != fingerprint {
-				msg := "Mismatching fingerprints - closing connection"
-				Logger.Error(msg)
-				peer.PC.Close()
-				peer.PC = nil
-			} else {
-				Logger.Info("Authenticated!")
-			}
-		} else if state == webrtc.PeerConnectionStateFailed {
+		if state == webrtc.PeerConnectionStateFailed {
 			peer.PC.Close()
 			peer.PC = nil
 		}
@@ -129,6 +114,7 @@ func parsePeerReq(message io.Reader, cr *ConnectRequest,
 	if err != nil {
 		return fmt.Errorf("Failed to decode client's offer: %w", err)
 	}
+	// ensure it's the same fingerprint as the one signalling got
 	return nil
 }
 

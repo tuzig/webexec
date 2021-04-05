@@ -93,7 +93,7 @@ func handleMessage(c *websocket.Conn, message []byte) error {
 		if offerFP != fp {
 			Peers[fp].PC.Close()
 			Peers[fp].PC = nil
-			return fmt.Errorf("Mismatching fingerprints: %q != %q", session_fp, fp)
+			return fmt.Errorf("Mismatching fingerprints: %q != %q", offerFP, fp)
 		} else {
 			Logger.Info("Authenticated!")
 		}
