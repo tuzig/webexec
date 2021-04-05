@@ -54,5 +54,10 @@ func GetFingerprint(offer *webrtc.SessionDescription) (string, error) {
 	if fingerprint, haveFingerprint := s.Attribute("fingerprint"); haveFingerprint {
 		return fingerprint, nil
 	}
+	for _, m := range s.MediaDescriptions {
+		if fingerprint, found := m.Attribute("fingerprint"); found {
+			return fingerprint, nil
+		}
+	}
 	return "", fmt.Errorf("found no fingerprint for %v", offer)
 }
