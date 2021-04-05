@@ -91,6 +91,7 @@ func (pane *Pane) sendFirstMessage(dc *webrtc.DataChannel) {
 
 // ReadLoop reads the tty and send data it finds to the open data channels
 func (pane *Pane) ReadLoop() {
+	conL := 0
 	b := make([]byte, 4096)
 	id := pane.ID
 	for {
@@ -99,9 +100,15 @@ func (pane *Pane) ReadLoop() {
 			Logger.Errorf("Got an error reqading from pty#%d: %s", id, rerr)
 		}
 		if l == 0 {
-			Logger.Infof("Read 0 bytes, Killing pane %d", id)
-			break
+			// 't kill the pane only on the third consequtive empty message
+			conL++
+			if conL <= 3 {
+				continue
+			} else {
+				break
+			}
 		}
+		conL = 0
 		// We need to get the dcs from Panes for an updated version
 		pane := Panes.Get(id)
 		cs := cdb.All4Pane(pane)
