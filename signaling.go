@@ -6,11 +6,14 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/gorilla/websocket"
 	"github.com/pion/webrtc/v3"
 )
+
+var wsWriteM sync.Mutex
 
 func signalingGo() {
 	var cstDialer = websocket.Dialer{
@@ -111,7 +114,11 @@ func handleMessage(c *websocket.Conn, message []byte) error {
 					Logger.Errorf("Failed to encode offer : %w", err)
 					return
 				}
+				// TODO: get the hub to send all messages through a buffered
+				//  channel and a single go func
+				wsWriteM.Lock()
 				c.WriteMessage(websocket.TextMessage, j)
+				wsWriteM.Unlock()
 			}
 		})
 		err = peer.PC.SetRemoteDescription(offer)
@@ -134,7 +141,9 @@ func handleMessage(c *websocket.Conn, message []byte) error {
 		if err != nil {
 			return fmt.Errorf("Failed to encode offer : %w", err)
 		}
+		wsWriteM.Lock()
 		c.WriteMessage(websocket.TextMessage, j)
+		wsWriteM.Unlock()
 		return nil
 	}
 	_, found = m["candidate"]
