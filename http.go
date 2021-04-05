@@ -41,7 +41,14 @@ func handleConnect(w http.ResponseWriter, r *http.Request) {
 	Logger.Info("Got a new post request")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	err := parsePeerReq(r.Body, &req, &offer)
-	if !IsAuthorized(req.Fingerprint) {
+	if err != nil {
+		Logger.Errorf(err.Error())
+	}
+	fp, err := GetFingerprint(&offer)
+	if err != nil {
+		Logger.Warnf("Failed to get fingerprint from sdp: %w", err)
+	}
+	if !IsAuthorized(fp) {
 		msg := "Unknown client fingerprint"
 		Logger.Info(msg)
 		http.Error(w, msg, http.StatusUnauthorized)
