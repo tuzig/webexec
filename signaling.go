@@ -12,13 +12,6 @@ import (
 	"github.com/pion/webrtc/v3"
 )
 
-type Candidate struct {
-	offer      string
-	address    string
-	answer     string
-	created_on string
-}
-
 func signalingGo() {
 	var cstDialer = websocket.Dialer{
 		ReadBufferSize:   1024,
@@ -48,17 +41,20 @@ func signalingGo() {
 	params.Add("email", Conf.email)
 	u := url.URL{Scheme: "ws", Host: Conf.signalingHost, Path: "/ws",
 		RawQuery: params.Encode()}
+dial:
 	c, _, err := cstDialer.Dial(u.String(), nil)
 	if err != nil {
-		Logger.Warnf("Failed to dial the signaling server %q: %w", u, err)
+		Logger.Warnf("Failed to dial the peerbook server %q: %w", u, err)
 		return
 	}
+	Logger.Infof("Connected to peerbook")
 	defer c.Close()
 	for {
 		mType, m, err := c.ReadMessage()
 		if err != nil {
 			Logger.Errorf("Signaling read error", err)
-			return
+			c.Close()
+			goto dial
 		}
 		if mType == websocket.TextMessage {
 			Logger.Info("Received text message", string(m))
@@ -77,35 +73,89 @@ func handleMessage(c *websocket.Conn, message []byte) error {
 	if err != nil {
 		return fmt.Errorf("Failed to decode message: %w", err)
 	}
+	fp, found := m["source_fp"].(string)
+	if !found {
+		return fmt.Errorf("Missing 'source_fp' paramater")
+	}
 	code, found := m["code"]
 	if found {
 		Logger.Infof("Got a status message: %v", code)
 		return nil
 	}
-	var offer webrtc.SessionDescription
-	o, found := m["offer"]
+	o, found := m["offer"].(string)
 	if found {
-		offer.SDP = o.(string)
-		offer.Type = webrtc.SDPTypeOffer
-		fp, found := m["source_fp"].(string)
-		if !found {
-			return fmt.Errorf("Missing 'fp' paramater")
+		var offer webrtc.SessionDescription
+		err = DecodeOffer(&offer, []byte(o))
+		offerFP, err := GetFingerprint(&offer)
+		if err != nil {
+			return fmt.Errorf("Failed to get fingerprint from offer: %w", err)
+		}
+		if offerFP != fp {
+			Peers[fp].PC.Close()
+			Peers[fp].PC = nil
+			return fmt.Errorf("Mismatching fingerprints: %q != %q", session_fp, fp)
+		} else {
+			Logger.Info("Authenticated!")
 		}
 		peer, err := NewPeer(fp)
 		if err != nil {
 			return fmt.Errorf("Failed to create a new peer: %w", err)
 		}
-		answer, err := peer.Listen(offer)
+		peer.PC.OnICECandidate(func(can *webrtc.ICECandidate) {
+			if can != nil {
+				m := map[string]interface{}{
+					"target": fp, "candidate": can.ToJSON()}
+				Logger.Infof("Sending candidate: %v", m)
+				j, err := json.Marshal(m)
+				if err != nil {
+					Logger.Errorf("Failed to encode offer : %w", err)
+					return
+				}
+				c.WriteMessage(websocket.TextMessage, j)
+			}
+		})
+		err = peer.PC.SetRemoteDescription(offer)
 		if err != nil {
 			return fmt.Errorf("Peer failed to listen : %w", err)
 		}
-		// reply with server's key
-		m := map[string]interface{}{"answer": answer.SDP, "target": fp}
+		answer, err := peer.PC.CreateAnswer(nil)
+		if err != nil {
+			return fmt.Errorf("Failed to create an answer: %w", err)
+		}
+		err = peer.PC.SetLocalDescription(answer)
+		payload := make([]byte, 4096)
+		l, err := EncodeOffer(payload, answer)
+		if err != nil {
+			return fmt.Errorf("Failed to encode offer : %w", err)
+		}
+		m := map[string]string{"answer": string(payload[:l]), "target": fp}
+		Logger.Infof("Sending answer: %v", m)
 		j, err := json.Marshal(m)
 		if err != nil {
 			return fmt.Errorf("Failed to encode offer : %w", err)
 		}
 		c.WriteMessage(websocket.TextMessage, j)
+		return nil
+	}
+	_, found = m["candidate"]
+	if found {
+		var can struct {
+			sourceFP   string                  `json:"source_fp"`
+			sourceName string                  `json:"source_name"`
+			Candidate  webrtc.ICECandidateInit `json:"candidate"`
+		}
+		r.Seek(0, 0)
+		err = dec.Decode(&can)
+		peer, found := Peers[fp]
+		if found {
+			Logger.Infof("Adding an ICE Candidate: %v", can.Candidate)
+			err := peer.PC.AddICECandidate(can.Candidate)
+			if err != nil {
+				return fmt.Errorf("Failed to set remote description: %w", err)
+			}
+		} else {
+			return fmt.Errorf("got a candidate from an unknown peer: %s", fp)
+		}
 	}
 	return nil
 }
