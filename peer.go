@@ -159,7 +159,7 @@ func (peer *Peer) OnChannelReq(d *webrtc.DataChannel) {
 	d.OnOpen(func() {
 		pane, err := peer.GetOrCreatePane(d)
 		if err != nil {
-			msg := fmt.Sprintf("Failed to get or create pane for dc %q: %w",
+			msg := fmt.Sprintf("Failed to get or create pane for dc %q: %s",
 				d.Label(), err)
 			d.Send([]byte(msg))
 			Logger.Errorf(msg)

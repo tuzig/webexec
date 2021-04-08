@@ -38,7 +38,7 @@ TERM = "xterm"
 `
 const abConfTemplate = `%s[signaling]
 email = "%s"`
-const defaultSignalingHOST = "pb.tuzig.com:1777"
+const defaultSignalingHOST = "pb.terminal7.dev"
 
 // Conf hold the configuration variables
 var Conf struct {
