@@ -14,5 +14,6 @@ func TestExecCommand(t *testing.T) {
 	b := make([]byte, 64)
 	l, err := tty.Read(b)
 	require.Nil(t, err)
-	require.Equal(t, "xterm truecolor\r\n", string(b[:l]))
+	require.Less(t, 14, l)
+	require.Equal(t, "xterm truecolor", string(b[:15]))
 }
