@@ -76,14 +76,14 @@ func handleMessage(c *websocket.Conn, message []byte) error {
 	if err != nil {
 		return fmt.Errorf("Failed to decode message: %w", err)
 	}
-	fp, found := m["source_fp"].(string)
-	if !found {
-		return fmt.Errorf("Missing 'source_fp' paramater")
-	}
 	code, found := m["code"]
 	if found {
 		Logger.Infof("Got a status message: %v", code)
 		return nil
+	}
+	fp, found := m["source_fp"].(string)
+	if !found {
+		return fmt.Errorf("Missing 'source_fp' paramater")
 	}
 	o, found := m["offer"].(string)
 	if found {
