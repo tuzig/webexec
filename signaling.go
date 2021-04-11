@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
-	"os"
 	"sync"
 	"time"
 
@@ -33,13 +32,8 @@ func signalingGo() {
 	}
 	fp := fmt.Sprintf("%s %s", fps[0].Algorithm, fps[0].Value)
 
-	hostname, err := os.Hostname()
-	if err != nil {
-		Logger.Warnf("Failed to get hostname, using 'unknown'")
-		hostname = "unknown"
-	}
 	params.Add("fp", fp)
-	params.Add("name", hostname)
+	params.Add("name", Conf.name)
 	params.Add("kind", "webexec")
 	params.Add("email", Conf.email)
 	u := url.URL{Scheme: "wss", Host: Conf.signalingHost, Path: "/ws",

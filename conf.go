@@ -58,6 +58,7 @@ var Conf struct {
 	portMax           uint16
 	signalingHost     string
 	email             string
+	name              string
 }
 
 // parseConf loads a configuration from a toml string and fills all Conf value.
@@ -143,17 +144,25 @@ func parseConf(s string) error {
 			Conf.env[k] = v.(string)
 		}
 	}
-	// get address_book
 	v = t.Get("signaling.email")
 	if v != nil {
+		Conf.email = v.(string)
 		url := t.Get("signaling.host")
 		if url != nil {
 			Conf.signalingHost = url.(string)
 		} else {
 			Conf.signalingHost = defaultSignalingHOST
 		}
-
-		Conf.email = v.(string)
+		name := t.Get("signaling.name")
+		if name != nil {
+			Conf.name = name.(string)
+		} else {
+			Conf.name, err = os.Hostname()
+			if err != nil {
+				Logger.Warnf("Failed to get hostname, using `anonymous`")
+				name = "anonymous"
+			}
+		}
 	}
 	return nil
 
