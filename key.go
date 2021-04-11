@@ -4,10 +4,15 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
+	"crypto/x509"
+	"crypto/x509/pkix"
+	"encoding/hex"
 	"fmt"
 	"github.com/pion/webrtc/v3"
 	"io/ioutil"
+	"math/big"
 	"os"
+	"time"
 )
 
 // KeyType is the type used to hold our key and cache the webrtc certificates
@@ -17,12 +22,40 @@ type KeyType struct {
 }
 
 func (k *KeyType) generate() (*webrtc.Certificate, error) {
-	privKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	secretKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to generate key: %w", err)
 	}
-	cert, err := webrtc.GenerateCertificate(privKey)
-	return cert, nil
+	origin := make([]byte, 16)
+	/* #nosec */
+	if _, err := rand.Read(origin); err != nil {
+		return nil, err
+	}
+
+	// Max random value, a 130-bits integer, i.e 2^130 - 1
+	maxBigInt := new(big.Int)
+	/* #nosec */
+	maxBigInt.Exp(big.NewInt(2), big.NewInt(130), nil).Sub(maxBigInt, big.NewInt(1))
+	/* #nosec */
+	serialNumber, err := rand.Int(rand.Reader, maxBigInt)
+	if err != nil {
+		return nil, err
+	}
+
+	return webrtc.NewCertificate(secretKey, x509.Certificate{
+		ExtKeyUsage: []x509.ExtKeyUsage{
+			x509.ExtKeyUsageClientAuth,
+			x509.ExtKeyUsageServerAuth,
+		},
+		BasicConstraintsValid: true,
+		NotBefore:             time.Now(),
+		KeyUsage:              x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
+		NotAfter:              time.Now().AddDate(10, 0, 0),
+		SerialNumber:          serialNumber,
+		Version:               2,
+		Subject:               pkix.Name{CommonName: hex.EncodeToString(origin)},
+		IsCA:                  true,
+	})
 }
 func (k *KeyType) GetCerts() ([]webrtc.Certificate, error) {
 	var cert *webrtc.Certificate
