@@ -189,7 +189,6 @@ func stop(c *cli.Context) error {
 
 // createPIDFile creates the pid file or returns an error if it exists
 func createPIDFile() error {
-	InitAgentLogger()
 	pionLoggerFactory = newPionLoggerFactory()
 	pidPath := ConfPath("agent.pid")
 	_, err := pidfile.New(pidPath)
@@ -228,12 +227,11 @@ func launchAgent(address string) error {
 
 // start - start the user's agent
 func start(c *cli.Context) error {
-	var err error
-	LoadConf()
-	key = &KeyType{Name: ConfPath("certnkey.pem")}
+	err := LoadConf()
 	if err != nil {
 		return err
 	}
+	key = &KeyType{Name: ConfPath("certnkey.pem")}
 	var address string
 	if c.IsSet("address") {
 		address = c.String("address")
@@ -245,6 +243,7 @@ func start(c *cli.Context) error {
 		InitDevLogger()
 	} else {
 		if c.Bool("agent") {
+			InitAgentLogger()
 			err := createPIDFile()
 			if err != nil {
 				return err

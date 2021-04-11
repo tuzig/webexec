@@ -2,6 +2,8 @@ module github.com/tuzig/webexec
 
 go 1.15
 
+replace github.com/pion/webrtc/v3 => /Users/daonb/src/webrtc
+
 require (
 	github.com/cpuguy83/go-md2man/v2 v2.0.0 // indirect
 	github.com/creack/pty v1.1.11
@@ -17,7 +19,7 @@ require (
 	github.com/urfave/cli/v2 v2.3.0
 	go.uber.org/multierr v1.6.0 // indirect
 	go.uber.org/zap v1.16.0
-	golang.org/x/sys v0.0.0-20210105210732-16f7687f5001
+	golang.org/x/sys v0.0.0-20210330210617-4fbd30eecc44
 	golang.org/x/tools v0.0.0-20191127201027-ecd32218bd7f // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0
 	gopkg.in/yaml.v3 v3.0.0-20210106172901-c476de37821d // indirect
