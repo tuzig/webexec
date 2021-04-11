@@ -42,7 +42,7 @@ func signalingGo() {
 	params.Add("name", hostname)
 	params.Add("kind", "webexec")
 	params.Add("email", Conf.email)
-	u := url.URL{Scheme: "ws", Host: Conf.signalingHost, Path: "/ws",
+	u := url.URL{Scheme: "wss", Host: Conf.signalingHost, Path: "/ws",
 		RawQuery: params.Encode()}
 dial:
 	c, _, err := cstDialer.Dial(u.String(), nil)
