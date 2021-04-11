@@ -2,7 +2,7 @@ module github.com/tuzig/webexec
 
 go 1.15
 
-replace github.com/pion/webrtc/v3 => /Users/daonb/src/webrtc
+// replace github.com/pion/webrtc/v3 => ../webrtc
 
 require (
 	github.com/cpuguy83/go-md2man/v2 v2.0.0 // indirect
