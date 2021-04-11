@@ -19,8 +19,7 @@ func TestGetCerts(t *testing.T) {
 	f, err := ioutil.TempFile("", "private.key")
 	require.Nil(t, err)
 	f.Close()
-	k := KeyType{Name: f.Name()}
-	cs, err := k.GetCerts()
+	cs, err := GetCerts()
 	require.Nil(t, err)
 	require.Equal(t, 1, len(cs))
 }
@@ -29,11 +28,10 @@ func TestCertsCache(t *testing.T) {
 	f, err := ioutil.TempFile("", "private.key")
 	require.Nil(t, err)
 	f.Close()
-	k1 := KeyType{Name: f.Name()}
-	cs1, err := k1.GetCerts()
+	cs1, err := GetCerts()
 	require.Nil(t, err)
 	// test to ensure we're not hitting the disk - mock ioutil.ReadFile
-	cs2, err := k1.GetCerts()
+	cs2, err := GetCerts()
 	require.Nil(t, err)
 	Logger.Infof("%v\n%v", cs1, cs2)
 	require.True(t, cs1[0].Equals(cs2[0]))
@@ -43,13 +41,9 @@ func TestKeyConsistency(t *testing.T) {
 	f, err := ioutil.TempFile("", "private.key")
 	require.Nil(t, err)
 	f.Close()
-	k1 := KeyType{Name: f.Name()}
+	cs1, err := GetCerts()
 	require.Nil(t, err)
-	cs1, err := k1.GetCerts()
-	require.Nil(t, err)
-	k2 := KeyType{Name: f.Name()}
-	require.Nil(t, err)
-	cs2, err := k2.GetCerts()
+	cs2, err := GetCerts()
 	Logger.Infof("%v\n%v", cs1, cs2)
 	require.Nil(t, err)
 	//	require.True(t, cs1[0].Equals(cs2[0]))

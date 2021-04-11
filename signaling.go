@@ -15,12 +15,37 @@ import (
 var wsWriteM sync.Mutex
 
 func signalingGo() {
+start:
+	c, err := dialWS()
+	if err != nil {
+		Logger.Errorf("Failed to dial the signaling server: %q", err)
+		return
+	}
+	Logger.Infof("Connected to peerbook")
+	defer c.Close()
+	for {
+		mType, m, err := c.ReadMessage()
+		if err != nil {
+			Logger.Errorf("Signaling read error", err)
+			c.Close()
+			goto start
+		}
+		if mType == websocket.TextMessage {
+			Logger.Info("Received text message", string(m))
+			err = handleMessage(c, m)
+			if err != nil {
+				Logger.Errorf("Failed to handle message: %w", err)
+			}
+		}
+	}
+}
+func dialWS() (*websocket.Conn, error) {
 	var cstDialer = websocket.Dialer{
 		ReadBufferSize:   1024,
 		WriteBufferSize:  1024,
 		HandshakeTimeout: 30 * time.Second,
 	}
-	certs, err := key.GetCerts()
+	certs, err := GetCerts()
 	if err != nil {
 		Logger.Error(err)
 	}
@@ -36,31 +61,17 @@ func signalingGo() {
 	params.Add("name", Conf.name)
 	params.Add("kind", "webexec")
 	params.Add("email", Conf.email)
-	u := url.URL{Scheme: "wss", Host: Conf.signalingHost, Path: "/ws",
+	url := url.URL{Scheme: "wss", Host: Conf.signalingHost, Path: "/ws",
 		RawQuery: params.Encode()}
-dial:
-	c, _, err := cstDialer.Dial(u.String(), nil)
-	if err != nil {
-		Logger.Warnf("Failed to dial the peerbook server %q: %w", u, err)
-		return
+	conn, resp, err := cstDialer.Dial(url.String(), nil)
+	if resp.StatusCode == 400 {
+		return nil, fmt.Errorf(
+			"code a bad request from the server: %s", resp.Status)
 	}
-	Logger.Infof("Connected to peerbook")
-	defer c.Close()
-	for {
-		mType, m, err := c.ReadMessage()
-		if err != nil {
-			Logger.Errorf("Signaling read error", err)
-			c.Close()
-			goto dial
-		}
-		if mType == websocket.TextMessage {
-			Logger.Info("Received text message", string(m))
-			err = handleMessage(c, m)
-			if err != nil {
-				Logger.Errorf("Failed to handle message: %w", err)
-			}
-		}
+	if resp.StatusCode == 401 {
+		return nil, &errUnauthorized{}
 	}
+	return conn, err
 }
 func handleMessage(c *websocket.Conn, message []byte) error {
 	var m map[string]interface{}

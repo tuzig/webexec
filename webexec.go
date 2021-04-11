@@ -231,7 +231,6 @@ func start(c *cli.Context) error {
 	if err != nil {
 		return err
 	}
-	key = &KeyType{Name: ConfPath("certnkey.pem")}
 	var address string
 	if c.IsSet("address") {
 		address = c.String("address")
@@ -322,13 +321,22 @@ func initCMD(c *cli.Context) error {
 		err = createConf(confPath)
 	} else {
 		return fmt.Errorf(`Configuration file already exists.
-To recreate a fresh file, please backup, remove & re-run %q`, confPath)
+To recreate a fresh file, please backup and remove %q & try again`, confPath)
 	}
 	err = LoadConf()
 	if err != nil {
 		return fmt.Errorf("Failed to parse default conf: %s", err)
 	}
 	fmt.Printf("Created %q default config file\n", confPath)
+	fmt.Printf("Testing peerbook connectivity & authorization")
+	// TODO: Next lines don't work. Instaed of ws connect we should have an aPI
+	// endpoint that returns whether a peer os authorized
+	// which means peerbook has to send a 200 so we don't wait for to long
+	conn, err := dialWS()
+	if err != nil {
+		fmt.Printf(err.Error())
+	}
+	defer conn.Close()
 	return err
 }
 func main() {

@@ -57,31 +57,34 @@ func (k *KeyType) generate() (*webrtc.Certificate, error) {
 		IsCA:                  true,
 	})
 }
-func (k *KeyType) GetCerts() ([]webrtc.Certificate, error) {
+func GetCerts() ([]webrtc.Certificate, error) {
+	if key == nil {
+		key = &KeyType{Name: ConfPath("certnkey.pem")}
+	}
 	var cert *webrtc.Certificate
-	if k.certs == nil {
-		pb, err := ioutil.ReadFile(k.Name)
+	if key.certs == nil {
+		pb, err := ioutil.ReadFile(key.Name)
 		if err != nil {
-			Logger.Infof("No key found, generating a fresh one at %q", k.Name)
-			cert, err = k.generate()
+			Logger.Infof("No key found, generating a fresh one at %q", key.Name)
+			cert, err = key.generate()
 			if err != nil {
 				return nil, err
 			}
-			k.save(cert)
+			key.save(cert)
 		} else {
 			cert, err = webrtc.CertificateFromPEM(string(pb))
 			if err != nil {
 				Logger.Infof("Failed to decode certificate, generating a fresh one: %w", err)
-				cert, err = k.generate()
+				cert, err = key.generate()
 				if err != nil {
 					return nil, err
 				}
-				k.save(cert)
+				key.save(cert)
 			}
 		}
-		k.certs = []webrtc.Certificate{*cert}
+		key.certs = []webrtc.Certificate{*cert}
 	}
-	return k.certs, nil
+	return key.certs, nil
 }
 
 func (k *KeyType) save(cert *webrtc.Certificate) error {

@@ -63,7 +63,7 @@ func NewPeer(fingerprint string) (*Peer, error) {
 		WebRTCAPI = webrtc.NewAPI(webrtc.WithSettingEngine(s))
 	}
 	webrtcAPIM.Unlock()
-	certs, err := key.GetCerts()
+	certs, err := GetCerts()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get certificates: %w", err)
 	}
