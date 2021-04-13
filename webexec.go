@@ -2,10 +2,12 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -255,7 +257,18 @@ func start(c *cli.Context) error {
 	Logger.Infof("Serving http on %q", address)
 	done = make(chan os.Signal, 1)
 	go HTTPGo(address)
-	if Conf.email != "" {
+	if Conf.signalingHost != "" {
+		verified, err := verifyPeer(Conf.signalingHost)
+		if err != nil {
+			return fmt.Errorf("Got an error verifying peer: %s", err)
+		}
+		if verified {
+			fmt.Println("** verified ** by peerbook")
+		} else {
+			fmt.Println("** unverified ** peerbook sent you a verification email.")
+			fmt.Printf("                 If you don't get it please visit %s",
+				Conf.signalingHost)
+		}
 		go signalingGo()
 	}
 	// signal handling
@@ -332,7 +345,7 @@ To recreate a fresh file, please backup and remove %q & try again`, confPath)
 	fmt.Printf("Created %q default config file\n", confPath)
 	// TODO: move this to start
 	if Conf.signalingHost != "" {
-		verified, err := verifyPeer()
+		verified, err := verifyPeer(Conf.signalingHost)
 		if err != nil {
 			return fmt.Errorf("Got an error verifying peer: %s", err)
 		}
@@ -417,4 +430,23 @@ func main() {
 	if err != nil {
 		fmt.Println(err)
 	}
+}
+func verifyPeer(host string) (bool, error) {
+	fmt.Println("Testing peerbook connectivity & authorization")
+	fp := getFP()
+	msg := map[string]string{"fp": fp, "email": Conf.email,
+		"kind": "webexec", "name": Conf.name}
+	m, err := json.Marshal(msg)
+	u := fmt.Sprintf("https://%s/verify", host)
+	resp, err := http.Post(u, "application/json", bytes.NewBuffer(m))
+	if err != nil {
+		return false, err
+	}
+	defer resp.Body.Close()
+	var ret map[string]bool
+	err = json.NewDecoder(resp.Body).Decode(&ret)
+	if err != nil {
+		return false, err
+	}
+	return ret["verified"], nil
 }

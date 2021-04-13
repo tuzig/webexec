@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"net/http"
 	"net/url"
 	"sync"
 	"time"
@@ -184,23 +183,4 @@ func handleMessage(c *websocket.Conn, message []byte) error {
 		}
 	}
 	return nil
-}
-func verifyPeer() (bool, error) {
-	fmt.Println("Testing peerbook connectivity & authorization")
-	fp := getFP()
-	msg := map[string]string{"fp": fp, "email": Conf.email,
-		"kind": "webexec", "name": Conf.name}
-	m, err := json.Marshal(msg)
-	u := fmt.Sprintf("https://%s/verify", Conf.signalingHost)
-	resp, err := http.Post(u, "application/json", bytes.NewBuffer(m))
-	if err != nil {
-		return false, err
-	}
-	defer resp.Body.Close()
-	var ret map[string]bool
-	err = json.NewDecoder(resp.Body).Decode(&ret)
-	if err != nil {
-		return false, err
-	}
-	return ret["verified"], nil
 }
