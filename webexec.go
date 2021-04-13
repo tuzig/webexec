@@ -309,6 +309,8 @@ func status(c *cli.Context) error {
 	return nil
 }
 func initCMD(c *cli.Context) error {
+	// init the dev logger so log messages are printed on the console
+	InitDevLogger()
 	homePath := ConfPath("")
 	_, err := os.Stat(homePath)
 	if os.IsNotExist(err) {
@@ -328,16 +330,20 @@ To recreate a fresh file, please backup and remove %q & try again`, confPath)
 		return fmt.Errorf("Failed to parse default conf: %s", err)
 	}
 	fmt.Printf("Created %q default config file\n", confPath)
-	fmt.Printf("Testing peerbook connectivity & authorization")
-	// TODO: Next lines don't work. Instaed of ws connect we should have an aPI
-	// endpoint that returns whether a peer os authorized
-	// which means peerbook has to send a 200 so we don't wait for to long
-	conn, err := dialWS()
-	if err != nil {
-		fmt.Printf(err.Error())
+	// TODO: move this to start
+	if Conf.signalingHost != "" {
+		verified, err := verifyPeer()
+		if err != nil {
+			return fmt.Errorf("Got an error verifying peer: %s", err)
+		}
+		if verified {
+			fmt.Println("** verified ** by peerbook")
+		} else {
+			fmt.Println("** unverified ** peerbook sent you a verification email.")
+		}
 	}
-	defer conn.Close()
-	return err
+	return nil
+
 }
 func main() {
 	app := &cli.App{

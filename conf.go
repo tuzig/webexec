@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/user"
 	"path/filepath"
+	"regexp"
 	"time"
 )
 
@@ -16,7 +17,7 @@ const defaultHTTPServer = "0.0.0.0:7777"
 const defaultConf = `# webexec's configuration. in toml.
 # to learn more: https://github.com/tuzig/webexec/blob/master/docs/conf.md
 [log]
-level = "error"
+level = "warn"
 # for absolute path by starting with a /
 file = "agent.log"
 error = "agent.err"
@@ -60,6 +61,8 @@ var Conf struct {
 	email             string
 	name              string
 }
+
+var emailRegex = regexp.MustCompile("^[a-zA-Z0-9.!#$%&'*+\\/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$")
 
 // parseConf loads a configuration from a toml string and fills all Conf value.
 //			If a key is missing LoadConf will load the default value
@@ -201,28 +204,38 @@ func LoadConf() error {
 	return nil
 }
 
+func isValidEmail(email string) bool {
+	if len(email) < 3 && len(email) > 254 {
+		return false
+	}
+	return emailRegex.MatchString(email)
+}
+
 // createConf creates the configuration files based on user input
 func createConf(confPath string) error {
+	conf := defaultConf
+	stdin := bufio.NewReader(os.Stdin)
+	fmt.Println("To make it easier for your clients to find this server")
+	fmt.Println("and verify its fingerprints you are invited")
+	fmt.Println("to publish it to your private addres book.")
+please:
+	fmt.Print("Please enter your email (blank to skip): ")
+	email, err := stdin.ReadString('\n')
+	if err != nil {
+		return fmt.Errorf("Failed to read input: %s", err)
+	}
+	email = email[:len(email)-1]
+	if email != "" {
+		if !isValidEmail(email) {
+			fmt.Println("Sorry, not a valid email. Please try again.")
+			goto please
+		}
+		conf = fmt.Sprintf(abConfTemplate, conf, email)
+	}
 	confFile, err := os.Create(confPath)
 	defer confFile.Close()
 	if err != nil {
 		return fmt.Errorf("Failed to create config file: %q", err)
-	}
-	conf := defaultConf
-	reader := bufio.NewReader(os.Stdin)
-	fmt.Println("Would you like to use a signaling server?")
-	fmt.Println("It enables behind the NAT connections and")
-	fmt.Println("makes it easier for clients to find this server")
-	fmt.Print("and authenticate (Y/n)")
-	text, _ := reader.ReadString('\n')
-	if text == "\n" || text == "y\n" || text == "yes\n" {
-		fmt.Print("Please enter your email: ")
-		email, err := reader.ReadString('\n')
-		if err != nil {
-			return fmt.Errorf("Failed to read input: %s", err)
-		}
-		// TODO: make it configurable
-		conf = fmt.Sprintf(abConfTemplate, conf, email[:len(email)-1])
 	}
 	_, err = confFile.WriteString(conf)
 	if err != nil {

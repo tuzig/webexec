@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"net/url"
 	"sync"
 	"time"
@@ -15,13 +16,20 @@ import (
 var wsWriteM sync.Mutex
 
 func signalingGo() {
+	conn := 0
 start:
 	c, err := dialWS()
 	if err != nil {
-		Logger.Errorf("Failed to dial the signaling server: %q", err)
-		return
+		time.Sleep(3 * time.Second)
+		conn++
+		if conn > 3 {
+			Logger.Errorf("Failed to dial the signaling server: %q", err)
+			return
+		}
+		goto start
 	}
 	Logger.Infof("Connected to peerbook")
+	conn = 0
 	defer c.Close()
 	for {
 		mType, m, err := c.ReadMessage()
@@ -39,24 +47,28 @@ start:
 		}
 	}
 }
+func getFP() string {
+	certs, err := GetCerts()
+	if err != nil {
+		Logger.Error(err)
+	}
+	// TODO: is 0 the right choice?
+	fps, err := certs[0].GetFingerprints()
+	if err != nil {
+		Logger.Error("Failed to get fingerprints: %w", err)
+	}
+	return fmt.Sprintf("%s %s", fps[0].Algorithm, fps[0].Value)
+}
+
 func dialWS() (*websocket.Conn, error) {
 	var cstDialer = websocket.Dialer{
 		ReadBufferSize:   1024,
 		WriteBufferSize:  1024,
 		HandshakeTimeout: 30 * time.Second,
 	}
-	certs, err := GetCerts()
-	if err != nil {
-		Logger.Error(err)
-	}
-	params := url.Values{}
-	// TODO: is 0 the right choice?
-	fps, err := certs[0].GetFingerprints()
-	if err != nil {
-		Logger.Error("Failed to get fingerprints: %w", err)
-	}
-	fp := fmt.Sprintf("%s %s", fps[0].Algorithm, fps[0].Value)
+	fp := getFP()
 
+	params := url.Values{}
 	params.Add("fp", fp)
 	params.Add("name", Conf.name)
 	params.Add("kind", "webexec")
@@ -172,4 +184,23 @@ func handleMessage(c *websocket.Conn, message []byte) error {
 		}
 	}
 	return nil
+}
+func verifyPeer() (bool, error) {
+	fmt.Println("Testing peerbook connectivity & authorization")
+	fp := getFP()
+	msg := map[string]string{"fp": fp, "email": Conf.email,
+		"kind": "webexec", "name": Conf.name}
+	m, err := json.Marshal(msg)
+	u := fmt.Sprintf("https://%s/verify", Conf.signalingHost)
+	resp, err := http.Post(u, "application/json", bytes.NewBuffer(m))
+	if err != nil {
+		return false, err
+	}
+	defer resp.Body.Close()
+	var ret map[string]bool
+	err = json.NewDecoder(resp.Body).Decode(&ret)
+	if err != nil {
+		return false, err
+	}
+	return ret["verified"], nil
 }
