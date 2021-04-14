@@ -1,7 +1,9 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 
@@ -78,4 +80,20 @@ func handleConnect(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Write(payload[:l])
+}
+
+func parsePeerReq(message io.Reader, cr *ConnectRequest,
+	offer *webrtc.SessionDescription) error {
+
+	dec := json.NewDecoder(message)
+	err := dec.Decode(cr)
+	if err != nil {
+		return fmt.Errorf("Failed to read connection request: %w", err)
+	}
+	err = DecodeOffer(offer, []byte(cr.Offer))
+	if err != nil {
+		return fmt.Errorf("Failed to decode client's offer: %w", err)
+	}
+	// ensure it's the same fingerprint as the one signalling got
+	return nil
 }

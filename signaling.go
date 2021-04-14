@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
+	"strings"
 	"sync"
 	"time"
 
@@ -56,7 +57,8 @@ func getFP() string {
 	if err != nil {
 		Logger.Error("Failed to get fingerprints: %w", err)
 	}
-	return fmt.Sprintf("%s %s", fps[0].Algorithm, fps[0].Value)
+	s := strings.Replace(fps[0].Value, ":", "", -1)
+	return strings.ToUpper(s)
 }
 
 func dialWS() (*websocket.Conn, error) {
@@ -105,17 +107,21 @@ func handleMessage(c *websocket.Conn, message []byte) error {
 	if found {
 		var offer webrtc.SessionDescription
 		err = DecodeOffer(&offer, []byte(o))
-		offerFP, err := GetFingerprint(&offer)
 		if err != nil {
 			return fmt.Errorf("Failed to get fingerprint from offer: %w", err)
+		}
+
+		offerFP, err := GetFingerprint(&offer)
+		if err != nil {
+			return fmt.Errorf("Failed to get offer's fingerprint: %w", err)
 		}
 		if offerFP != fp {
 			Peers[fp].PC.Close()
 			Peers[fp].PC = nil
-			return fmt.Errorf("Mismatching fingerprints: %q != %q", offerFP, fp)
-		} else {
-			Logger.Info("Authenticated!")
+			Logger.Warnf("Refusing connection because fp mismatch: %s", fp)
+			return fmt.Errorf("Mismatched fingerprint: %s", fp)
 		}
+		Logger.Info("Authenticated!")
 		peer, err := NewPeer(fp)
 		if err != nil {
 			return fmt.Errorf("Failed to create a new peer: %w", err)

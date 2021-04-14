@@ -5,10 +5,17 @@ import (
 	"fmt"
 	"github.com/pion/webrtc/v3"
 	"os"
+	"strings"
 )
 
 // TokensFilePath holds the path to a file where each authorized token has a line
 var TokensFilePath = ConfPath("authorized_tokens")
+
+func compressFP(fp string) string {
+	hex := strings.Split(fp, " ")[1]
+	s := strings.Replace(hex, ":", "", -1)
+	return strings.ToUpper(s)
+}
 
 // ReadAuthorizedTokens reads the tokens file and returns all the tokens in it
 func ReadAuthorizedTokens() ([]string, error) {
@@ -44,20 +51,26 @@ func IsAuthorized(token string) bool {
 	return false
 }
 
-// GetFingerprint extract the fingerprints from a client's offer
+// GetFingerprint extract the fingerprints from a client's offer and returns
+// a compressed fingerprint
 func GetFingerprint(offer *webrtc.SessionDescription) (string, error) {
 	s, err := offer.Unmarshal()
 	if err != nil {
 		return "", fmt.Errorf("Failed to unmarshal sdp: %w", err)
 	}
-
+	var f string
 	if fingerprint, haveFingerprint := s.Attribute("fingerprint"); haveFingerprint {
-		return fingerprint, nil
-	}
-	for _, m := range s.MediaDescriptions {
-		if fingerprint, found := m.Attribute("fingerprint"); found {
-			return fingerprint, nil
+		f = fingerprint
+	} else {
+		for _, m := range s.MediaDescriptions {
+			if fingerprint, found := m.Attribute("fingerprint"); found {
+				f = fingerprint
+				break
+			}
 		}
 	}
-	return "", fmt.Errorf("found no fingerprint for %v", offer)
+	if f == "" {
+		return "", fmt.Errorf("Offer has no fingerprint: %v", offer)
+	}
+	return compressFP(f), nil
 }

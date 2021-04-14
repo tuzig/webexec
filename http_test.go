@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net/http"
 	"testing"
 	"time"
@@ -13,14 +14,23 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+var serverHost string
+
+func startHTTPServer(t *testing.T) string {
+	if serverHost == "" {
+		port, err := GetFreePort()
+		require.Nil(t, err, "Fauiled to find a free tcp port", err)
+		serverHost = fmt.Sprintf("127.0.0.1:%d", port)
+		// Start the https server
+		go HTTPGo(serverHost)
+	}
+	return serverHost
+}
+
 func TestConnect(t *testing.T) {
 	initTest(t)
 	done := make(chan bool)
-	port, err := GetFreePort()
-	require.Nil(t, err, "Fauiled to find a free tcp port", err)
-	host := fmt.Sprintf("127.0.0.1:%d", port)
-	// Start the https server
-	go HTTPGo(host)
+	host := startHTTPServer(t)
 	// start the webrtc client
 	client, cert, err := NewClient(true)
 	require.Nil(t, err, "Failed to start a new server", err)
@@ -39,6 +49,11 @@ func TestConnect(t *testing.T) {
 		buf := make([]byte, 4096)
 		l, err := EncodeOffer(buf, *client.LocalDescription())
 		require.Nil(t, err, "Failed ending an offer: %v", clientOffer)
+		file, err := ioutil.TempFile("", "authorized_tokens")
+		TokensFilePath = file.Name()
+		require.Nil(t, err, "Failed to create a temp tokens file: %s", err)
+		file.WriteString(compressFP(cert))
+		file.Close()
 		p := ConnectRequest{cert, 1, string(buf[:l])}
 		b, err := json.Marshal(p)
 		require.Nil(t, err, "Failed to marshal the connect request: %s", err)
@@ -46,8 +61,7 @@ func TestConnect(t *testing.T) {
 		r, err := http.Post(url, "application/json", bytes.NewBuffer(b))
 		require.Nil(t, err, "Failed sending a post request: %q", err)
 		defer r.Body.Close()
-		require.Equal(t, r.StatusCode, http.StatusOK,
-			"Server returned error status: %r", r)
+		require.Equal(t, http.StatusOK, r.StatusCode)
 		// read server offer
 		serverOffer := make([]byte, 4096)
 		l, err = r.Body.Read(serverOffer)
@@ -77,4 +91,34 @@ func TestConnect(t *testing.T) {
 	Shutdown()
 	// TODO: be smarter, this is just a hack to get github action to pass
 	time.Sleep(500 * time.Millisecond)
+}
+func TestConnectBadFP(t *testing.T) {
+	initTest(t)
+	host := startHTTPServer(t)
+	// start the webrtc client
+	client, cert, err := NewClient(true)
+	require.Nil(t, err, "Failed to start a new server", err)
+	_, err = client.CreateDataChannel("%", nil)
+	require.Nil(t, err, "Failed to create the control data channel: %q", err)
+	clientOffer, err := client.CreateOffer(nil)
+	require.Nil(t, err, "Failed to create client offer: %q", err)
+	gatherComplete := webrtc.GatheringCompletePromise(client)
+	err = client.SetLocalDescription(clientOffer)
+	require.Nil(t, err, "Failed to set client's local Description client offer: %q", err)
+	select {
+	case <-time.After(3 * time.Second):
+		t.Errorf("timed out waiting to ice gathering to complete")
+	case <-gatherComplete:
+		buf := make([]byte, 4096)
+		l, err := EncodeOffer(buf, *client.LocalDescription())
+		require.Nil(t, err, "Failed ending an offer: %v", clientOffer)
+		p := ConnectRequest{cert, 1, string(buf[:l])}
+		b, err := json.Marshal(p)
+		require.Nil(t, err, "Failed to marshal the connect request: %s", err)
+		url := fmt.Sprintf("http://%s/connect", host)
+		r, err := http.Post(url, "application/json", bytes.NewBuffer(b))
+		require.Nil(t, err, "Failed sending a post request: %q", err)
+		defer r.Body.Close()
+		require.Equal(t, http.StatusUnauthorized, r.StatusCode)
+	}
 }
