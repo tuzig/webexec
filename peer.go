@@ -163,6 +163,7 @@ func (peer *Peer) OnChannelReq(d *webrtc.DataChannel) {
 			c := cdb.Add(d, pane, peer)
 			d.OnMessage(pane.OnMessage)
 			d.OnClose(func() {
+				Logger.Infof("on data channel close")
 				cdb.Delete(c)
 			})
 		}
@@ -318,10 +319,10 @@ func (peer *Peer) OnCTRLMsg(msg webrtc.DataChannelMessage) {
 		lastMarker++
 		peer.Marker = lastMarker
 		markerM.Unlock()
-		for _, dc := range cdb.All4Peer(peer) {
-			dc.pane.Buffer.Mark(peer.Marker)
-			// TODO: Remove this
-			cdb.Delete(dc)
+		for _, client := range cdb.All4Peer(peer) {
+			client.pane.Buffer.Mark(peer.Marker)
+			client.dc.Close()
+			// will be removed on close
 		}
 		err = peer.SendAck(m, []byte(fmt.Sprintf("%d", peer.Marker)))
 	default:
