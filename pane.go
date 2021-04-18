@@ -105,6 +105,7 @@ func (pane *Pane) ReadLoop() {
 			if conL <= 3 {
 				continue
 			} else {
+				Logger.Infof("3rd connsecutive empty message, killin")
 				break
 			}
 		}
@@ -136,6 +137,7 @@ func (pane *Pane) ReadLoop() {
 		}
 	}
 
+	Logger.Infof("Exiting the readloop")
 	pane = Panes.Get(id)
 	if pane == nil {
 		Logger.Errorf("no such pane %d", id)
@@ -146,6 +148,7 @@ func (pane *Pane) ReadLoop() {
 
 // Kill takes a pane to the sands of Rishon and buries it
 func (pane *Pane) Kill() {
+	Logger.Infof("Killing a pane")
 	for _, d := range cdb.All4Pane(pane) {
 		if d.dc.ReadyState() == webrtc.DataChannelStateOpen {
 			d.dc.Close()
@@ -168,6 +171,7 @@ func (pane *Pane) OnMessage(msg webrtc.DataChannelMessage) {
 	p := msg.Data
 	l, err := pane.Tty.Write(p)
 	if err == os.ErrClosed {
+		Logger.Infof("got an os.ErrClosed")
 		pane.Kill()
 		return
 	}
