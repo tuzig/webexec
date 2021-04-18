@@ -33,14 +33,15 @@ var (
 
 // Peer is a type used to remember a client.
 type Peer struct {
-	FP          string
-	Remote      string
-	Token       string
-	LastContact *time.Time
-	LastRef     int
-	PC          *webrtc.PeerConnection
-	cdc         *webrtc.DataChannel
-	Marker      int
+	FP                string
+	Remote            string
+	Token             string
+	LastContact       *time.Time
+	LastRef           int
+	PC                *webrtc.PeerConnection
+	cdc               *webrtc.DataChannel
+	Marker            int
+	pendingCandidates chan *webrtc.ICECandidateInit
 }
 
 // NewPeer funcions starts listening to incoming peer connection from a remote
@@ -76,12 +77,13 @@ func NewPeer(fingerprint string) (*Peer, error) {
 		return nil, fmt.Errorf("NewPeerConnection failed")
 	}
 	peer := Peer{
-		FP:          fingerprint,
-		Token:       "",
-		LastContact: nil,
-		LastRef:     0,
-		PC:          pc,
-		Marker:      -1,
+		FP:                fingerprint,
+		Token:             "",
+		LastContact:       nil,
+		LastRef:           0,
+		PC:                pc,
+		Marker:            -1,
+		pendingCandidates: make(chan *webrtc.ICECandidateInit, 8),
 	}
 	peersM.Lock()
 	if Peers == nil {
@@ -95,6 +97,16 @@ func NewPeer(fingerprint string) (*Peer, error) {
 		if state == webrtc.PeerConnectionStateFailed {
 			peer.PC.Close()
 			peer.PC = nil
+			return
+		}
+		if state != webrtc.PeerConnectionStateDisconnected &&
+			state != webrtc.PeerConnectionStateClosed {
+			for c := range peer.pendingCandidates {
+				err := pc.AddICECandidate(*c)
+				if err != nil {
+					Logger.Errorf("Failed to add ice candidate: %s", err)
+				}
+			}
 		}
 	})
 	pc.OnDataChannel(peer.OnChannelReq)
@@ -307,8 +319,8 @@ func (peer *Peer) OnCTRLMsg(msg webrtc.DataChannelMessage) {
 		peer.Marker = lastMarker
 		markerM.Unlock()
 		for _, dc := range cdb.All4Peer(peer) {
-			// this will usually fail, but delete what's needed
 			dc.pane.Buffer.Mark(peer.Marker)
+			// TODO: Remove this
 			cdb.Delete(dc)
 		}
 		err = peer.SendAck(m, []byte(fmt.Sprintf("%d", peer.Marker)))

@@ -180,9 +180,13 @@ func handleMessage(c *websocket.Conn, message []byte) error {
 		peer, found := Peers[fp]
 		if found {
 			Logger.Infof("Adding an ICE Candidate: %v", can.Candidate)
+			if peer.PC == nil {
+				peer.pendingCandidates <- &can.Candidate
+				return nil
+			}
 			err := peer.PC.AddICECandidate(can.Candidate)
 			if err != nil {
-				return fmt.Errorf("Failed to set remote description: %w", err)
+				return fmt.Errorf("Failed to add ice candidate: %w", err)
 			}
 		} else {
 			return fmt.Errorf("got a candidate from an unknown peer: %s", fp)
