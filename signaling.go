@@ -136,8 +136,6 @@ func handleMessage(c *websocket.Conn, message []byte) error {
 					Logger.Errorf("Failed to encode offer : %w", err)
 					return
 				}
-				// TODO: get the hub to send all messages through a buffered
-				//  channel and a single go func
 				wsWriteM.Lock()
 				c.WriteMessage(websocket.TextMessage, j)
 				wsWriteM.Unlock()
@@ -163,9 +161,13 @@ func handleMessage(c *websocket.Conn, message []byte) error {
 		if err != nil {
 			return fmt.Errorf("Failed to encode offer : %w", err)
 		}
-		wsWriteM.Lock()
-		c.WriteMessage(websocket.TextMessage, j)
-		wsWriteM.Unlock()
+		//TODO: for some reason we need to get a candidate before we carry on
+		//      of the pty return EOF on first read. strange days
+		time.AfterFunc(time.Second/5, func() {
+			wsWriteM.Lock()
+			c.WriteMessage(websocket.TextMessage, j)
+			wsWriteM.Unlock()
+		})
 		return nil
 	}
 	_, found = m["candidate"]
