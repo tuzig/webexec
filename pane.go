@@ -20,7 +20,7 @@ type Pane struct {
 	// C holds the exectuted command
 	C         *exec.Cmd
 	IsRunning bool
-	Tty       *os.File
+	TTY       *os.File
 	Buffer    *Buffer
 	Ws        *pty.Winsize
 	vt        vt10x.VT
@@ -32,6 +32,7 @@ func execCommand(command []string, ws *pty.Winsize) (*exec.Cmd, *os.File, error)
 		tty *os.File
 		err error
 	)
+	Logger.Infof("Starting command %s", command[0])
 	cmd := exec.Command(command[0], command[1:]...)
 	if Conf.env != nil {
 		for k, v := range Conf.env {
@@ -41,6 +42,7 @@ func execCommand(command []string, ws *pty.Winsize) (*exec.Cmd, *os.File, error)
 	if ws != nil {
 		tty, err = pty.StartWithSize(cmd, ws)
 		if err != nil {
+			Logger.Infof("got an error starting with size %s", err)
 			return nil, nil, fmt.Errorf("Failed starting command: %q", err)
 		}
 	} else {
@@ -50,6 +52,7 @@ func execCommand(command []string, ws *pty.Winsize) (*exec.Cmd, *os.File, error)
 	if err != nil {
 		return nil, nil, fmt.Errorf("Failed launching %q: %q", command, err)
 	}
+	Logger.Infof("logger command returns tty: %v", tty)
 	return cmd, tty, nil
 }
 
@@ -69,7 +72,7 @@ func NewPane(command []string, d *webrtc.DataChannel, peer *Peer,
 	pane := &Pane{
 		C:         cmd,
 		IsRunning: true,
-		Tty:       tty,
+		TTY:       tty,
 		Buffer:    NewBuffer(100000), //TODO: get the number from conf
 		Ws:        ws,
 		vt:        vt,
@@ -94,14 +97,20 @@ func (pane *Pane) ReadLoop() {
 	conL := 0
 	b := make([]byte, 4096)
 	id := pane.ID
+	Logger.Infof("readding from tty: %v", pane.TTY)
 	for {
-		l, rerr := pane.Tty.Read(b)
+		l, rerr := pane.TTY.Read(b)
+		if rerr == io.EOF {
+			Logger.Infof("Got an EOF, Killing pane %d", id)
+			break
+		}
 		if rerr != nil && rerr != io.EOF {
 			Logger.Errorf("Got an error reqading from pty#%d: %s", id, rerr)
 		}
 		if l == 0 {
 			// 't kill the pane only on the third consequtive empty message
 			conL++
+			Logger.Infof("got lenght - rerr - %s", rerr)
 			if conL <= 3 {
 				continue
 			} else {
@@ -131,10 +140,6 @@ func (pane *Pane) ReadLoop() {
 			pane.vt.Write(b[:l])
 		}
 		pane.Buffer.Add(b[:l])
-		if rerr == io.EOF {
-			Logger.Infof("Got an EOF, Killing pane %d", id)
-			break
-		}
 	}
 
 	Logger.Infof("Exiting the readloop")
@@ -156,7 +161,7 @@ func (pane *Pane) Kill() {
 		cdb.Delete(d)
 	}
 	if pane.IsRunning {
-		pane.Tty.Close()
+		pane.TTY.Close()
 		err := pane.C.Process.Kill()
 		if err != nil {
 			Logger.Errorf("Failed to kill process: %v %v",
@@ -169,7 +174,7 @@ func (pane *Pane) Kill() {
 // OnMessage is called when a new client message is recieved
 func (pane *Pane) OnMessage(msg webrtc.DataChannelMessage) {
 	p := msg.Data
-	l, err := pane.Tty.Write(p)
+	l, err := pane.TTY.Write(p)
 	if err == os.ErrClosed {
 		Logger.Infof("got an os.ErrClosed")
 		pane.Kill()
@@ -191,7 +196,7 @@ func (pane *Pane) Resize(ws *pty.Winsize) {
 	if ws != nil && (ws.Rows != pane.Ws.Rows || ws.Cols != pane.Ws.Cols) {
 		Logger.Infof("Changing pty size for pane %d: %v", pane.ID, ws)
 		pane.Ws = ws
-		pty.Setsize(pane.Tty, ws)
+		pty.Setsize(pane.TTY, ws)
 		if pane.vt != nil {
 			pane.vt.Resize(int(ws.Cols), int(ws.Rows))
 		}

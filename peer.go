@@ -227,6 +227,9 @@ func (peer *Peer) GetOrCreatePane(d *webrtc.DataChannel) (*Pane, error) {
 		return peer.Reconnect(d, id)
 	}
 	pane, err = NewPane(fields[cmdIndex:], d, peer, ws)
+	if err != nil {
+		return nil, fmt.Errorf("Failed to create new pane: %q", err)
+	}
 	if pane != nil {
 		pane.sendFirstMessage(d)
 		go pane.ReadLoop()
