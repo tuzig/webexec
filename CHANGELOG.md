@@ -15,6 +15,7 @@ Known issues:
 
 ### Added 
 
+- support for behind-the-nat hosts through a ginaling server - peerbook
 - webexec.conf support for `[env]` section for env vars to set in shells.
 - webexec.conf support for `net.upd_port_min` and `net.udp_port_max`
 - settings file documentation
