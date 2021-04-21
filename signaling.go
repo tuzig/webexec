@@ -74,7 +74,12 @@ func dialWS() (*websocket.Conn, error) {
 	params.Add("name", Conf.name)
 	params.Add("kind", "webexec")
 	params.Add("email", Conf.email)
-	url := url.URL{Scheme: "wss", Host: Conf.signalingHost, Path: "/ws",
+
+	schema := "wss"
+	if Conf.insecure {
+		schema = "ws"
+	}
+	url := url.URL{Scheme: schema, Host: Conf.peerbookHost, Path: "/ws",
 		RawQuery: params.Encode()}
 	conn, resp, err := cstDialer.Dial(url.String(), nil)
 	if resp.StatusCode == 400 {

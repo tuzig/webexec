@@ -41,3 +41,17 @@ set for each new command launched. Default:
 COLORTERM = "truecolor"
 TERM = "xterm"
 ```
+
+### peerbook
+
+The peerbook section is used to setup peerbook params. peerbook is a server
+that keeps a live address book of users' peers. peerbook uses websocket
+to forward offers and answers between clients and webexec.
+
+- `email`: the user's email 
+- `host`: the host address. default is `pb.terminal7.dev`
+- `name`: the host's name default is the system's hostname
+
+
+
+

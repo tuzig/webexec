@@ -37,9 +37,9 @@ ice_gathering = 5000
 COLORTERM = "truecolor"
 TERM = "xterm"
 `
-const abConfTemplate = `%s[signaling]
+const abConfTemplate = `%s[peerbook]
 email = "%s"`
-const defaultSignalingHOST = "pb.terminal7.dev"
+const defaultPeerbookHost = "pb.terminal7.dev"
 
 // Conf hold the configuration variables
 var Conf struct {
@@ -57,9 +57,10 @@ var Conf struct {
 	env               map[string]string
 	portMin           uint16
 	portMax           uint16
-	signalingHost     string
+	peerbookHost      string
 	email             string
 	name              string
+	insecure          bool
 }
 
 var emailRegex = regexp.MustCompile("^[a-zA-Z0-9.!#$%&'*+\\/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$")
@@ -132,6 +133,11 @@ func parseConf(s string) error {
 	if v != nil {
 		Conf.portMax = uint16(v.(int64))
 	}
+	// unsecured cotrol which shema to use
+	v = t.Get("net.insecure")
+	if v != nil {
+		Conf.insecure = v.(bool)
+	}
 	// get pion's conf
 	v = t.Get("log.pion_levels")
 	if v != nil {
@@ -147,16 +153,16 @@ func parseConf(s string) error {
 			Conf.env[k] = v.(string)
 		}
 	}
-	v = t.Get("signaling.email")
+	v = t.Get("peerbook.email")
 	if v != nil {
 		Conf.email = v.(string)
-		url := t.Get("signaling.host")
+		url := t.Get("peerbook.host")
 		if url != nil {
-			Conf.signalingHost = url.(string)
+			Conf.peerbookHost = url.(string)
 		} else {
-			Conf.signalingHost = defaultSignalingHOST
+			Conf.peerbookHost = defaultPeerbookHost
 		}
-		name := t.Get("signaling.name")
+		name := t.Get("peerbook.name")
 		if name != nil {
 			Conf.name = name.(string)
 		} else {
