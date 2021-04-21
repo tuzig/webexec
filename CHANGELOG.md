@@ -11,6 +11,24 @@ and the release workflow reads it to set github's release notes.
 Known issues:
 - defunct shell processes stay around till the agent is stopped
 
+## [0.10.4] - 2020-4-21
+
+### Fixed
+
+- updated the changelog
+
+## [0.10.3] - 2020-4-21
+
+### Fixed
+
+- improving tar ball names
+
+## [0.10.2] - 2020-4-21
+
+### Fixed
+
+- updated the changelog
+
 ## [0.10.1] - 2020-4-21
 
 ### Fixed
