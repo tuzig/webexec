@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"net/url"
 	"strings"
 	"sync"
@@ -20,13 +21,13 @@ func signalingGo() {
 start:
 	c, err := dialWS()
 	if err != nil {
-		time.Sleep(3 * time.Second)
 		conn++
 		if conn > 3 {
 			Logger.Errorf("Failed to dial the signaling server: %q", err)
 			return
 		}
-		goto start
+		time.AfterFunc(2*time.Second, signalingGo)
+		return
 	}
 	Logger.Infof("Connected to peerbook")
 	conn = 0
@@ -82,9 +83,10 @@ func dialWS() (*websocket.Conn, error) {
 	url := url.URL{Scheme: schema, Host: Conf.peerbookHost, Path: "/ws",
 		RawQuery: params.Encode()}
 	conn, resp, err := cstDialer.Dial(url.String(), nil)
+	defer resp.Body.Close()
 	if resp.StatusCode == 400 {
-		return nil, fmt.Errorf(
-			"code a bad request from the server: %s", resp.Status)
+		bodyBytes, _ := ioutil.ReadAll(resp.Body)
+		return nil, fmt.Errorf(string(bodyBytes))
 	}
 	if resp.StatusCode == 401 {
 		return nil, &errUnauthorized{}
