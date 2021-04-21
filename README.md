@@ -21,22 +21,11 @@ system and extract it to get the binary file.
 We recommended moving webexec to a system-wide tools folder such as 
 `/usr/local/bin`.
 
-If you want to include it in your go project:
-
-``` console
-
-% GO111MODULE=on go get github.com/tuzig/webexec/...
-
-```
-
 ## Quickstart
 
-
-```console
-$ ./webexec start
-```
-
-This will launch a user's agent and report its process id 
+Before first run you need to init the configuration file - use `webexec init`
+and then `webexec start` to launch the agent. For other webexec commands enter
+`webexec`.
 
 ## Contributing
 

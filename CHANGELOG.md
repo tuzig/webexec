@@ -11,10 +11,17 @@ and the release workflow reads it to set github's release notes.
 Known issues:
 - defunct shell processes stay around till the agent is stopped
 
-## Unreleased
+## [0.10.1] - 2020-4-21
+
+### Fixed
+
+- updated the changelog and the README
+
+## [0.10.0] - 2020-4-21
 
 ### Added 
 
+- `webexec init` to initialize configuration 
 - support for behind-the-nat hosts through a ginaling server - peerbook
 - webexec.conf support for `[env]` section for env vars to set in shells.
 - webexec.conf support for `net.upd_port_min` and `net.udp_port_max`
@@ -22,6 +29,7 @@ Known issues:
 
 ### Changed
 
+- Certificates are now consistent 
 - Improved security docs
 
 ## [0.8.4] - 2020-2-4
