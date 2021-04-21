@@ -19,6 +19,14 @@ builds:
       - 7
 archives:
   - 
+    replacements:
+      darwin: darwin
+      linux: linux
+      freebsd: freebsd
+      386: 386
+      amd64: amd64
+      arm: arm
+      arm64: arm64
     wrap_in_directory: true
     files:
       - README.md

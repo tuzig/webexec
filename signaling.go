@@ -106,6 +106,11 @@ func handleMessage(c *websocket.Conn, message []byte) error {
 		Logger.Infof("Got a status message: %v", code)
 		return nil
 	}
+	peers, found := m["peers"]
+	if found {
+		Logger.Infof("Got a peers message: %v", peers)
+		return nil
+	}
 	fp, found := m["source_fp"].(string)
 	if !found {
 		return fmt.Errorf("Missing 'source_fp' paramater")
