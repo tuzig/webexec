@@ -22,6 +22,7 @@ func NewBuffer(size int) *Buffer {
 
 // Add adds a slice of bytes to the buffer
 func (buffer *Buffer) Add(b []byte) {
+	buffer.m.Lock()
 	for i := range b {
 		buffer.data[buffer.end] = b[i]
 		buffer.end++
@@ -34,6 +35,7 @@ func (buffer *Buffer) Add(b []byte) {
 			}
 		}
 	}
+	buffer.m.Unlock()
 }
 
 // Mark adds a new marker in the next buffer position
@@ -50,6 +52,7 @@ func (buffer *Buffer) GetSinceMarker(id int) []byte {
 		end   int
 		start int
 	)
+	buffer.m.Lock()
 	if id == -1 || buffer.markers[id] == -1 {
 		// the case when the marker is lost in history, send all the buffer
 		start = buffer.end
@@ -72,5 +75,6 @@ func (buffer *Buffer) GetSinceMarker(id int) []byte {
 	if id != -1 {
 		delete(buffer.markers, id)
 	}
+	buffer.m.Unlock()
 	return r
 }
