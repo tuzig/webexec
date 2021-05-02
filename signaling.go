@@ -20,7 +20,7 @@ func signalingGo() {
 	c, err := dialWS()
 	if err != nil {
 		Logger.Errorf("Failed to dial the signaling server: %q", err)
-		return
+		goto retry
 	}
 	Logger.Infof("Connected to peerbook")
 	defer c.Close()
@@ -38,6 +38,7 @@ func signalingGo() {
 			}
 		}
 	}
+retry:
 	time.AfterFunc(Conf.peerbookTimeout, signalingGo)
 }
 func getFP() string {
