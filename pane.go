@@ -42,7 +42,7 @@ func execCommand(command []string, ws *pty.Winsize) (*exec.Cmd, *os.File, error)
 	if ws != nil {
 		tty, err = pty.StartWithSize(cmd, ws)
 		if err != nil {
-			Logger.Infof("got an error starting with size %s", err)
+			Logger.Errorf("got an error starting with size %s", err)
 			return nil, nil, fmt.Errorf("Failed starting command: %q", err)
 		}
 	} else {
