@@ -11,6 +11,13 @@ and the release workflow reads it to set github's release notes.
 Known issues:
 - defunct shell processes stay around till the agent is stopped
 
+## [0.10.6] - 2021-5-02
+
+### Fixed
+
+- removing a hidden loop taht cause webexec to hang
+
+
 ## [0.10.5] - 2021-4-25
 
 ### Fixed

@@ -163,7 +163,6 @@ func (peer *Peer) OnChannelReq(d *webrtc.DataChannel) {
 			c := cdb.Add(d, pane, peer)
 			d.OnMessage(pane.OnMessage)
 			d.OnClose(func() {
-				Logger.Infof("on data channel close")
 				cdb.Delete(c)
 			})
 		}
