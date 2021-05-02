@@ -29,6 +29,7 @@ All values are in Milliseconds
 - failed: the failed timeout, default: 6000
 - keep_alive: how long to wait between keep alive messages, default 500
 - ice_gathering: gathering timeout, default 5000
+- peerbook: how long to wait before peerbook reconnnect, default 3000
 
 ### env 
 

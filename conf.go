@@ -33,6 +33,7 @@ disconnect = 3000
 failed = 6000
 keep_alive = 500
 ice_gathering = 5000
+peerbook = 3000
 [env]
 COLORTERM = "truecolor"
 TERM = "xterm"
@@ -48,6 +49,7 @@ var Conf struct {
 	failedTimeout     time.Duration
 	keepAliveInterval time.Duration
 	gatheringTimeout  time.Duration
+	peerbookTimeout   time.Duration
 	iceServers        []string
 	httpServer        string
 	logFilePath       string
@@ -107,6 +109,12 @@ func parseConf(s string) error {
 		Conf.gatheringTimeout = time.Duration(v.(int64)) * time.Millisecond
 	} else {
 		Conf.gatheringTimeout = 3 * time.Second
+	}
+	v = t.Get("timeouts.peerbook")
+	if v != nil {
+		Conf.peerbookTimeout = time.Duration(v.(int64)) * time.Millisecond
+	} else {
+		Conf.peerbookTimeout = 3 * time.Second
 	}
 	v = t.Get("net.ice_servers")
 	if v != nil {

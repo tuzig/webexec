@@ -15,7 +15,8 @@ Known issues:
 
 ### Fixed
 
-- removing a hidden loop taht cause webexec to hang
+- forever trying to reconnect to peerbook
+- removing a hidden loop that could cause webexec to hang
 
 
 ## [0.10.5] - 2021-4-25

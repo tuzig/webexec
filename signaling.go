@@ -17,7 +17,6 @@ import (
 var wsWriteM sync.Mutex
 
 func signalingGo() {
-start:
 	c, err := dialWS()
 	if err != nil {
 		Logger.Errorf("Failed to dial the signaling server: %q", err)
@@ -29,8 +28,7 @@ start:
 		mType, m, err := c.ReadMessage()
 		if err != nil {
 			Logger.Errorf("Signaling read error", err)
-			c.Close()
-			goto start
+			break
 		}
 		if mType == websocket.TextMessage {
 			Logger.Info("Received text message", string(m))
@@ -40,6 +38,7 @@ start:
 			}
 		}
 	}
+	time.AfterFunc(Conf.peerbookTimeout, signalingGo)
 }
 func getFP() string {
 	certs, err := GetCerts()
