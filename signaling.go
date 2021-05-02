@@ -17,20 +17,13 @@ import (
 var wsWriteM sync.Mutex
 
 func signalingGo() {
-	conn := 0
 start:
 	c, err := dialWS()
 	if err != nil {
-		conn++
-		if conn > 3 {
-			Logger.Errorf("Failed to dial the signaling server: %q", err)
-			return
-		}
-		time.AfterFunc(2*time.Second, signalingGo)
+		Logger.Errorf("Failed to dial the signaling server: %q", err)
 		return
 	}
 	Logger.Infof("Connected to peerbook")
-	conn = 0
 	defer c.Close()
 	for {
 		mType, m, err := c.ReadMessage()
