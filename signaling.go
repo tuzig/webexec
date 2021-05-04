@@ -57,9 +57,9 @@ func getFP() string {
 
 func dialWS() (*websocket.Conn, error) {
 	var cstDialer = websocket.Dialer{
-		ReadBufferSize:   1024,
-		WriteBufferSize:  1024,
-		HandshakeTimeout: 30 * time.Second,
+		ReadBufferSize:   4096,
+		WriteBufferSize:  4096,
+		HandshakeTimeout: 3 * time.Second,
 	}
 	fp := getFP()
 
@@ -76,6 +76,9 @@ func dialWS() (*websocket.Conn, error) {
 	url := url.URL{Scheme: schema, Host: Conf.peerbookHost, Path: "/ws",
 		RawQuery: params.Encode()}
 	conn, resp, err := cstDialer.Dial(url.String(), nil)
+	if err != nil {
+		return nil, err
+	}
 	defer resp.Body.Close()
 	if resp.StatusCode == 400 {
 		bodyBytes, _ := ioutil.ReadAll(resp.Body)

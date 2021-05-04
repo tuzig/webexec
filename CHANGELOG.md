@@ -11,6 +11,13 @@ and the release workflow reads it to set github's release notes.
 Known issues:
 - defunct shell processes stay around till the agent is stopped
 
+## Unreleased
+
+### Fixed
+
+- improved error handling of peerbook's errors
+- improved websoucket buffer's and timeout
+
 ## [0.10.7] - 2021-5-2
 
 ### Fixed
