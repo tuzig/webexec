@@ -168,13 +168,12 @@ func handleMessage(c *websocket.Conn, message []byte) error {
 		if err != nil {
 			return fmt.Errorf("Failed to encode offer : %w", err)
 		}
-		//TODO: for some reason we need to get a candidate before we carry on
-		//      of the pty return EOF on first read. strange days
-		time.AfterFunc(time.Second/5, func() {
-			wsWriteM.Lock()
-			c.WriteMessage(websocket.TextMessage, j)
-			wsWriteM.Unlock()
-		})
+		wsWriteM.Lock()
+		err = c.WriteMessage(websocket.TextMessage, j)
+		if err != nil {
+			return fmt.Errorf("Failed to write answer: %w", err)
+		}
+		wsWriteM.Unlock()
 		return nil
 	}
 	_, found = m["candidate"]
@@ -193,9 +192,15 @@ func handleMessage(c *websocket.Conn, message []byte) error {
 				peer.pendingCandidates <- &can.Candidate
 				return nil
 			}
-			err := peer.PC.AddICECandidate(can.Candidate)
-			if err != nil {
-				return fmt.Errorf("Failed to add ice candidate: %w", err)
+			state := peer.PC.SignalingState()
+			if state != webrtc.SignalingStateHaveRemoteOffer &&
+				state != webrtc.SignalingStateStable {
+				err := peer.PC.AddICECandidate(can.Candidate)
+				if err != nil {
+					return fmt.Errorf("Failed to add ice candidate: %w", err)
+				}
+			} else {
+				Logger.Infof("Ignoring candidate. current state is: %d", state)
 			}
 		} else {
 			return fmt.Errorf("got a candidate from an unknown peer: %s", fp)

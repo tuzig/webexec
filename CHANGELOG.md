@@ -11,6 +11,12 @@ and the release workflow reads it to set github's release notes.
 Known issues:
 - defunct shell processes stay around till the agent is stopped
 
+## Unreleased
+
+### Fixed
+
+- Improved connection speed (~200ms quicker)
+
 ## [0.10.8] - 2021-5-4
 
 ### Fixed
