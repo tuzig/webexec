@@ -187,14 +187,15 @@ func handleMessage(c *websocket.Conn, message []byte) error {
 		err = dec.Decode(&can)
 		peer, found := Peers[fp]
 		if found {
-			Logger.Infof("Adding an ICE Candidate: %v", can.Candidate)
 			if peer.PC == nil {
+				Logger.Infof("ICE Candidate pending: %v", can.Candidate)
 				peer.pendingCandidates <- &can.Candidate
 				return nil
 			}
 			state := peer.PC.SignalingState()
 			if state != webrtc.SignalingStateHaveRemoteOffer &&
 				state != webrtc.SignalingStateStable {
+				Logger.Infof("Adding an ICE Candidate: %v", can.Candidate)
 				err := peer.PC.AddICECandidate(can.Candidate)
 				if err != nil {
 					return fmt.Errorf("Failed to add ice candidate: %w", err)
