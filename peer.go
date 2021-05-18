@@ -99,8 +99,7 @@ func NewPeer(fingerprint string) (*Peer, error) {
 			peer.PC = nil
 			return
 		}
-		if state != webrtc.PeerConnectionStateDisconnected &&
-			state != webrtc.PeerConnectionStateClosed {
+		if state == webrtc.PeerConnectionStateConnecting {
 			for c := range peer.pendingCandidates {
 				err := pc.AddICECandidate(*c)
 				if err != nil {
