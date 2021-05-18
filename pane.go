@@ -52,7 +52,6 @@ func execCommand(command []string, ws *pty.Winsize) (*exec.Cmd, *os.File, error)
 	if err != nil {
 		return nil, nil, fmt.Errorf("Failed launching %q: %q", command, err)
 	}
-	Logger.Infof("logger command returns tty: %v", tty)
 	return cmd, tty, nil
 }
 
