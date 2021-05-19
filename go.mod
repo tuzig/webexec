@@ -3,6 +3,7 @@ module github.com/tuzig/webexec
 go 1.16
 
 require (
+	git.rootprojects.org/root/go-gitver/v2 v2.0.2 // indirect
 	github.com/cpuguy83/go-md2man/v2 v2.0.0 // indirect
 	github.com/creack/pty v1.1.11
 	github.com/gorilla/websocket v1.4.2

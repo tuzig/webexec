@@ -11,6 +11,12 @@ and the release workflow reads it to set github's release notes.
 Known issues:
 - defunct shell processes stay around till the agent is stopped
 
+## [0.10.10] - 2021-5-19
+
+### Fixed
+
+- (probably) binary failed to run on darwin
+
 ## [0.10.9] - 2021-5-19
 
 ### Changed

@@ -9,7 +9,7 @@ import (
 )
 
 // TokensFilePath holds the path to a file where each authorized token has a line
-var TokensFilePath = ConfPath("authorized_tokens")
+var TokensFilePath string
 
 func compressFP(fp string) string {
 	hex := strings.Split(fp, " ")[1]
@@ -20,6 +20,9 @@ func compressFP(fp string) string {
 // ReadAuthorizedTokens reads the tokens file and returns all the tokens in it
 func ReadAuthorizedTokens() ([]string, error) {
 	var tokens []string
+	if TokensFilePath == "" {
+		TokensFilePath = ConfPath("authorized_tokens")
+	}
 	file, err := os.Open(TokensFilePath)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to open authorized_tokens: %w", err)
