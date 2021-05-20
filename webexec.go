@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net/http"
 	"net/url"
 	"os"
@@ -329,7 +330,7 @@ func initCMD(c *cli.Context) error {
 	_, err := os.Stat(homePath)
 	if os.IsNotExist(err) {
 		os.Mkdir(homePath, 0755)
-		fmt.Printf("First run, created %q directory\n", homePath)
+		fmt.Printf("Created %q directory\n", homePath)
 	}
 	confPath := ConfPath("webexec.conf")
 	_, err = os.Stat(confPath)
@@ -343,7 +344,6 @@ To recreate a fresh file, please backup and remove %q & try again`, confPath)
 	if err != nil {
 		return fmt.Errorf("Failed to parse default conf: %s", err)
 	}
-	fmt.Printf("Created %q default config file\n", confPath)
 	// TODO: move this to start
 	if Conf.peerbookHost != "" {
 		verified, err := verifyPeer(Conf.peerbookHost)
@@ -356,6 +356,7 @@ To recreate a fresh file, please backup and remove %q & try again`, confPath)
 			fmt.Println("** unverified ** peerbook sent you a verification email.")
 		}
 	}
+	fmt.Printf("Created %q config file.\nRun `webexec start` to start the agent.\n", confPath)
 	return nil
 
 }
@@ -447,9 +448,13 @@ func verifyPeer(host string) (bool, error) {
 		return false, err
 	}
 	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		b, _ := ioutil.ReadAll(resp.Body)
+		return false, fmt.Errorf(string(b))
+	}
 	var ret map[string]interface{}
 	err = json.NewDecoder(resp.Body).Decode(&ret)
-	Logger.Info("got verify response: %v", ret)
+	Logger.Warn("got verify response: %v", ret)
 	if err != nil {
 		return false, err
 	}

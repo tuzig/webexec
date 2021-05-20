@@ -11,6 +11,12 @@ and the release workflow reads it to set github's release notes.
 Known issues:
 - defunct shell processes stay around till the agent is stopped
 
+## Unreleased
+
+### Fixed 
+
+- agent.err should work better no
+
 ## [0.10.12] - 2021-5-19
 
 ### Added
