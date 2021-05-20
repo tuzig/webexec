@@ -17,7 +17,7 @@ server and then initiates a WebRTC connection.
 
 The easiest way to install is to download the 
 [latest release](https://github.com/tuzig/webexec/releases) tar ball for your
-system and extract it to get the binary file. 
+system and extract it to get the `wbeexec` binary. 
 We recommended moving webexec to a system-wide tools folder such as 
 `/usr/local/bin`.
 
@@ -30,13 +30,15 @@ For other webexec commands run `webexec`.
 ## Contributing
 
 We welcome bug reports, ideas for new features and pull requests.
+
 If you are new to open source, DON'T PANIC. Just follow these simple
 steps:
 
-1. Fork it and clone it `git clone <your-fork-url>`
-2. Create your feature branch `git checkout -b my-new-feature`
-3. Write tests for your new feature and run them `go test -v`
-4. Commit the failed tests `git commit -am 'Testing ... '`
-4. Write the code that psses the tests and commit 
-4. Push to the branch `git push --set-upstream origin my-new-feature`
-5. Create a new Pull Request
+1. Join the discussion at our [discord server](https://discord.gg/GneEDB7ZZQ)
+2. Fork it and clone it `git clone <your-fork-url>`
+3. Create your feature branch `git checkout -b my-new-feature`
+4. Write tests for your new feature and run them `go test -v`
+5. Commit the failed tests `git commit -am 'Testing ... '`
+6. Write the code that psses the tests and commit 
+7. Push to the branch `git push --set-upstream origin my-new-feature`
+8. Create a new Pull Request
