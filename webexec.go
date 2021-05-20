@@ -461,5 +461,9 @@ func verifyPeer(host string) (bool, error) {
 	if found {
 		return v.(bool), nil
 	}
+	_, found = ret["peers"]
+	if found {
+		return true, nil
+	}
 	return false, nil
 }
