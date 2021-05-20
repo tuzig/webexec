@@ -21,11 +21,11 @@ system and extract it to get the binary file.
 We recommended moving webexec to a system-wide tools folder such as 
 `/usr/local/bin`.
 
-## Quickstart
+Before first run you need to run `webexec init` to create `~/.webexec` 
+and there `webexec.conf`. After init you can run `webexec start` to launch the agent.
+For other webexec commands run `webexec`.
 
-Before first run you need to init the configuration file - use `webexec init`
-and then `webexec start` to launch the agent. For other webexec commands enter
-`webexec`.
+[TODO: add instructions as to how to make it run on boot]
 
 ## Contributing
 
