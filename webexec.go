@@ -454,7 +454,6 @@ func verifyPeer(host string) (bool, error) {
 	}
 	var ret map[string]interface{}
 	err = json.NewDecoder(resp.Body).Decode(&ret)
-	Logger.Warn("got verify response: %v", ret)
 	if err != nil {
 		return false, err
 	}
