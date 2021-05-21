@@ -65,7 +65,8 @@ func GetCerts() ([]webrtc.Certificate, error) {
 	if key.certs == nil {
 		pb, err := ioutil.ReadFile(key.Name)
 		if err != nil {
-			Logger.Infof("No key found, generating a fresh one at %q", key.Name)
+			Logger.Infof("No certificate found, generating a fresh one at %q",
+				key.Name)
 			cert, err = key.generate()
 			if err != nil {
 				return nil, err

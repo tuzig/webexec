@@ -347,17 +347,14 @@ func initCMD(c *cli.Context) error {
 	}
 	// TODO: move this to start
 	if Conf.peerbookHost != "" {
-		verified, err := verifyPeer(Conf.peerbookHost)
+		_, err := verifyPeer(Conf.peerbookHost)
 		if err != nil {
 			return fmt.Errorf("Got an error verifying peer: %s", err)
 		}
-		if verified {
-			fmt.Println("** verified ** by peerbook")
-		} else {
-			fmt.Println("** unverified ** peerbook sent you a verification email.")
-		}
 	}
-	fmt.Printf("Created %q config file.\nRun `webexec start` to start the agent.\n", confPath)
+	fmt.Printf(`Created %q config file.
+peerbook sent an authorization email, please check your inbox, authorize and
+run "webexec start" to start your agent.`, confPath)
 	return nil
 
 }

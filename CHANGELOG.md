@@ -11,11 +11,14 @@ and the release workflow reads it to set github's release notes.
 Known issues:
 - defunct shell processes stay around till the agent is stopped
 
-## Unreleased
+## [0.10.13] - 2021-5-21
 
 ### Fixed 
 
-- agent.err should work better no
+- agent.err should work better and capture panix on darwin as well
+- init command now insists on starting with a fresh conf folder
+- improved peerbook support
+- default log level is info for now
 
 ## [0.10.12] - 2021-5-19
 

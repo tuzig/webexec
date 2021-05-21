@@ -17,7 +17,7 @@ const defaultHTTPServer = "0.0.0.0:7777"
 const defaultConf = `# webexec's configuration. in toml.
 # to learn more: https://github.com/tuzig/webexec/blob/master/docs/conf.md
 [log]
-level = "warn"
+level = "info"
 # for absolute path by starting with a /
 file = "agent.log"
 error = "agent.err"
