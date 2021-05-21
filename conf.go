@@ -256,6 +256,10 @@ please:
 		return fmt.Errorf("Failed to write to configuration file: %s", err)
 	}
 	// creating the token file
+	// TODO: Rinse - add TokensPath()
+	if TokensFilePath == "" {
+		TokensFilePath = ConfPath("authorized_tokens")
+	}
 	_, err = os.Stat(TokensFilePath)
 	if os.IsNotExist(err) {
 		tokensFile, err := os.Create(TokensFilePath)

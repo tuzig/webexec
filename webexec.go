@@ -331,14 +331,15 @@ func initCMD(c *cli.Context) error {
 	if os.IsNotExist(err) {
 		os.Mkdir(homePath, 0755)
 		fmt.Printf("Created %q directory\n", homePath)
+	} else {
+		return fmt.Errorf(
+			"%q already exists. To start fresh remove it and try again.",
+			homePath)
 	}
 	confPath := ConfPath("webexec.conf")
-	_, err = os.Stat(confPath)
-	if os.IsNotExist(err) {
-		err = createConf(confPath)
-	} else {
-		return fmt.Errorf(`Configuration file already exists.
-To recreate a fresh file, please backup and remove %q & try again`, confPath)
+	err = createConf(confPath)
+	if err != nil {
+		return err
 	}
 	err = LoadConf()
 	if err != nil {
