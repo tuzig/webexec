@@ -1,4 +1,4 @@
-// +build !arm freebsd
+// +build !arm freebsd darwin
 // +build !arm,!arm64 !linux
 
 package main
