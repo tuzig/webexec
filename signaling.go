@@ -110,6 +110,15 @@ func handleMessage(c *websocket.Conn, message []byte) error {
 	if !found {
 		return fmt.Errorf("Missing 'source_fp' paramater")
 	}
+	v, found := m["peer_update"]
+	if found {
+		pu := v.(map[string]interface{})
+		peer, found := Peers[fp]
+		if !pu["verified"].(bool) && found {
+			peer.PC.Close()
+			peer.PC = nil
+		}
+	}
 	o, found := m["offer"].(string)
 	if found {
 		var offer webrtc.SessionDescription
