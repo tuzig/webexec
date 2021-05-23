@@ -11,6 +11,12 @@ and the release workflow reads it to set github's release notes.
 Known issues:
 - defunct shell processes stay around till the agent is stopped
 
+## [0.10.14] - 2021-5-22
+
+### Fixed 
+
+-- upgrading github action's go to 1.16
+
 ## [0.10.13] - 2021-5-21
 
 ### Fixed 
