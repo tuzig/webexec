@@ -11,6 +11,16 @@ and the release workflow reads it to set github's release notes.
 Known issues:
 - defunct shell processes stay around till the agent is stopped
 
+## [0.10.16] - 2021-5-22
+
+### Added
+
+- disconnecting peer on authorization removal
+
+### Fixed
+
+- passing candidates regardless of signalling state (which is unreliable)
+
 ## [0.10.15] - 2021-5-22
 
 ### Fixed
