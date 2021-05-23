@@ -192,16 +192,10 @@ func handleMessage(c *websocket.Conn, message []byte) error {
 				peer.pendingCandidates <- &can.Candidate
 				return nil
 			}
-			state := peer.PC.SignalingState()
-			if state != webrtc.SignalingStateHaveRemoteOffer &&
-				state != webrtc.SignalingStateStable {
-				Logger.Infof("Adding an ICE Candidate: %v", can.Candidate)
-				err := peer.PC.AddICECandidate(can.Candidate)
-				if err != nil {
-					return fmt.Errorf("Failed to add ice candidate: %w", err)
-				}
-			} else {
-				Logger.Infof("Ignoring candidate. current state is: %d", state)
+			Logger.Infof("Adding an ICE Candidate: %v", can.Candidate)
+			err := peer.PC.AddICECandidate(can.Candidate)
+			if err != nil {
+				return fmt.Errorf("Failed to add ice candidate: %w", err)
 			}
 		} else {
 			return fmt.Errorf("got a candidate from an unknown peer: %s", fp)
