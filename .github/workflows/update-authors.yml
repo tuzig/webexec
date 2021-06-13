@@ -13,6 +13,7 @@ jobs:
       with:
         persist-credentials: false
         fetch-depth: 0 
+        ref: ${{ github.head_ref }}
 
     - name: Generate the AUTHORS file
       run: .github/generate-authors.sh
