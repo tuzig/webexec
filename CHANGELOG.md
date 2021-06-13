@@ -11,6 +11,24 @@ and the release workflow reads it to set github's release notes.
 Known issues:
 - defunct shell processes stay around till the agent is stopped
 
+## [0.10.19] - 2021-6-13
+
+### ADDED 
+
+- change log entries (TODO: to add a local .git/hooks to test this)
+
+## [0.10.18] - 2021-6-13
+
+### Fixed
+
+- a typo that failed the release action
+ 
+## [0.10.17] - 2021-6-13
+
+### Added 
+
+- github action to generate authors (based on work done for pion/.goassets)
+
 ## [0.10.16] - 2021-5-22
 
 ### Added
