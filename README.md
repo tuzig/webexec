@@ -25,6 +25,15 @@ Before first run you need to run `webexec init` to create `~/.webexec`
 and there `webexec.conf`. After init you can run `webexec start` to launch the agent.
 For other webexec commands run `webexec`.
 
+webexec communicates over UDP ports, so if the server is behind a firewall
+you'll have to allow ingress UDP traffic.
+The default ports are the range 7000-7777.
+If you prefer another range you can set the `udp_port_min` and `udp_port_max`
+in the `[net]` section of the conf file and `webexec restart`.
+
+For direct connections you'll also need to open TCP port 7777 so clients can
+directly connect using http.
+
 [TODO: add instructions as to how to make it run on boot]
 
 ## Contributing
