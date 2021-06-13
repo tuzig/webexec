@@ -59,5 +59,5 @@ if [ ${#CONTRIBUTORS[@]} -ne 0 ]; then
     do
 	    echo "$i" >> $AUTHORS_PATH
     done
-    exit 1
+    exit 0
 fi

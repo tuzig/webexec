@@ -11,6 +11,12 @@ and the release workflow reads it to set github's release notes.
 Known issues:
 - defunct shell processes stay around till the agent is stopped
 
+## [0.10.20] - 2021-6-13
+
+### Fixed 
+
+- generate aythors script no returns 0 on success
+
 ## [0.10.19] - 2021-6-13
 
 ### ADDED 
