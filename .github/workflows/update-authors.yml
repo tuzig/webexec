@@ -1,4 +1,4 @@
-name: assets-sync
+name: update-authors
 on:
   push:
     tags:
@@ -13,7 +13,7 @@ jobs:
         fetch-depth: 0 
     - name: Create file
       run: .github/generate-authors.sh
-    - uses: stefanweifel/git-auto-commit-action@v4
+    - uses: stefanzweifel/git-auto-commit-action@v4
       with:
         commit_message: "Update AUTHORS file"
         commit_user_email: "59523206+pionbot@users.noreply.github.com"
