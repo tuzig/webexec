@@ -1,10 +1,8 @@
 name: update-authors
 on:
-  pull_request:
-    types:
-      - opened
-      - edited
-      - synchronize
+  push:
+    branches:
+      - master
 jobs:
   generate-authors:
     runs-on: ubuntu-latest
