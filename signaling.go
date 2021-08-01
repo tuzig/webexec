@@ -114,7 +114,7 @@ func handleMessage(c *websocket.Conn, message []byte) error {
 	if found {
 		pu := v.(map[string]interface{})
 		peer, found := Peers[fp]
-		if !pu["verified"].(bool) && found {
+		if found && peer.PC != nil && !pu["verified"].(bool) {
 			peer.PC.Close()
 			peer.PC = nil
 		}

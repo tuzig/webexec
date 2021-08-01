@@ -1,15 +1,13 @@
-# Change Log
-
-All notable changes to this project will be documented in this file. 
-
-webexec adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
-
-his file's format is define in 
-[Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 and the release workflow reads it to set github's release notes.
 
 Known issues:
 - defunct shell processes stay around till the agent is stopped
+
+## Unreleased
+
+### Fixed
+
+- crash on on closing an already closed peerbook connection
 
 ## [0.10.20] - 2021-6-13
 
