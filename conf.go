@@ -3,14 +3,15 @@ package main
 import (
 	"bufio"
 	"fmt"
-	"github.com/pelletier/go-toml"
-	"go.uber.org/zap/zapcore"
 	"io/ioutil"
 	"os"
 	"os/user"
 	"path/filepath"
 	"regexp"
 	"time"
+
+	"github.com/pelletier/go-toml"
+	"go.uber.org/zap/zapcore"
 )
 
 const defaultHTTPServer = "0.0.0.0:7777"
@@ -142,7 +143,7 @@ func parseConf(s string) error {
 		Conf.portMax = uint16(v.(int64))
 	}
 	// unsecured cotrol which shema to use
-	v = t.Get("net.insecure")
+	v = t.Get("peerbook.insecure")
 	if v != nil {
 		Conf.insecure = v.(bool)
 	}
