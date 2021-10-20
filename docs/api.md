@@ -137,7 +137,6 @@ Example request:
   "time": 1257894000000,
   "message_id": 456,
   "type": "get_payload",
-  "args": {}
 }
 ```
 
