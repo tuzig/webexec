@@ -3,7 +3,6 @@ module github.com/tuzig/webexec
 go 1.16
 
 require (
-	git.rootprojects.org/root/go-gitver/v2 v2.0.2 // indirect
 	github.com/cpuguy83/go-md2man/v2 v2.0.0 // indirect
 	github.com/creack/pty v1.1.11
 	github.com/gorilla/websocket v1.4.2
@@ -11,14 +10,14 @@ require (
 	github.com/kardianos/osext v0.0.0-20190222173326-2bc1f35cddc0
 	github.com/pelletier/go-toml v1.8.1
 	github.com/pion/logging v0.2.2
-	github.com/pion/webrtc/v3 v3.0.22
+	github.com/pion/webrtc/v3 v3.1.5
 	github.com/rs/cors v1.7.0
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
 	github.com/stretchr/testify v1.7.0
 	github.com/urfave/cli/v2 v2.3.0
 	go.uber.org/multierr v1.6.0 // indirect
 	go.uber.org/zap v1.16.0
-	golang.org/x/sys v0.0.0-20210414055047-fe65e336abe0
+	golang.org/x/sys v0.0.0-20210615035016-665e8c7367d1
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0
 	gopkg.in/yaml.v3 v3.0.0-20210106172901-c476de37821d // indirect
 )

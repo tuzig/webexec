@@ -3,12 +3,13 @@ package main
 
 import (
 	"fmt"
-	"github.com/creack/pty"
-	"github.com/hinshun/vt10x"
-	"github.com/pion/webrtc/v3"
 	"io"
 	"os"
 	"os/exec"
+
+	"github.com/creack/pty"
+	"github.com/hinshun/vt10x"
+	"github.com/pion/webrtc/v3"
 )
 
 // Panes is an array that hol;ds all the panes

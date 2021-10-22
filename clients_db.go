@@ -3,8 +3,9 @@ package main
 
 import (
 	"fmt"
-	"github.com/pion/webrtc/v3"
 	"sync"
+
+	"github.com/pion/webrtc/v3"
 )
 
 // Client ties together the dta channel, its peer and the pane
@@ -33,7 +34,7 @@ func (db *ClientsDB) Add(dc *webrtc.DataChannel, pane *Pane, peer *Peer) *Client
 	defer db.m.Unlock()
 	id := db.lastID
 	db.lastID++
-	Logger.Infof("Ading data channel %d", id)
+	Logger.Infof("Adding data channel %d", id)
 	c := &Client{dc, pane, peer, id}
 	db.clients[id] = c
 	return c
