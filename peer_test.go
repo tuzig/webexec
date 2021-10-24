@@ -5,8 +5,10 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -402,6 +404,7 @@ func TestMarkerRestore(t *testing.T) {
 	}
 }
 func TestAddPaneCommand(t *testing.T) {
+	var wg sync.WaitGroup
 	initTest(t)
 	client, cert, err := NewClient(true)
 	require.Nil(t, err, "Failed to create a new client %v", err)
@@ -409,29 +412,42 @@ func TestAddPaneCommand(t *testing.T) {
 	require.Nil(t, err)
 	done := make(chan bool)
 	client.OnDataChannel(func(d *webrtc.DataChannel) {
+		d.OnMessage(func(msg webrtc.DataChannelMessage) {
+			require.Equal(t, "BADWOLF\r\n", string(msg.Data))
+			wg.Done()
+		})
 		l := d.Label()
-		require.Equal(t, l, "456:1")
-		done <- true
+		Logger.Infof("Got a new datachannel: %s", l)
+		require.Regexp(t, regexp.MustCompile("^456:[0-9]+"), l)
+		wg.Done()
 	})
 	cdc, err := client.CreateDataChannel("%", nil)
 	require.Nil(t, err, "failed to create the control data channel: %v", err)
 	cdc.OnOpen(func() {
+		Logger.Info("cdc opened")
 		cdc.OnMessage(func(msg webrtc.DataChannelMessage) {
 			ack := ParseAck(t, msg)
 			if ack.Ref == 456 {
-				done <- true
+				wg.Done()
 			}
 		})
-		addPaneArgs := AddPaneArgs{Sx: 12, Sy: 34, Command: "echo add_pane"}
+		time.Sleep(time.Second / 100)
+		addPaneArgs := AddPaneArgs{Rows: 12, Cols: 34,
+			Command: []string{"echo", "BADWOLF"}}
 		m := CTRLMessage{time.Now().UnixNano(), 456, "add_pane",
 			&addPaneArgs}
 		msg, err := json.Marshal(m)
 		require.Nil(t, err, "failed marshilng ctrl msg: %v", msg)
 		cdc.Send(msg)
 	})
+	wg.Add(3)
+	go func() {
+		wg.Wait()
+		done <- true
+	}()
 	SignalPair(client, peer)
 	select {
-	case <-time.After(3 * time.Second):
+	case <-time.After(6 * time.Second):
 		t.Error("Timeout waiting for server to open channel")
 	case <-done:
 	}

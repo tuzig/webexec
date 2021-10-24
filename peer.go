@@ -224,7 +224,7 @@ func (peer *Peer) GetOrCreatePane(d *webrtc.DataChannel) (*Pane, error) {
 		Logger.Infof("Got a reconnect request to pane %d", id)
 		return peer.Reconnect(d, id)
 	}
-	pane, err = NewPane(fields[cmdIndex:], d, peer, ws)
+	pane, err = NewPane(fields[cmdIndex:], peer, ws)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to create new pane: %q", err)
 	}
@@ -326,6 +326,34 @@ func (peer *Peer) OnCTRLMsg(msg webrtc.DataChannelMessage) {
 			// will be removed on close
 		}
 		err = peer.SendAck(m, []byte(fmt.Sprintf("%d", peer.Marker)))
+	case "add_pane":
+		var a AddPaneArgs
+		var ws *pty.Winsize
+		err = json.Unmarshal(raw, &a)
+		if err != nil {
+			Logger.Infof("Failed to parse incoming control message: %v", err)
+			return
+		}
+		Logger.Infof("got add_pane: %v", a)
+		if a.X > 0 && a.Y > 0 {
+			ws = &pty.Winsize{Rows: a.Rows, Cols: a.Cols, X: a.X, Y: a.Y}
+		}
+		pane, err := NewPane(a.Command, peer, ws)
+		l := fmt.Sprintf("%d:%d", m.Ref, pane.ID)
+		// TODO: add data channel options like retransmit
+		d, err := peer.PC.CreateDataChannel(l, nil)
+		if err != nil {
+			Logger.Warnf("Failed to create data channel : %v", err)
+			return
+		}
+		c := cdb.Add(d, pane, peer)
+		d.OnMessage(pane.OnMessage)
+		d.OnClose(func() {
+			cdb.Delete(c)
+		})
+		go pane.ReadLoop()
+		err = peer.SendAck(m, []byte(fmt.Sprintf("%d", pane.ID)))
+
 	default:
 		Logger.Errorf("Got a control message with unknown type: %q", m.Type)
 	}

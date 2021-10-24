@@ -47,10 +47,12 @@ type ResizeArgs struct {
 }
 
 type AddPaneArgs struct {
-	Command string `json:"command"`
-	Sx      uint16 `json:"sx"`
-	Sy      uint16 `json:"sy"`
-	Parent  uint32 `json:"parrent,omitempty"`
+	Command []string `json:"command"`
+	Rows    uint16   `json:"rows, omitempty"`
+	Cols    uint16   `json:"cols, omitempty"`
+	X       uint16   `json:"x, omitempty"`
+	Y       uint16   `json:"y, omitempty"`
+	Parent  uint32   `json:"parrent,omitempty"`
 }
 
 // CTRLMessage type holds control messages passed over the control channel

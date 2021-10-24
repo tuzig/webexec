@@ -57,8 +57,7 @@ func execCommand(command []string, ws *pty.Winsize) (*exec.Cmd, *os.File, error)
 }
 
 // NewPane opens a new pane and start its command and pty
-func NewPane(command []string, d *webrtc.DataChannel, peer *Peer,
-	ws *pty.Winsize) (*Pane, error) {
+func NewPane(command []string, peer *Peer, ws *pty.Winsize) (*Pane, error) {
 
 	var vt vt10x.VT
 	cmd, tty, err := execCommand(command, ws)

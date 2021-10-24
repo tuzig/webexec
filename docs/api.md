@@ -86,8 +86,10 @@ For example, a cdc message like:
 }
 ```
 
-will get the server to start a new zsh connected througha psedu tty to a newly
+will get the server to start a new zsh connected through a psedu tty to a newly
 created data channel with the label "123:89". 
+
+The message's ack will have the pane's id in the body.
 
 ### Mark
 
