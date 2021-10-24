@@ -49,26 +49,6 @@ After receiving the server's offer using HTTP API, the client establishes
 a webrtc peer connection. Once connected, the client can execute commands 
 by opening data channels that connect it with a pane.
 
-### Connect to Pane
-
-A `Pane` is a class that connect a process, a pseudo tty and a set of 
-data channels. When a client wants to launch a new pane or connects to an
-existing one, it opens a data channel. The channel name tells webexec which pane
-to connect to. 
-
-In the simple case, the channel lable includes just a comma sperated list
-of strings to pass to exec. e.g. `echo,Hello World`. This will result in webexec
-running the command and sending it output over the data channel. Once echo exits
-the channel is closed.
-
-If the label starts with dimensions, e.g.`24x80,nvim,README.md` webexec starts
-the command over a pseudo pty.
-
-If the label starts with `>` followed by pane id - a number - webexec finds
-the requested pane and adds the channel to its set.
-
-Whatever form the label is, the first message from webexec will be
-either a number - pane if - or a string - an error message. 
 
 ## Control Channel
 
@@ -78,6 +58,36 @@ the client opens a bi-directional command & control data channel, labeled
 `%`.
 
 Webexec replies to each command with with a `ack` or a `nack` message.
+
+### Add Pane
+
+A pane is the basic an object that connects a process, a pseudo tty and a set of 
+data channels.  When a client wants to create a new pane it sends this message with the 
+command to run, the dimensions and an optional parent pane.
+After receiving this message webexec will create the pseudo tty, start 
+the commend and open a data channel.
+
+The new channel's label includes two integers separated by a `:`. 
+The first integer is the message_id and the second is the server's id to be
+used in future commands.
+
+For example, a cdc message like:
+
+```json
+{
+  "message_id": 123,
+  "type": "add_pane",
+  "args": {
+    "sx": 80,
+    "sy": 24,
+    "command": "zsh",
+    "parent": 123
+  }
+}
+```
+
+will get the server to start a new zsh connected througha psedu tty to a newly
+created data channel with the label "123:89". 
 
 ### Mark
 

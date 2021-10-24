@@ -401,3 +401,38 @@ func TestMarkerRestore(t *testing.T) {
 	case <-gotSecondAgain:
 	}
 }
+func TestAddPaneCommand(t *testing.T) {
+	initTest(t)
+	client, cert, err := NewClient(true)
+	require.Nil(t, err, "Failed to create a new client %v", err)
+	peer, err := NewPeer(cert)
+	require.Nil(t, err)
+	done := make(chan bool)
+	client.OnDataChannel(func(d *webrtc.DataChannel) {
+		l := d.Label()
+		require.Equal(t, l, "456:1")
+		done <- true
+	})
+	cdc, err := client.CreateDataChannel("%", nil)
+	require.Nil(t, err, "failed to create the control data channel: %v", err)
+	cdc.OnOpen(func() {
+		cdc.OnMessage(func(msg webrtc.DataChannelMessage) {
+			ack := ParseAck(t, msg)
+			if ack.Ref == 456 {
+				done <- true
+			}
+		})
+		addPaneArgs := AddPaneArgs{Sx: 12, Sy: 34, Command: "echo add_pane"}
+		m := CTRLMessage{time.Now().UnixNano(), 456, "add_pane",
+			&addPaneArgs}
+		msg, err := json.Marshal(m)
+		require.Nil(t, err, "failed marshilng ctrl msg: %v", msg)
+		cdc.Send(msg)
+	})
+	SignalPair(client, peer)
+	select {
+	case <-time.After(3 * time.Second):
+		t.Error("Timeout waiting for server to open channel")
+	case <-done:
+	}
+}
