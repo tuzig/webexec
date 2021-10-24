@@ -335,10 +335,19 @@ func (peer *Peer) OnCTRLMsg(msg webrtc.DataChannelMessage) {
 			return
 		}
 		Logger.Infof("got add_pane: %v", a)
-		if a.X > 0 && a.Y > 0 {
+		if a.Rows > 0 && a.Cols > 0 {
 			ws = &pty.Winsize{Rows: a.Rows, Cols: a.Cols, X: a.X, Y: a.Y}
+		} else {
+			ws = &pty.Winsize{Rows: 24, Cols: 80}
+			Logger.Warn("Got an add_pane commenad with no rows or cols")
 		}
+
 		pane, err := NewPane(a.Command, peer, ws)
+		if err != nil {
+			Logger.Warnf("Failed to add a new pane: %v", err)
+			return
+		}
+		Logger.Infof("Added pane: %v", pane)
 		l := fmt.Sprintf("%d:%d", m.Ref, pane.ID)
 		// TODO: add data channel options like retransmit
 		d, err := peer.PC.CreateDataChannel(l, nil)
