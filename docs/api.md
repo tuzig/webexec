@@ -91,6 +91,20 @@ created data channel with the label "123:89".
 
 The message's ack will have the pane's id in the body.
 
+### Reconnect to  Pane
+
+To restore connection to a previously opened pane use the reconnect message:
+
+```json
+{
+  "message_id": 123,
+  "type": "reconnect_pane",
+  "args": {
+    "id": 56
+  }
+}
+```
+
 ### Mark
 
 When a client knows it is about to disconnect he should send a mark message

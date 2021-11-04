@@ -246,7 +246,6 @@ func (peer *Peer) Reconnect(d *webrtc.DataChannel, id int) (*Pane, error) {
 		return nil, fmt.Errorf("Got a bad pane id: %d", id)
 	}
 	if pane.IsRunning {
-		pane.sendFirstMessage(d)
 		pane.Restore(d, peer.Marker)
 		return pane, nil
 	}
@@ -260,8 +259,8 @@ func (peer *Peer) SendAck(cm CTRLMessage, body []byte) error {
 	return SendCTRLMsg(peer, "ack", &args)
 }
 
-// SendNAck sends an nack for a given control message
-func (peer *Peer) SendNAck(cm CTRLMessage, desc string) error {
+// SendNack sends an nack for a given control message
+func (peer *Peer) SendNack(cm CTRLMessage, desc string) error {
 	args := NAckArgs{Ref: cm.Ref, Desc: desc}
 	return SendCTRLMsg(peer, "nack", &args)
 }
@@ -326,6 +325,39 @@ func (peer *Peer) OnCTRLMsg(msg webrtc.DataChannelMessage) {
 			// will be removed on close
 		}
 		err = peer.SendAck(m, []byte(fmt.Sprintf("%d", peer.Marker)))
+	case "reconnect_pane":
+		var a ReconnectPaneArgs
+		err = json.Unmarshal(raw, &a)
+		if err != nil {
+			Logger.Infof("Failed to parse incoming control message: %v", err)
+			return
+		}
+		Logger.Infof("got reconnect_pane: %v", a)
+
+		l := fmt.Sprintf("%d:%d", m.Ref, a.ID)
+		// TODO: add data channel options like retransmit
+		d, err := peer.PC.CreateDataChannel(l, nil)
+		if err != nil {
+			Logger.Warnf("Failed to create data channel : %v", err)
+			return
+		}
+		d.OnOpen(func() {
+			pane, err := peer.Reconnect(d, a.ID)
+			if err != nil || pane == nil {
+				Logger.Warnf("Failed to reconnect to pane  data channel : %v", err)
+				peer.SendNack(m, fmt.Sprintf("Failed to reconnect to: %d", a.ID))
+				return
+			} else {
+				peer.SendAck(m, []byte(fmt.Sprintf("%d", pane.ID)))
+			}
+			c := cdb.Add(d, pane, peer)
+			d.OnMessage(pane.OnMessage)
+			d.OnClose(func() {
+				cdb.Delete(c)
+			})
+			go pane.ReadLoop()
+		})
+
 	case "add_pane":
 		var a AddPaneArgs
 		var ws *pty.Winsize
@@ -347,27 +379,34 @@ func (peer *Peer) OnCTRLMsg(msg webrtc.DataChannelMessage) {
 			Logger.Warnf("Failed to add a new pane: %v", err)
 			return
 		}
-		Logger.Infof("Added pane: %v", pane)
 		l := fmt.Sprintf("%d:%d", m.Ref, pane.ID)
 		// TODO: add data channel options like retransmit
 		d, err := peer.PC.CreateDataChannel(l, nil)
 		if err != nil {
-			Logger.Warnf("Failed to create data channel : %v", err)
+			msg := fmt.Sprintf("Failed to create data channel : %s", l)
+			peer.SendNack(m, msg)
+			Logger.Warnf(msg)
 			return
 		}
-		c := cdb.Add(d, pane, peer)
-		d.OnMessage(pane.OnMessage)
-		d.OnClose(func() {
-			cdb.Delete(c)
+		d.OnOpen(func() {
+			c := cdb.Add(d, pane, peer)
+			if err != nil {
+				Logger.Warnf("Failed to reconnect to pane  data channel : %v", err)
+			} else {
+				peer.SendAck(m, []byte(fmt.Sprintf("%d", pane.ID)))
+			}
+			d.OnMessage(pane.OnMessage)
+			d.OnClose(func() {
+				cdb.Delete(c)
+			})
+			go pane.ReadLoop()
 		})
-		go pane.ReadLoop()
-		err = peer.SendAck(m, []byte(fmt.Sprintf("%d", pane.ID)))
 
 	default:
 		Logger.Errorf("Got a control message with unknown type: %q", m.Type)
 	}
 	if err != nil {
 		Logger.Errorf("#%d: Failed to send [n]ack: %v", peer.FP, err)
-		return
 	}
+	return
 }

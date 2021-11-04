@@ -114,66 +114,6 @@ func TestResizeCommand(t *testing.T) {
 	}
 }
 
-func TestChannelReconnect(t *testing.T) {
-	initTest(t)
-	var cID string
-	var dc *webrtc.DataChannel
-	done := make(chan bool)
-	gotID := make(chan bool)
-	// start the server
-	client, cert, err := NewClient(true)
-	require.Nil(t, err, "Failed to create a new client %v", err)
-	peer, err := NewPeer(cert)
-	require.Nil(t, err, "NewPeer failed with: %s", err)
-	// count the incoming messages
-	count := 0
-	Logger.Info("cdc is opened")
-	dc, err = client.CreateDataChannel("bash,-c,sleep 1; echo 123456", nil)
-	require.Nil(t, err, "Failed to create the echo data channel: %v", err)
-	dc.OnOpen(func() {
-		Logger.Infof("Channel %q opened", dc.Label())
-	})
-	dc.OnMessage(func(msg webrtc.DataChannelMessage) {
-		Logger.Infof("DC Got msg #%d: %s", count, msg.Data)
-		if count == 0 {
-			cID = string(msg.Data)
-			Logger.Infof("Client got a channel id: %q", cID)
-			dc.Close()
-			gotID <- true
-		}
-		count++
-	})
-	SignalPair(client, peer)
-	<-gotID
-	// Now that we have a channel open, let's close the channel and reconnect
-	dc2, err := client.CreateDataChannel(">"+cID, nil)
-	require.Nil(t, err, "Failed to create the second data channel: %q", err)
-	dc2.OnOpen(func() {
-		Logger.Info("Second channel is open")
-	})
-	count2 := 0
-	dc2.OnMessage(func(msg webrtc.DataChannelMessage) {
-		Logger.Infof("DC2 Got msg #%d: %s", count2, msg.Data)
-		// first message is the pane id
-		if count2 == 0 && string(msg.Data) != cID {
-			t.Errorf("Got a bad pane ID on reconnect, expected %q got %q",
-				cID, msg.Data)
-		}
-		// second message should be the echo output
-		if count2 == 1 {
-			if !strings.Contains(string(msg.Data), "123456") {
-				t.Errorf("Got an unexpected reply: %s", msg.Data)
-			}
-			done <- true
-		}
-		count2++
-	})
-	select {
-	case <-time.After(3 * time.Second):
-		t.Error("Timeout waiting for dat ain reconnected pane")
-	case <-done:
-	}
-}
 func TestPayloadOperations(t *testing.T) {
 	initTest(t)
 	done := make(chan bool)
@@ -212,71 +152,6 @@ func TestPayloadOperations(t *testing.T) {
 	case <-done:
 	}
 	// TODO: now get_payload and make sure it's the same
-}
-func TestChannelRestore(t *testing.T) {
-	initTest(t)
-	var cID string
-	var dc *webrtc.DataChannel
-	done := make(chan bool)
-	gotFirst := make(chan bool)
-	// start the client
-	client, cert, err := NewClient(true)
-	require.Nil(t, err, "Failed to create a new client %v", err)
-	// start the server
-	peer, err := NewPeer(cert)
-	require.Nil(t, err, "NewPeer failed with: %s", err)
-	// count the incoming messages
-	count := 0
-	dc, err = client.CreateDataChannel("24x80,bash,-c,echo 123456 ; sleep 1", nil)
-	require.Nil(t, err, "Failed to create the echo data channel: %v", err)
-	dc.OnOpen(func() {
-		Logger.Infof("Channel %q opened", dc.Label())
-	})
-	dc.OnMessage(func(msg webrtc.DataChannelMessage) {
-		Logger.Infof("DC Got msg #%d: %s", count, msg.Data)
-		if count == 0 {
-			cID = string(msg.Data)
-			Logger.Infof("Client got a channel id: %q", cID)
-		}
-		if count == 1 {
-			require.Contains(t, string(msg.Data), "123456")
-			gotFirst <- true
-		}
-		count++
-	})
-	SignalPair(client, peer)
-	select {
-	case <-time.After(3 * time.Second):
-		t.Error("Timeout waiting for data in DC")
-	case <-gotFirst:
-	}
-	// Now that we have a channel open, let's close the channel and reconnect
-	dc2, err := client.CreateDataChannel(">"+cID, nil)
-	require.Nil(t, err, "Failed to create the second data channel: %q", err)
-	dc2.OnOpen(func() {
-		Logger.Info("Second channel is open")
-	})
-	count2 := 0
-	dc2.OnMessage(func(msg webrtc.DataChannelMessage) {
-		// first message is the pane id
-		if count2 == 0 && string(msg.Data) != cID {
-			t.Errorf("Got a bad pane ID on reconnect, expected %q got %q",
-				cID, msg.Data)
-		}
-		// second message should be the echo output
-		if count2 == 1 {
-			require.Contains(t, string(msg.Data), "123456",
-				"Got an unexpected reply: %s", msg.Data)
-			done <- true
-		}
-		count2++
-	})
-	Logger.Info("Waiting on done")
-	select {
-	case <-time.After(3 * time.Second):
-		t.Error("Timeout waiting for dat ain reconnected pane")
-	case <-done:
-	}
 }
 func TestMarkerRestore(t *testing.T) {
 	initTest(t)
@@ -361,7 +236,6 @@ func TestMarkerRestore(t *testing.T) {
 	cdc2, err := client2.CreateDataChannel("%", nil)
 	require.Nil(t, err, "Failed to create the control data channel: %v", err)
 	// count the incoming messages
-	count = 0
 	cdc2.OnOpen(func() {
 		// send the restore message "marker"
 		go SendRestore(cdc2, 345, marker)
@@ -385,14 +259,8 @@ func TestMarkerRestore(t *testing.T) {
 		dc.OnMessage(func(msg webrtc.DataChannelMessage) {
 			// ignore null messages
 			if len(msg.Data) > 0 {
-				if count == 0 {
-					require.Equal(t, cID, string(msg.Data))
-				}
-				if count == 1 {
-					require.Equal(t, "789\r\n", string(msg.Data))
-					gotSecondAgain <- true
-				}
-				count++
+				require.Equal(t, "789\r\n", string(msg.Data))
+				gotSecondAgain <- true
 			}
 
 		})
@@ -403,7 +271,7 @@ func TestMarkerRestore(t *testing.T) {
 	case <-gotSecondAgain:
 	}
 }
-func TestAddPaneCommand(t *testing.T) {
+func TestAddPaneMessage(t *testing.T) {
 	var wg sync.WaitGroup
 	initTest(t)
 	client, cert, err := NewClient(true)
@@ -414,6 +282,7 @@ func TestAddPaneCommand(t *testing.T) {
 	client.OnDataChannel(func(d *webrtc.DataChannel) {
 		d.OnMessage(func(msg webrtc.DataChannelMessage) {
 			require.Equal(t, "BADWOLF\r\n", string(msg.Data))
+			Logger.Infof(string(msg.Data))
 			wg.Done()
 		})
 		l := d.Label()
@@ -431,7 +300,6 @@ func TestAddPaneCommand(t *testing.T) {
 				wg.Done()
 			}
 		})
-		time.Sleep(time.Second / 100)
 		addPaneArgs := AddPaneArgs{Rows: 12, Cols: 34,
 			Command: []string{"echo", "BADWOLF"}}
 		m := CTRLMessage{time.Now().UnixNano(), 456, "add_pane",
@@ -451,4 +319,64 @@ func TestAddPaneCommand(t *testing.T) {
 		t.Error("Timeout waiting for server to open channel")
 	case <-done:
 	}
+}
+func TestReconnectPane(t *testing.T) {
+	var wg sync.WaitGroup
+	var gotMsg sync.WaitGroup
+	var ci int
+	initTest(t)
+	client, cert, err := NewClient(true)
+	require.Nil(t, err, "Failed to create a new client %v", err)
+	peer, err := NewPeer(cert)
+	require.Nil(t, err)
+	client.OnDataChannel(func(d *webrtc.DataChannel) {
+		l := d.Label()
+		//fs := strings.Split(d.Label(), ",")
+		d.OnMessage(func(msg webrtc.DataChannelMessage) {
+			if len(msg.Data) > 0 {
+				Logger.Infof("Got a message in %s: %s", l, string(msg.Data))
+				if strings.Contains(string(msg.Data), "BADWOLF") {
+					gotMsg.Done()
+				}
+			}
+		})
+		Logger.Infof("Got a new datachannel: %s", l)
+		require.Regexp(t, regexp.MustCompile("^45[67]:[0-9]+"), l)
+		wg.Done()
+	})
+	cdc, err := client.CreateDataChannel("%", nil)
+	require.Nil(t, err, "failed to create the control data channel: %v", err)
+	cdc.OnOpen(func() {
+		Logger.Info("cdc opened")
+		cdc.OnMessage(func(msg webrtc.DataChannelMessage) {
+			Logger.Infof("cdc got an ack: %v", string(msg.Data))
+			ack := ParseAck(t, msg)
+			if ack.Ref == 456 {
+				ci, err = strconv.Atoi(string(ack.Body))
+				require.Nil(t, err)
+				wg.Done()
+			}
+		})
+		time.Sleep(time.Second / 100)
+		addPaneArgs := AddPaneArgs{Rows: 12, Cols: 34,
+			Command: []string{"bash", "-c", "sleep 1; echo BADWOLF"}}
+		m := CTRLMessage{time.Now().UnixNano(), 456, "add_pane",
+			&addPaneArgs}
+		msg, err := json.Marshal(m)
+		require.Nil(t, err, "failed marshilng ctrl msg: %v", msg)
+		cdc.Send(msg)
+	})
+	wg.Add(2)
+	gotMsg.Add(2)
+	SignalPair(client, peer)
+	wg.Wait()
+	Logger.Infof("After first wait")
+	wg.Add(1)
+	a := ReconnectPaneArgs{ID: ci}
+	m := CTRLMessage{time.Now().UnixNano(), 457, "reconnect_pane",
+		&a}
+	msg, err := json.Marshal(m)
+	require.Nil(t, err, "failed marshilng ctrl msg: %v", msg)
+	cdc.Send(msg)
+	gotMsg.Wait()
 }

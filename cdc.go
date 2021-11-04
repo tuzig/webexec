@@ -55,6 +55,10 @@ type AddPaneArgs struct {
 	Parent  uint32   `json:"parrent,omitempty"`
 }
 
+type ReconnectPaneArgs struct {
+	ID int `json:"id"`
+}
+
 // CTRLMessage type holds control messages passed over the control channel
 type CTRLMessage struct {
 	// Time is in msec since EPOCH

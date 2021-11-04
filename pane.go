@@ -119,7 +119,6 @@ func (pane *Pane) ReadLoop() {
 		}
 		conL = 0
 		// We need to get the dcs from Panes for an updated version
-		pane := Panes.Get(id)
 		cs := cdb.All4Pane(pane)
 		Logger.Infof("@%d: Sending output to %d dcs", pane.ID, len(cs))
 		for _, d := range cs {
@@ -221,14 +220,21 @@ func (pane *Pane) dumpVT(d *webrtc.DataChannel) {
 			view = append(view, byte('\n'))
 			view = append(view, byte('\r'))
 		}
-		d.Send(view)
+
+		err := d.Send(view)
+		if err != nil {
+			Logger.Errorf("Failed restoring screen: %s", err)
+		}
 		view = nil
 	}
 	// position the cursor
 	x, y := t.Cursor()
 	Logger.Infof("Got cursor at: %d, %d", x, y)
 	ps := fmt.Sprintf("\x1b[%d;%dH", y+1, x+1)
-	d.Send([]byte(ps))
+	err := d.Send([]byte(ps))
+	if err != nil {
+		Logger.Errorf("Failed restoring cursor pos: %s", err)
+	}
 }
 
 // Restore restore the screen or buffer.
