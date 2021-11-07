@@ -69,7 +69,7 @@ func NewPeer(fingerprint string) (*Peer, error) {
 	}
 	config := webrtc.Configuration{
 		PeerIdentity: "webexec",
-		ICEServers:   []webrtc.ICEServer{{URLs: Conf.iceServers}},
+		ICEServers:   Conf.iceServers,
 		Certificates: certs,
 	}
 	pc, err := WebRTCAPI.NewPeerConnection(config)
@@ -342,6 +342,7 @@ func (peer *Peer) OnCTRLMsg(msg webrtc.DataChannelMessage) {
 			return
 		}
 		d.OnOpen(func() {
+			Logger.Info("open is completed!!!")
 			pane, err := peer.Reconnect(d, a.ID)
 			if err != nil || pane == nil {
 				Logger.Warnf("Failed to reconnect to pane  data channel : %v", err)

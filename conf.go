@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/pelletier/go-toml"
+	"github.com/pion/webrtc/v3"
 	"go.uber.org/zap/zapcore"
 )
 
@@ -26,7 +27,6 @@ error = "agent.err"
 # pion_levels = { trace = "sctp" }
 [net]
 http_server = "0.0.0.0:7777"
-ice_servers = [ "stun:stun.l.google.com:19302" ]
 udp_port_min = 7000
 udp_port_max = 7777
 [timeouts]
@@ -35,6 +35,8 @@ failed = 6000
 keep_alive = 500
 ice_gathering = 5000
 peerbook = 3000
+[[ice_servers]]
+urls = [ "stun:stun.l.google.com:19302" ]
 [env]
 COLORTERM = "truecolor"
 TERM = "xterm"
@@ -42,6 +44,12 @@ TERM = "xterm"
 const abConfTemplate = `%s[peerbook]
 email = "%s"`
 const defaultPeerbookHost = "pb.terminal7.dev"
+
+type ICEServer struct {
+	URLs     []string `toml:"urls"`
+	Username string   `toml:"username,omitempty"`
+	Password string   `toml:"credential,omitempty"`
+}
 
 // Conf hold the configuration variables
 var Conf struct {
@@ -51,7 +59,7 @@ var Conf struct {
 	keepAliveInterval time.Duration
 	gatheringTimeout  time.Duration
 	peerbookTimeout   time.Duration
-	iceServers        []string
+	iceServers        []webrtc.ICEServer
 	httpServer        string
 	logFilePath       string
 	logLevel          zapcore.Level
@@ -119,10 +127,16 @@ func parseConf(s string) error {
 	}
 	v = t.Get("net.ice_servers")
 	if v != nil {
-		urls := v.([]interface{})
-		Conf.iceServers = []string{}
-		for _, u := range urls {
-			Conf.iceServers = append(Conf.iceServers, u.(string))
+		servers := v.([]ICEServer)
+		Conf.iceServers = []webrtc.ICEServer{}
+		for _, u := range servers {
+			s := webrtc.ICEServer{
+				URLs:           u.URLs,
+				Username:       u.Username,
+				Credential:     u.Password,
+				CredentialType: webrtc.ICECredentialTypePassword}
+
+			Conf.iceServers = append(Conf.iceServers, s)
 		}
 	}
 	// no address is set, let's see if the conf file has it
