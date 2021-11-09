@@ -6,9 +6,10 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/creack/pty"
 	"sync"
 	"time"
+
+	"github.com/creack/pty"
 )
 
 // NAckArgs is a type that holds the args for an error message
@@ -38,10 +39,24 @@ type SetPayloadArgs struct {
 }
 
 // ResizeArgs is a type that holds the argumnet to the resize pty command
+// ResizeArgs is a type that holds the argumnet to the resize pty command
 type ResizeArgs struct {
 	PaneID int    `json:"pane_id"`
 	Sx     uint16 `json:"sx"`
 	Sy     uint16 `json:"sy"`
+}
+
+type AddPaneArgs struct {
+	Command []string `json:"command"`
+	Rows    uint16   `json:"rows, omitempty"`
+	Cols    uint16   `json:"cols, omitempty"`
+	X       uint16   `json:"x, omitempty"`
+	Y       uint16   `json:"y, omitempty"`
+	Parent  uint32   `json:"parrent,omitempty"`
+}
+
+type ReconnectPaneArgs struct {
+	ID int `json:"id"`
 }
 
 // CTRLMessage type holds control messages passed over the control channel

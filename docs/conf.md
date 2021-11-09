@@ -53,7 +53,3 @@ to forward offers and answers between clients and webexec.
 - `host`: the host address. default is `pb.terminal7.dev`
 - `name`: the host's name default is the system's hostname
 - `insecure`: set to true, webexec will use http & ws
-
-
-
-
