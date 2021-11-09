@@ -31,8 +31,8 @@ The default ports are the range 7000-7777.
 If you prefer another range you can set the `udp_port_min` and `udp_port_max`
 in the `[net]` section of the conf file and `webexec restart`.
 
-For direct connections you'll also need to open TCP port 7777 so clients can
-directly connect using http.
+For direct connections you'll also need to open TCP port 7777 you'd like clients
+to using a static address.
 
 [TODO: add instructions as to how to make it run on boot]
 
