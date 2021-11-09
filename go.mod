@@ -2,8 +2,11 @@ module github.com/tuzig/webexec
 
 go 1.16
 
+replace github.com/pion/webrtc/v3 => /Users/daonb/src/webrtc
+
+replace github.com/pion/datachannel => /Users/daonb/src/datachannel
+
 require (
-	github.com/cpuguy83/go-md2man/v2 v2.0.0 // indirect
 	github.com/creack/pty v1.1.11
 	github.com/gorilla/websocket v1.4.2
 	github.com/hinshun/vt10x v0.0.0-20201217012337-52c1408d37d6
