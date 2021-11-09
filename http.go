@@ -46,11 +46,13 @@ func handleConnect(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		Logger.Errorf(err.Error())
 	}
+	localhost := r.RemoteAddr[:9] == "127.0.0.1" || r.RemoteAddr[:5] == "[::1]"
+	Logger.Infof("remoteaddr: %v", r.RemoteAddr)
 	fp, err := GetFingerprint(&offer)
 	if err != nil {
 		Logger.Warnf("Failed to get fingerprint from sdp: %w", err)
 	}
-	if !IsAuthorized(fp) {
+	if !localhost && !IsAuthorized(fp) {
 		msg := "Unknown client fingerprint"
 		Logger.Info(msg)
 		http.Error(w, msg, http.StatusUnauthorized)
