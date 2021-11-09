@@ -22,11 +22,7 @@ fi
 #
 # DO NOT EDIT THIS
 #
-EXCLUDED_CONTRIBUTORS+=('John R. Bradley' 'renovate[bot]' 'Renovate Bot' 'Pion Bot')
-# If you want to exclude a name from all repositories, send a PR to
-# https://github.com/pion/.goassets instead of this repository.
-# If you want to exclude a name only from this repository,
-# add EXCLUDED_CONTRIBUTORS=('name') to .github/.ci.conf
+EXCLUDED_CONTRIBUTORS+=('daonb')
 
 CONTRIBUTORS=()
 
