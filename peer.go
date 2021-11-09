@@ -3,6 +3,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"strconv"
@@ -139,9 +140,9 @@ func (peer *Peer) Listen(offer webrtc.SessionDescription) (*webrtc.SessionDescri
 	return peer.PC.LocalDescription(), nil
 }
 
-// OnChannelReq starts a system command over a pty.
-// If the data channel label includes a dimention
-// in the format of 24x80 the login shell is lunched
+// OnChannelReq starts the cdc channel.
+// Upon establishing the connection, the client opens this channel with the
+// api version he uses
 func (peer *Peer) OnChannelReq(d *webrtc.DataChannel) {
 	// the singalig channel is used for test setup
 	if d.Label() == "signaling" {
@@ -149,7 +150,9 @@ func (peer *Peer) OnChannelReq(d *webrtc.DataChannel) {
 	}
 	label := d.Label()
 	Logger.Infof("Got a channel request: channel label %q", label)
-
+	if label != "%" {
+		Logger.Errorf("Closing client with wrong version: %s", label)
+	}
 	d.OnOpen(func() {
 		pane, err := peer.GetOrCreatePane(d)
 		if err != nil {
@@ -230,7 +233,9 @@ func (peer *Peer) GetOrCreatePane(d *webrtc.DataChannel) (*Pane, error) {
 	}
 	if pane != nil {
 		pane.sendFirstMessage(d)
-		go pane.ReadLoop()
+		ctx, cancel := context.WithCancel(context.Background())
+		pane.cancelRWLoop = cancel
+		go pane.ReadLoop(ctx)
 		return pane, nil
 	}
 
@@ -246,6 +251,11 @@ func (peer *Peer) Reconnect(d *webrtc.DataChannel, id int) (*Pane, error) {
 		return nil, fmt.Errorf("Got a bad pane id: %d", id)
 	}
 	if pane.IsRunning {
+		c := cdb.Add(d, pane, peer)
+		d.OnMessage(pane.OnMessage)
+		d.OnClose(func() {
+			cdb.Delete(c)
+		})
 		pane.Restore(d, peer.Marker)
 		return pane, nil
 	}
@@ -271,6 +281,8 @@ func (peer *Peer) OnCTRLMsg(msg webrtc.DataChannelMessage) {
 	m := CTRLMessage{
 		Args: &raw,
 	}
+	t := true
+	dcOpts := &webrtc.DataChannelInit{Ordered: &t}
 	Logger.Infof("Got a CTRLMessage: %q\n", string(msg.Data))
 	err := json.Unmarshal(msg.Data, &m)
 	if err != nil {
@@ -332,11 +344,10 @@ func (peer *Peer) OnCTRLMsg(msg webrtc.DataChannelMessage) {
 			Logger.Infof("Failed to parse incoming control message: %v", err)
 			return
 		}
-		Logger.Infof("got reconnect_pane: %v", a)
+		Logger.Infof("@%d: got reconnect_pane", a.ID)
 
 		l := fmt.Sprintf("%d:%d", m.Ref, a.ID)
-		// TODO: add data channel options like retransmit
-		d, err := peer.PC.CreateDataChannel(l, nil)
+		d, err := peer.PC.CreateDataChannel(l, dcOpts)
 		if err != nil {
 			Logger.Warnf("Failed to create data channel : %v", err)
 			return
@@ -351,12 +362,6 @@ func (peer *Peer) OnCTRLMsg(msg webrtc.DataChannelMessage) {
 			} else {
 				peer.SendAck(m, []byte(fmt.Sprintf("%d", pane.ID)))
 			}
-			c := cdb.Add(d, pane, peer)
-			d.OnMessage(pane.OnMessage)
-			d.OnClose(func() {
-				cdb.Delete(c)
-			})
-			go pane.ReadLoop()
 		})
 
 	case "add_pane":
@@ -381,8 +386,7 @@ func (peer *Peer) OnCTRLMsg(msg webrtc.DataChannelMessage) {
 			return
 		}
 		l := fmt.Sprintf("%d:%d", m.Ref, pane.ID)
-		// TODO: add data channel options like retransmit
-		d, err := peer.PC.CreateDataChannel(l, nil)
+		d, err := peer.PC.CreateDataChannel(l, dcOpts)
 		if err != nil {
 			msg := fmt.Sprintf("Failed to create data channel : %s", l)
 			peer.SendNack(m, msg)
@@ -391,16 +395,15 @@ func (peer *Peer) OnCTRLMsg(msg webrtc.DataChannelMessage) {
 		}
 		d.OnOpen(func() {
 			c := cdb.Add(d, pane, peer)
-			if err != nil {
-				Logger.Warnf("Failed to reconnect to pane  data channel : %v", err)
-			} else {
-				peer.SendAck(m, []byte(fmt.Sprintf("%d", pane.ID)))
-			}
+			Logger.Infof("opened data channel for pane %d", pane.ID)
+			peer.SendAck(m, []byte(fmt.Sprintf("%d", pane.ID)))
 			d.OnMessage(pane.OnMessage)
+			ctx, cancel := context.WithCancel(context.Background())
+			pane.cancelRWLoop = cancel
+			go pane.ReadLoop(ctx)
 			d.OnClose(func() {
 				cdb.Delete(c)
 			})
-			go pane.ReadLoop()
 		})
 
 	default:
