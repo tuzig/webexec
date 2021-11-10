@@ -2,9 +2,9 @@ module github.com/tuzig/webexec
 
 go 1.16
 
-replace github.com/pion/webrtc/v3 => /Users/daonb/src/webrtc
+// replace github.com/pion/webrtc/v3 => /Users/daonb/src/webrtc
 
-replace github.com/pion/datachannel => /Users/daonb/src/datachannel
+// replace github.com/pion/datachannel => /Users/daonb/src/datachannel
 
 require (
 	github.com/creack/pty v1.1.11
