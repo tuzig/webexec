@@ -7,6 +7,7 @@ import (
 	"io"
 	"io/ioutil"
 	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
@@ -94,7 +95,6 @@ func TestConnect(t *testing.T) {
 }
 func TestConnectBadFP(t *testing.T) {
 	initTest(t)
-	host := startHTTPServer(t)
 	// start the webrtc client
 	client, cert, err := NewClient(true)
 	require.Nil(t, err, "Failed to start a new server", err)
@@ -115,10 +115,11 @@ func TestConnectBadFP(t *testing.T) {
 		p := ConnectRequest{cert, 1, string(buf[:l])}
 		b, err := json.Marshal(p)
 		require.Nil(t, err, "Failed to marshal the connect request: %s", err)
-		url := fmt.Sprintf("http://%s/connect", host)
-		r, err := http.Post(url, "application/json", bytes.NewBuffer(b))
-		require.Nil(t, err, "Failed sending a post request: %q", err)
-		defer r.Body.Close()
-		require.Equal(t, http.StatusUnauthorized, r.StatusCode)
+
+		req := httptest.NewRequest(http.MethodPost, "/connect", bytes.NewBuffer(b))
+		req.RemoteAddr = "8.8.8.8"
+		w := httptest.NewRecorder()
+		handleConnect(w, req)
+		require.Equal(t, http.StatusUnauthorized, w.Code)
 	}
 }

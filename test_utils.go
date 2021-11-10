@@ -163,7 +163,6 @@ func initTest(t *testing.T) {
 	f.Close()
 	key = &KeyType{Name: f.Name()}
 	require.Nil(t, err)
-
 }
 
 // GetFreePort asks the kernel for a free open port that is ready to use.

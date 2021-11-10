@@ -46,8 +46,9 @@ func handleConnect(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		Logger.Errorf(err.Error())
 	}
-	localhost := r.RemoteAddr[:9] == "127.0.0.1" || r.RemoteAddr[:5] == "[::1]"
-	Logger.Infof("remoteaddr: %v", r.RemoteAddr)
+	a := r.RemoteAddr
+	localhost := (len(a) >= 9 && a[:9] == "127.0.0.1") ||
+		(len(a) >= 5 && a[:5] == "[::1]")
 	fp, err := GetFingerprint(&offer)
 	if err != nil {
 		Logger.Warnf("Failed to get fingerprint from sdp: %w", err)

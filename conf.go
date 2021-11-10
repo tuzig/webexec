@@ -125,16 +125,21 @@ func parseConf(s string) error {
 	} else {
 		Conf.peerbookTimeout = 3 * time.Second
 	}
-	v = t.Get("net.ice_servers")
+	v = t.Get("ice_servers")
 	if v != nil {
-		servers := v.([]ICEServer)
 		Conf.iceServers = []webrtc.ICEServer{}
-		for _, u := range servers {
+		for _, u2 := range v.([]*toml.Tree) {
+			var u ICEServer
+			err := u2.Unmarshal(&u)
+			if err != nil {
+				return fmt.Errorf("failed to parse ice server configuration: %s", err)
+			}
 			s := webrtc.ICEServer{
 				URLs:           u.URLs,
 				Username:       u.Username,
 				Credential:     u.Password,
-				CredentialType: webrtc.ICECredentialTypePassword}
+				CredentialType: webrtc.ICECredentialTypePassword,
+			}
 
 			Conf.iceServers = append(Conf.iceServers, s)
 		}
