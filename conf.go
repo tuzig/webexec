@@ -222,18 +222,17 @@ func LoadConf() error {
 	confPath := ConfPath("webexec.conf")
 	_, err := os.Stat(confPath)
 	if os.IsNotExist(err) {
-		return fmt.Errorf("No configuration file found. Please run `webexec init`")
-	} else {
-		b, err := ioutil.ReadFile(confPath)
-		if err != nil {
-			return fmt.Errorf("Failed to read conf file %q: %s", confPath,
-				err)
-		}
-		err = parseConf(string(b))
-		if err != nil {
-			return fmt.Errorf("Failed to parse conf file %q: %s", confPath,
-				err)
-		}
+		initConf()
+	}
+	b, err := ioutil.ReadFile(confPath)
+	if err != nil {
+		return fmt.Errorf("Failed to read conf file %q: %s", confPath,
+			err)
+	}
+	err = parseConf(string(b))
+	if err != nil {
+		return fmt.Errorf("Failed to parse conf file %q: %s", confPath,
+			err)
 	}
 	return nil
 }
@@ -245,9 +244,8 @@ func isValidEmail(email string) bool {
 	return emailRegex.MatchString(email)
 }
 
-// createConf creates the configuration files based on user input
-func createConf(confPath string) error {
-	conf := defaultConf
+// peerBook register is for the future. maybe.
+func peerbookRegister() error {
 	stdin := bufio.NewReader(os.Stdin)
 	fmt.Println("To make it easier for your clients to find this server")
 	fmt.Println("and verify its fingerprints you are invited")
@@ -258,14 +256,21 @@ please:
 	if err != nil {
 		return fmt.Errorf("Failed to read input: %s", err)
 	}
+	// strange line from the future
 	email = email[:len(email)-1]
 	if email != "" {
 		if !isValidEmail(email) {
 			fmt.Println("Sorry, not a valid email. Please try again.")
 			goto please
 		}
-		conf = fmt.Sprintf(abConfTemplate, conf, email)
 	}
+	return nil
+}
+
+// createConf creates the configuration files based on the defaults
+func createConf() error {
+	confPath := ConfPath("webexec.conf")
+	conf := defaultConf
 	confFile, err := os.Create(confPath)
 	defer confFile.Close()
 	if err != nil {
@@ -288,7 +293,8 @@ please:
 			return fmt.Errorf("Failed to create the tokens file at %q: %w",
 				TokensFilePath, err)
 		}
-		fmt.Printf("Created %q tokens file\n", confPath)
+		fmt.Printf("Created %q conf file\n and %s tokens file", confPath,
+			TokensFilePath)
 	}
 	return nil
 }
@@ -296,6 +302,22 @@ please:
 // ConfPath returns the full path of a configuration file
 func ConfPath(suffix string) string {
 	usr, _ := user.Current()
-	// TODO: make it configurable
-	return filepath.Join(usr.HomeDir, ".webexec", suffix)
+	return filepath.Join(usr.HomeDir, ".config", "webexec", suffix)
+}
+
+func initConf() error {
+	// init the dev logger so log messages are printed on the console
+	basePath := ConfPath("")
+	_, err := os.Stat(basePath)
+	// the next probably returns an err as "~/.config" already exists"
+	os.Mkdir(filepath.Dir(basePath), 0755)
+	err = os.Mkdir(basePath, 0755)
+	if err != nil {
+		return fmt.Errorf("Failed to create ~/.config/webexec")
+	}
+	err = createConf()
+	if err != nil {
+		return err
+	}
+	return nil
 }
