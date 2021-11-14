@@ -5,9 +5,20 @@ Known issues:
 
 ## Unreleased
 
+### Removed
+
+- no more init command; files are created on first run
+
+### Added
+
+- free pass for localhost - no need to add their key
+
 ### Fixed
 
 - crash on on closing an already closed peerbook connection
+- new pane flow was streamlined to fix [re]connection failures
+- a send thread was added and data is no longer lost on high load
+  (TODO: add a high load test)
 
 ## [0.10.20] - 2021-6-13
 

@@ -27,6 +27,8 @@ import (
 )
 
 var (
+	// PIDFilePath is the path of the conf file
+	PIDFilePath = ConfPath("agent.pid")
 	// Logger is our global logger
 	Logger  *zap.SugaredLogger
 	commit  = "0000000"
@@ -168,7 +170,7 @@ func versionCMD(c *cli.Context) error {
 // stop - stops the agent
 func stop(c *cli.Context) error {
 	LoadConf()
-	pidf, err := pidfile.Open(ConfPath("agent.pid"))
+	pidf, err := pidfile.Open(PIDFilePath)
 	if os.IsNotExist(err) {
 		return ErrAgentNotRunning
 	}
@@ -194,8 +196,7 @@ func stop(c *cli.Context) error {
 // createPIDFile creates the pid file or returns an error if it exists
 func createPIDFile() error {
 	pionLoggerFactory = newPionLoggerFactory()
-	pidPath := ConfPath("agent.pid")
-	_, err := pidfile.New(pidPath)
+	_, err := pidfile.New(PIDFilePath)
 	if err == pidfile.ErrProcessRunning {
 		return fmt.Errorf("agent is already running, doing nothing")
 	}
@@ -206,7 +207,7 @@ func createPIDFile() error {
 }
 
 func launchAgent(address string) error {
-	pidf, err := pidfile.Open(ConfPath("agent.pid"))
+	pidf, err := pidfile.Open(PIDFilePath)
 	if !os.IsNotExist(err) && pidf.Running() {
 		fmt.Println("agent is already running, doing nothing")
 		return nil
@@ -307,7 +308,7 @@ func restart(c *cli.Context) error {
 // status function prints the status of the agent
 func status(c *cli.Context) error {
 	LoadConf()
-	pidf, err := pidfile.Open(ConfPath("agent.pid"))
+	pidf, err := pidfile.Open(PIDFilePath)
 	if os.IsNotExist(err) {
 		fmt.Println("agent is not running")
 		return nil
@@ -322,41 +323,6 @@ func status(c *cli.Context) error {
 	pid, err := pidf.Read()
 	fmt.Printf("agent is running with process id %d\n", pid)
 	return nil
-}
-func initCMD(c *cli.Context) error {
-	// init the dev logger so log messages are printed on the console
-	InitDevLogger()
-	homePath := ConfPath("")
-	_, err := os.Stat(homePath)
-	if os.IsNotExist(err) {
-		os.Mkdir(homePath, 0755)
-		fmt.Printf("Created %q directory\n", homePath)
-	} else {
-		return fmt.Errorf(
-			"%q already exists. To start fresh remove it and try again.",
-			homePath)
-	}
-	confPath := ConfPath("webexec.conf")
-	err = createConf(confPath)
-	if err != nil {
-		return err
-	}
-	err = LoadConf()
-	if err != nil {
-		return fmt.Errorf("Failed to parse default conf: %s", err)
-	}
-	// TODO: move this to start
-	if Conf.peerbookHost != "" {
-		_, err := verifyPeer(Conf.peerbookHost)
-		if err != nil {
-			return fmt.Errorf("Got an error verifying peer: %s", err)
-		}
-	}
-	fmt.Printf(`Created %q config file.
-peerbook sent an authorization email, please check your inbox, authorize and
-run "webexec start" to start your agent.`, confPath)
-	return nil
-
 }
 func main() {
 	app := &cli.App{
@@ -419,10 +385,6 @@ func main() {
 				Name:   "stop",
 				Usage:  "stop the user's agent",
 				Action: stop,
-			}, {
-				Name:   "init",
-				Usage:  "initialize the conf file",
-				Action: initCMD,
 			},
 		},
 	}
