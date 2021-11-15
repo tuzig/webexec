@@ -306,6 +306,7 @@ func TestAddPaneMessage(t *testing.T) {
 			&addPaneArgs}
 		msg, err := json.Marshal(m)
 		require.Nil(t, err, "failed marshilng ctrl msg: %v", msg)
+		time.Sleep(time.Second / 10)
 		cdc.Send(msg)
 	})
 	wg.Add(3)
