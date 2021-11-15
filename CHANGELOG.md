@@ -3,7 +3,7 @@ and the release workflow reads it to set github's release notes.
 Known issues:
 - defunct shell processes stay around till the agent is stopped
 
-## Unreleased
+## [0.11.0] - 2021-11-15
 
 ### Removed
 
@@ -11,6 +11,7 @@ Known issues:
 
 ### Added
 
+- add_pane and reconnect_pane commands
 - free pass for localhost - no need to add their key
 
 ### Fixed
