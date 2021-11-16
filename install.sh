@@ -1,14 +1,11 @@
-#!/bin/sh
+#!/bin/bash
 set -x
 # webexec installation script (Rootless mode)
 #
 # This script is meant for quick & easy install via:
-#   $ curl -fsSL https://get.webexec.sh | sh
+#   $ curl -fsSL https://get.webexec.sh | bash
 SCRIPT_COMMIT_SHA=UNKNOWN
-LATEST_VERSION=$(curl \
-  -H 'Accept: application/vnd.github.v3+json' \
-  'https://api.github.com/repos/tuzig/webexec/releases?per_page=1'\
-  | jq '.[].name' | cut -d '"' -f 2)
+LATEST_VERSION="0.11.1"
 
 # This script should be run with an unprivileged user and install/setup Docker under $HOME/bin/.
 
@@ -32,7 +29,7 @@ else
     exit 1
 fi
 
-STATIC_RELEASE_URL="https://github.com/tuzig/webexec/releases/download/$LATEST_VERSION/webexec_${LATEST_VERSION:1}_$(uname -s | tr '[:upper:]' '[:lower:]')_$ARCH.tar.gz"
+STATIC_RELEASE_URL="https://github.com/tuzig/webexec/releases/download/v$LATEST_VERSION/webexec_${LATEST_VERSION}_$(uname -s | tr '[:upper:]' '[:lower:]')_$ARCH.tar.gz"
 
 init_vars() {
 	BIN="${WEBEXEC_BIN:-$HOME/bin}"
@@ -99,6 +96,7 @@ do_install() {
         mkdir -p "$BIN"
         cd "$BIN"
 		tar zxf "$tmp/webexec.tgz" --strip-components=1
+        cp webexec $HOME/bin
 	)
 
 	exec_setuptool "$@"
