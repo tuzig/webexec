@@ -3,6 +3,12 @@ and the release workflow reads it to set github's release notes.
 Known issues:
 - defunct shell processes stay around till the agent is stopped
 
+## [0.11.3] - 2021-11-16
+
+### Fixed
+
+- release pipeline back in working order
+
 ## [0.11.2] - 2021-11-16
 
 ### Fixed

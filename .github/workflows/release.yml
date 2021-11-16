@@ -39,7 +39,7 @@ jobs:
         shell: bash
       - name: get gitver
         id: get_gitver
-        run: go get git.rootprojects.org/root/go-gitver/v2
+        run: go install git.rootprojects.org/root/go-gitver/v2
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v2
         with:
