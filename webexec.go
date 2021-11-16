@@ -208,6 +208,9 @@ func createPIDFile() error {
 
 func launchAgent(address string) error {
 	pidf, err := pidfile.Open(PIDFilePath)
+	if pidf == nil {
+		return fmt.Errorf("Failed to open pid file: %s", err)
+	}
 	if !os.IsNotExist(err) && pidf.Running() {
 		fmt.Println("agent is already running, doing nothing")
 		return nil
