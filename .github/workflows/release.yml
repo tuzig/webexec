@@ -37,6 +37,9 @@ jobs:
           echo ::set-output name=changesfile::$CF
           echo "${{ steps.changelog_reader.outputs.changes }}" > $CF
         shell: bash
+      - name: get gitver
+        id: get_gitver
+        run: go get git.rootprojects.org/root/go-gitver/v2
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v2
         with:

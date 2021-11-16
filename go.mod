@@ -7,7 +7,6 @@ go 1.16
 // replace github.com/pion/datachannel => /Users/daonb/src/datachannel
 
 require (
-	git.rootprojects.org/root/go-gitver/v2 v2.0.2 // indirect
 	github.com/creack/pty v1.1.11
 	github.com/gorilla/websocket v1.4.2
 	github.com/hinshun/vt10x v0.0.0-20201217012337-52c1408d37d6
