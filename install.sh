@@ -96,9 +96,21 @@ do_install() {
         mkdir -p "$BIN"
         cd "$BIN"
 		tar zxf "$tmp/webexec.tgz" --strip-components=1
-        cp webexec $HOME/bin
+        echo "We need root access to add the binary and the service"
+        sudo cp webexec /usr/local/bin
 	)
+	case "$(uname)" in
+	Darwin)
+        echo "darwin startup script is not ready yet"
+        echo "sorry, but you'll have to start manually on reboot"
 
-	exec_setuptool "$@"
+		;;
+	Linux)
+        sudo cp webexecd.sh /etc/init.d/webexec
+        sudo chown root:root /etc/init.d/webexec
+        sudo update-rc.d webexec defaults
+        sudo update-rc.d webexec enable
+		;;
+	esac
 }
 do_install "$@"
