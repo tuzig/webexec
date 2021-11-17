@@ -16,12 +16,12 @@ PATH=/usr/bin:/sbin:/usr/sbin:/bin
 DESC=webexec
 NAME=webexec             # TURN Serverwebexec
 PROCNAME=webexec                  # Binary name
-DAEMON=/usr/bin/webexec
+DAEMON=/usr/local/bin/webexec
 DAEMON_ARGS="start"             # Arguments to run the daemon with
-PIDFILE_DIR=/var/run
-PIDFILE=/var/run/$PROCNAME.pid
+# TODO: find a better location for the pid file
+PIDFILE_DIR=$( getent passwd "$USER" | cut -d: -f6 )/.config/webexec
+PIDFILE=$PIDFILE_DIR/agent.pid
 SCRIPTNAME=/etc/init.d/$NAME
-GROUP=admin
 
 # Exit if the package is not installed
 [ -x $DAEMON ] || exit 0
@@ -35,7 +35,7 @@ fi
 
 if [ ! -d "$PIDFILE_DIR" ];then
         mkdir -p "$PIDFILE_DIR"
-    chown $USER:$GROUP "$PIDFILE_DIR"
+    chown $USER:$USER "$PIDFILE_DIR"
 fi
 
 # Define LSB log_* functions.
@@ -94,26 +94,19 @@ do_reload() {
 	#
 	# TODO: HANDLE RELOAD BY  SENDING SIGHUP
 	#
-	return 1
+	start-stop-daemon --stop --signal 1 --quiet --pidfile $PIDFILE --name $PROCNAME
+	return 0
 }
 
 case "$1" in
     start)
 	
-	if test "$WEBEXEC_ENABLED" = 1; then
 	    log_daemon_msg "Starting $DESC " "$PROCNAME"
 	    do_start
 	    case "$?" in
 		0|1) log_end_msg 0 ;;
 		2) log_end_msg 1 ;;
 	    esac
-	else
-            log_daemon_msg "${NAME} disabled in /etc/${NAME} or /etc/default/${NAME}"
-            log_end_msg 0
-            log_daemon_msg "See /etc/default/${NAME} for instructions on enabling" "${PROCNAME}"
-            log_end_msg 0
-            exit 0
-	fi
 	;;
     stop)
 	log_daemon_msg "Stopping $DESC" "$PROCNAME"
