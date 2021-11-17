@@ -5,7 +5,7 @@ set -x
 # This script is meant for quick & easy install via:
 #   $ curl -fsSL https://get.webexec.sh | bash
 SCRIPT_COMMIT_SHA=UNKNOWN
-LATEST_VERSION="0.11.1"
+LATEST_VERSION="0.12.1"
 
 # This script should be run with an unprivileged user and install/setup Docker under $HOME/bin/.
 
