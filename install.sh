@@ -75,13 +75,6 @@ checks() {
 
 }
 
-exec_setuptool() {
-	(
-		set -x
-		PATH="$BIN:$PATH" "$BIN/setuptool.sh" install "$@"
-	)
-}
-
 do_install() {
 	init_vars
 	checks
@@ -96,7 +89,7 @@ do_install() {
         mkdir -p "$BIN"
         cd "$BIN"
 		tar zxf "$tmp/webexec.tgz" --strip-components=1
-        echo "We need root access to add the binary and the service"
+        echo "==> We need root access to add the binary and the service"
         sudo cp webexec /usr/local/bin
 	)
 	case "$(uname)" in
@@ -106,11 +99,16 @@ do_install() {
 
 		;;
 	Linux)
-        sudo >>/etc/webexec echo "USER=${USER}\n"
-        sudo cp webexecd.sh /etc/init.d/webexec
-        sudo chown root:root /etc/init.d/webexec
-        sudo update-rc.d webexec defaults
-        sudo update-rc.d webexec enable
+        if [[ -f /etc/webexec ]]; then
+            echo "==X webexec is already used on this host by $(cut -d= -f2 < /etc/webexec)"
+        else
+            ECHO_CONF="echo USER=$(whoami)"
+            sudo sh -c "$ECHO_CONF >/etc/webexec"
+            sudo cp webexecd.sh /etc/init.d/webexec
+            sudo chown root:root /etc/init.d/webexec
+            sudo update-rc.d webexec defaults
+            sudo update-rc.d webexec enable
+        fi
 		;;
 	esac
 }
