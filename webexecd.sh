@@ -19,8 +19,6 @@ PROCNAME=webexec                  # Binary name
 DAEMON=/usr/local/bin/webexec
 DAEMON_ARGS="start"             # Arguments to run the daemon with
 # TODO: find a better location for the pid file
-PIDFILE_DIR=$( getent passwd "$USER" | cut -d: -f6 )/.config/webexec
-PIDFILE=$PIDFILE_DIR/agent.pid
 SCRIPTNAME=/etc/init.d/$NAME
 
 # Exit if the package is not installed
@@ -32,6 +30,9 @@ if [ -r /etc/$NAME ];then
 else
     . /etc/default/$NAME
 fi
+
+PIDFILE_DIR=$( getent passwd "$USER" | cut -d: -f6 )/.config/webexec
+PIDFILE=$PIDFILE_DIR/agent.pid
 
 if [ ! -d "$PIDFILE_DIR" ];then
         mkdir -p "$PIDFILE_DIR"

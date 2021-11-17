@@ -106,6 +106,7 @@ do_install() {
 
 		;;
 	Linux)
+        sudo >>/etc/webexec echo "USER=${USER}\n"
         sudo cp webexecd.sh /etc/init.d/webexec
         sudo chown root:root /etc/init.d/webexec
         sudo update-rc.d webexec defaults

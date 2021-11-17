@@ -15,24 +15,25 @@ server and then initiates a WebRTC connection.
 
 ## Install
 
-The easiest way to install is to download the 
-[latest release](https://github.com/tuzig/webexec/releases) tar ball for your
-system and extract it to get the `wbeexec` binary. 
-We recommended moving webexec to a system-wide tools folder such as 
-`/usr/local/bin`.
+This repo inscludes a [one-line installer](install.sh) for installing on Mac & Linux.
+To use to install the latest version it run `curl https://get.webexec.sh | bash`.
 
-Before first run you need to run `webexec init` to create `~/.webexec` 
-and there `webexec.conf`. After init you can run `webexec start` to launch the agent.
-For other webexec commands run `webexec`.
 
-webexec communicates over UDP ports, so if the server is behind a firewall
-you'll have to allow ingress UDP traffic.
-The default ports are the range 7000-7777.
+### from the source
+
+```
+
+$ go install ./...
+
+```
+
+# Firewal
+
+webexec has a signlaing server that listen for connection request in
+ports 7777. Once communication is established, WebRTC uses UDP ports with 
+a default range of 7000-7777.
 If you prefer another range you can set the `udp_port_min` and `udp_port_max`
 in the `[net]` section of the conf file and `webexec restart`.
-
-For direct connections you'll also need to open TCP port 7777 you'd like clients
-to using a static address.
 
 [TODO: add instructions as to how to make it run on boot]
 

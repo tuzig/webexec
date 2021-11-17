@@ -1,7 +1,22 @@
+# Change Log
+
+All notable changes to this project will be documented in this fil, 
+
+webexec adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+his file's format is define in 
+[Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 and the release workflow reads it to set github's release notes.
 
 Known issues:
 - defunct shell processes stay around till the agent is stopped
+
+## [0.12.0] - 2021-11-16
+
+### Added 
+
+- one-line-installer
+- init.d script 
 
 ## [0.11.1] - 2021-11-15
 
