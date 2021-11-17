@@ -17,7 +17,6 @@ run.
 ### net
 
 - http_server: The address the https server listen on. default: `0.0.0.0:7777`
-- ice_servers: a List of ice servers' urls
 - udp_port_min: the minimum UDP port to use
 - udp_port_max: the maximum UDP port to use
 
@@ -42,6 +41,17 @@ set for each new command launched. Default:
 COLORTERM = "truecolor"
 TERM = "xterm"
 ```
+### ice_server
+
+A list of ice server and their credentials
+
+```toml
+....
+[[ice_servers]]
+urls = [ "turn:45.83.40.91:3478" ]
+username = "terminal7"
+password = "secret"
+```
 
 ### peerbook
 
@@ -52,4 +62,3 @@ to forward offers and answers between clients and webexec.
 - `email`: the user's email 
 - `host`: the host address. default is `pb.terminal7.dev`
 - `name`: the host's name default is the system's hostname
-- `insecure`: set to true, webexec will use http & ws

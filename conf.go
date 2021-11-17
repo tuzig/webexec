@@ -48,7 +48,7 @@ const defaultPeerbookHost = "pb.terminal7.dev"
 type ICEServer struct {
 	URLs     []string `toml:"urls"`
 	Username string   `toml:"username,omitempty"`
-	Password string   `toml:"credential,omitempty"`
+	Password string   `toml:"password,omitempty"`
 }
 
 // Conf hold the configuration variables
