@@ -47,14 +47,14 @@ func execCommand(command []string, ws *pty.Winsize) (*exec.Cmd, *os.File, error)
 		}
 	}
 	if ws != nil {
-		tty, err = pty.StartWithSize(cmd, ws)
+		tty, err = ptyMux.StartWithSize(cmd, ws)
 		if err != nil {
 			Logger.Errorf("got an error starting with size %s", err)
 			return nil, nil, fmt.Errorf("Failed starting command: %q", err)
 		}
 	} else {
 		// TODO: remove the pty
-		tty, err = pty.Start(cmd)
+		tty, err = ptyMux.Start(cmd)
 	}
 	if err != nil {
 		return nil, nil, fmt.Errorf("Failed launching %q: %q", command, err)

@@ -250,6 +250,7 @@ func start(c *cli.Context) error {
 		InitDevLogger()
 	} else {
 		if c.Bool("agent") {
+			ptyMux = ptyMuxType{}
 			InitAgentLogger()
 			err := createPIDFile()
 			if err != nil {

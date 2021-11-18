@@ -150,6 +150,9 @@ func waitForChild(pid int, timeout time.Duration) error {
 	return fmt.Errorf("process %d still alive (timeout=%v)", pid, timeout)
 }
 func initTest(t *testing.T) {
+	if ptyMux == nil {
+		ptyMux = ptyMuxType{}
+	}
 	Logger = zaptest.NewLogger(t).Sugar()
 	f, err := ioutil.TempFile("", "authorized_tokens")
 	f.Close()
