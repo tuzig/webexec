@@ -1,5 +1,4 @@
 #!/bin/bash
-set -x
 # webexec installation script (Rootless mode)
 #
 # This script is meant for quick & easy install via:

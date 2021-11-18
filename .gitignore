@@ -1,2 +1,5 @@
 webexec
 xversion.go
+
+# Local Netlify folder
+.netlify
