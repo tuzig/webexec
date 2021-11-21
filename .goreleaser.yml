@@ -1,22 +1,41 @@
 before:
   hooks:
     - go generate .
+
 builds:
-  - 
-    env:
-      - CGO_ENABLED=0
+  - binary: webexec
+    id: non-darwin
     goos:
       - linux
-      - darwin
       - freebsd
     goarch:
-      - 386
       - amd64
       - arm
       - arm64
     goarm:
       - 6
       - 7
+  - binary: webexec
+    id: darwin
+    goos:
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+    hooks:
+      post: gon
+universal_binaries:
+  - replace: true
+
+    # signs:
+    # - signature: "${artifact}.dmg"
+    # ids:
+    # - darwin
+    # cmd: gon
+    # args:
+    # - gon.hcl
+    # artifacts: all
+     
 archives:
   - 
     replacements:
