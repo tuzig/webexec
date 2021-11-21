@@ -17,4 +17,5 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v2
     - name: Test
+      shell: 'script --return --quiet --command "bash {0}"'
       run: go test ./...
