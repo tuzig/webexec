@@ -106,7 +106,7 @@ do_install() {
             sudo cp webexecd.sh /etc/init.d/webexec
             sudo chown root:root /etc/init.d/webexec
             sudo update-rc.d webexec defaults
-            sudo update-rc.d webexec enable
+            sudo systemctl start webexec
         fi
 		;;
 	esac
