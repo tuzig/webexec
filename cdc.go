@@ -52,7 +52,7 @@ type AddPaneArgs struct {
 	Cols    uint16   `json:"cols, omitempty"`
 	X       uint16   `json:"x, omitempty"`
 	Y       uint16   `json:"y, omitempty"`
-	Parent  uint32   `json:"parrent,omitempty"`
+	Parent  int      `json:"parrent,omitempty"`
 }
 
 type ReconnectPaneArgs struct {

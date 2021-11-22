@@ -12,6 +12,7 @@ import (
 	"github.com/creack/pty"
 	"github.com/hinshun/vt10x"
 	"github.com/pion/webrtc/v3"
+	"github.com/shirou/gopsutil/v3/process"
 )
 
 const OutBufSize = 16384
@@ -34,13 +35,25 @@ type Pane struct {
 }
 
 // execCommand in ahelper function for executing a command
-func execCommand(command []string, ws *pty.Winsize) (*exec.Cmd, *os.File, error) {
+func execCommand(command []string, ws *pty.Winsize, pID int) (*exec.Cmd, *os.File, error) {
 	var (
 		tty *os.File
 		err error
+		pwd string
 	)
 	Logger.Infof("Starting command %s", command[0])
 	cmd := exec.Command(command[0], command[1:]...)
+	if pID != 0 {
+		p, err := process.NewProcess(int32(pID))
+		if err != nil {
+			return nil, nil, fmt.Errorf("Failed to find parent pane's process: %s", err)
+		}
+		pwd, err = p.Cwd()
+		if err != nil {
+			return nil, nil, fmt.Errorf("Failed getting parent pane's cwd: %s", err)
+		}
+		cmd.Dir = pwd
+	}
 	if Conf.env != nil {
 		for k, v := range Conf.env {
 			cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", k, v))
@@ -63,10 +76,10 @@ func execCommand(command []string, ws *pty.Winsize) (*exec.Cmd, *os.File, error)
 }
 
 // NewPane opens a new pane and start its command and pty
-func NewPane(command []string, peer *Peer, ws *pty.Winsize) (*Pane, error) {
+func NewPane(command []string, peer *Peer, ws *pty.Winsize, parent int) (*Pane, error) {
 
 	var vt vt10x.VT
-	cmd, tty, err := execCommand(command, ws)
+	cmd, tty, err := execCommand(command, ws, parent)
 	if err != nil {
 		return nil, err
 	}

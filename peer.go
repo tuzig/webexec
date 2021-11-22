@@ -227,7 +227,7 @@ func (peer *Peer) GetOrCreatePane(d *webrtc.DataChannel) (*Pane, error) {
 		Logger.Infof("Got a reconnect request to pane %d", id)
 		return peer.Reconnect(d, id)
 	}
-	pane, err = NewPane(fields[cmdIndex:], peer, ws)
+	pane, err = NewPane(fields[cmdIndex:], peer, ws, 0)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to create new pane: %q", err)
 	}
@@ -380,7 +380,7 @@ func (peer *Peer) OnCTRLMsg(msg webrtc.DataChannelMessage) {
 			Logger.Warn("Got an add_pane commenad with no rows or cols")
 		}
 
-		pane, err := NewPane(a.Command, peer, ws)
+		pane, err := NewPane(a.Command, peer, ws, a.Parent)
 		if err != nil {
 			Logger.Warnf("Failed to add a new pane: %v", err)
 			return
