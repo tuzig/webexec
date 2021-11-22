@@ -217,12 +217,20 @@ func loadFilePath(path string, def string) string {
 	return ret
 }
 
-// loadConf load the conf file
-func LoadConf() error {
+// loadConf load the conf file. If create is true a new file will be created
+// if missing
+func LoadConf(create bool) error {
 	confPath := ConfPath("webexec.conf")
 	_, err := os.Stat(confPath)
 	if os.IsNotExist(err) {
-		initConf()
+		if create {
+			err = initConf()
+			if err != nil {
+				return err
+			}
+		} else {
+			return fmt.Errorf("Configuration file does not exists, run `webexec start` to create")
+		}
 	}
 	b, err := ioutil.ReadFile(confPath)
 	if err != nil {
@@ -293,7 +301,7 @@ func createConf() error {
 			return fmt.Errorf("Failed to create the tokens file at %q: %w",
 				TokensFilePath, err)
 		}
-		fmt.Printf("Created %q conf file\n and %s tokens file", confPath,
+		fmt.Printf("Created:\n %s - conf file\n %s  - tokens file\n", confPath,
 			TokensFilePath)
 	}
 	return nil
@@ -316,8 +324,5 @@ func initConf() error {
 		return fmt.Errorf("Failed to create ~/.config/webexec")
 	}
 	err = createConf()
-	if err != nil {
-		return err
-	}
-	return nil
+	return err
 }

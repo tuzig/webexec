@@ -169,7 +169,10 @@ func versionCMD(c *cli.Context) error {
 
 // stop - stops the agent
 func stop(c *cli.Context) error {
-	LoadConf()
+	err := LoadConf(false)
+	if err != nil {
+		return err
+	}
 	pidf, err := pidfile.Open(PIDFilePath)
 	if os.IsNotExist(err) {
 		return ErrAgentNotRunning
@@ -208,10 +211,7 @@ func createPIDFile() error {
 
 func launchAgent(address string) error {
 	pidf, err := pidfile.Open(PIDFilePath)
-	if pidf == nil {
-		return fmt.Errorf("Failed to open pid file: %s", err)
-	}
-	if !os.IsNotExist(err) && pidf.Running() {
+	if pidf != nil && !os.IsNotExist(err) && pidf.Running() {
 		fmt.Println("agent is already running, doing nothing")
 		return nil
 	}
@@ -235,7 +235,7 @@ func launchAgent(address string) error {
 
 // start - start the user's agent
 func start(c *cli.Context) error {
-	err := LoadConf()
+	err := LoadConf(true)
 	if err != nil {
 		return err
 	}
@@ -285,7 +285,8 @@ func start(c *cli.Context) error {
 		signal.Notify(done, syscall.SIGINT, syscall.SIGTERM)
 	}
 	<-done
-	return nil
+	err = os.Remove(PIDFilePath)
+	return err
 }
 
 /* TBD:
@@ -311,7 +312,10 @@ func restart(c *cli.Context) error {
 
 // status function prints the status of the agent
 func status(c *cli.Context) error {
-	LoadConf()
+	err := LoadConf(false)
+	if err != nil {
+		return err
+	}
 	pidf, err := pidfile.Open(PIDFilePath)
 	if os.IsNotExist(err) {
 		fmt.Println("agent is not running")

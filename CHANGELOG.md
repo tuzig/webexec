@@ -8,6 +8,12 @@ his file's format is define in
 [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 and the release workflow reads it to set github's release notes.
 
+## Unreleashed 
+
+### Fixed
+
+- creating config only on start and improving messaging
+
 ## [0.12.1] - 2021-11-17
 
 ### Fixed
