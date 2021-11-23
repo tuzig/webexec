@@ -40,7 +40,9 @@ func (buffer *Buffer) Add(b []byte) {
 
 // Mark adds a new marker in the next buffer position
 func (buffer *Buffer) Mark(id int) {
+	buffer.m.Lock()
 	buffer.markers[id] = buffer.end
+	buffer.m.Unlock()
 }
 
 // GetSinceMarker returns a byte slice with all the accumlated data
