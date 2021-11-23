@@ -10,6 +10,10 @@ and the release workflow reads it to set github's release notes.
 
 ## Unreleashed 
 
+### Added
+
+- letting the client start a pane in the directory of a "parent" pane
+
 ### Fixed
 
 - creating config only on start and improving messaging

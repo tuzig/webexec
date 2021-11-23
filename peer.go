@@ -3,7 +3,6 @@
 package main
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"strconv"
@@ -233,9 +232,7 @@ func (peer *Peer) GetOrCreatePane(d *webrtc.DataChannel) (*Pane, error) {
 	}
 	if pane != nil {
 		pane.sendFirstMessage(d)
-		ctx, cancel := context.WithCancel(context.Background())
-		pane.cancelRWLoop = cancel
-		go pane.ReadLoop(ctx)
+		go pane.ReadLoop()
 		return pane, nil
 	}
 
@@ -398,9 +395,6 @@ func (peer *Peer) OnCTRLMsg(msg webrtc.DataChannelMessage) {
 			Logger.Infof("opened data channel for pane %d", pane.ID)
 			peer.SendAck(m, []byte(fmt.Sprintf("%d", pane.ID)))
 			d.OnMessage(pane.OnMessage)
-			ctx, cancel := context.WithCancel(context.Background())
-			pane.cancelRWLoop = cancel
-			go pane.ReadLoop(ctx)
 			d.OnClose(func() {
 				cdb.Delete(c)
 			})

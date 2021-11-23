@@ -2,6 +2,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -32,16 +33,17 @@ type Pane struct {
 	vt           vt10x.VT
 	outbuf       chan []byte
 	cancelRWLoop context.CancelFunc
+	ctx          context.Context
 }
 
 // execCommand in ahelper function for executing a command
 func execCommand(command []string, ws *pty.Winsize, pID int) (*exec.Cmd, *os.File, error) {
 	var (
 		tty *os.File
+		dir string
 		err error
 		pwd string
 	)
-	Logger.Infof("Starting command %s", command[0])
 	cmd := exec.Command(command[0], command[1:]...)
 	if pID != 0 {
 		p, err := process.NewProcess(int32(pID))
@@ -52,8 +54,15 @@ func execCommand(command []string, ws *pty.Winsize, pID int) (*exec.Cmd, *os.Fil
 		if err != nil {
 			return nil, nil, fmt.Errorf("Failed getting parent pane's cwd: %s", err)
 		}
-		cmd.Dir = pwd
+		dir = pwd
+	} else {
+		dir, err = os.UserHomeDir()
+		if err != nil {
+			return nil, nil, err
+		}
 	}
+	Logger.Infof("Starting command %s in dir %s", command[0], dir)
+	cmd.Dir = dir
 	if Conf.env != nil {
 		for k, v := range Conf.env {
 			cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", k, v))
@@ -79,6 +88,14 @@ func execCommand(command []string, ws *pty.Winsize, pID int) (*exec.Cmd, *os.Fil
 func NewPane(command []string, peer *Peer, ws *pty.Winsize, parent int) (*Pane, error) {
 
 	var vt vt10x.VT
+	if parent != 0 {
+		parentPane := Panes.Get(parent)
+		if parentPane == nil {
+			return nil, fmt.Errorf(
+				"Got a pane request with an illegal parrent pane id: %d", parent)
+		}
+		parent = parentPane.C.Process.Pid
+	}
 	cmd, tty, err := execCommand(command, ws, parent)
 	if err != nil {
 		return nil, err
@@ -87,16 +104,23 @@ func NewPane(command []string, peer *Peer, ws *pty.Winsize, parent int) (*Pane, 
 		vt = vt10x.New()
 		vt.Resize(int(ws.Cols), int(ws.Rows))
 	}
+	ctx, cancel := context.WithCancel(context.Background())
 	pane := &Pane{
-		C:         cmd,
-		IsRunning: true,
-		TTY:       tty,
-		Buffer:    NewBuffer(100000), //TODO: get the number from conf
-		Ws:        ws,
-		vt:        vt,
-		outbuf:    make(chan []byte, OutBufSize),
+		C:            cmd,
+		IsRunning:    true,
+		TTY:          tty,
+		Buffer:       NewBuffer(100000), //TODO: get the number from conf
+		Ws:           ws,
+		vt:           vt,
+		outbuf:       make(chan []byte, OutBufSize),
+		ctx:          ctx,
+		cancelRWLoop: cancel,
 	}
 	Panes.Add(pane) // This will set pane.ID
+	errbuf := new(bytes.Buffer)
+	cmd.Stderr = errbuf
+	go pane.stderrLoop(errbuf)
+	go pane.ReadLoop()
 	return pane, nil
 }
 
@@ -112,7 +136,7 @@ func (pane *Pane) sendFirstMessage(dc *webrtc.DataChannel) {
 }
 
 // ReadLoop reads the tty and send data it finds to the open data channels
-func (pane *Pane) ReadLoop(ctx context.Context) {
+func (pane *Pane) ReadLoop() {
 	conNull := 0
 	id := pane.ID
 	sctx, cancel := context.WithCancel(context.Background())
@@ -121,17 +145,19 @@ func (pane *Pane) ReadLoop(ctx context.Context) {
 loop:
 	for {
 		select {
-		case <-ctx.Done():
+		case <-pane.ctx.Done():
 			break loop
 		default:
 		}
 		b := make([]byte, 1024)
 		l, rerr := pane.TTY.Read(b)
 		if rerr == io.EOF {
+			Logger.Infof("@%d: got EOF in read loop", pane.ID)
 			break loop
 		}
 		if rerr != nil {
 			Logger.Errorf("Got an error reqading from pty#%d: %s", id, rerr)
+			break loop
 		}
 		if l == 0 {
 			// 't kill the pane only on the third consequtive empty message
@@ -141,14 +167,13 @@ loop:
 				continue
 			} else {
 				Logger.Infof("3rd connsecutive empty message, killin")
-				break
+				break loop
 			}
 		}
 		conNull = 0
 		pane.outbuf <- b[:l]
 	}
 
-	Logger.Infof("Exiting the readloop for pane %d", pane.ID)
 	cancel()
 	pane = Panes.Get(id)
 	pane.Kill()
@@ -297,5 +322,24 @@ func (pane *Pane) Restore(d *webrtc.DataChannel, marker int) {
 		time.AfterFunc(time.Second/10, func() {
 			pane.outbuf <- pane.Buffer.GetSinceMarker(marker)
 		})
+	}
+}
+func (pane *Pane) stderrLoop(errors *bytes.Buffer) {
+loop:
+	for {
+		select {
+		case <-pane.ctx.Done():
+			break loop
+		default:
+		}
+		line, err := errors.ReadString('\n')
+		if err == io.EOF {
+			Logger.Infof("@%d: got EOF in stderr loop", pane.ID)
+			break loop
+		}
+		if err != nil {
+			Logger.Errorf("@%d: got an error reading stderr: %s", pane.ID, err)
+		}
+		Logger.Errorf("@%d: stderr: %s", line)
 	}
 }
