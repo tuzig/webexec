@@ -245,12 +245,12 @@ func start(c *cli.Context) error {
 	} else {
 		address = Conf.httpServer
 	}
+	ptyMux = ptyMuxType{}
 	debug := c.Bool("debug")
 	if debug {
 		InitDevLogger()
 	} else {
 		if c.Bool("agent") {
-			ptyMux = ptyMuxType{}
 			InitAgentLogger()
 			err := createPIDFile()
 			if err != nil {
