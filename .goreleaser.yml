@@ -22,8 +22,6 @@ builds:
     goarch:
       - amd64
       - arm64
-    hooks:
-      post: gon
 universal_binaries:
   - replace: true
 
