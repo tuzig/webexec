@@ -70,10 +70,6 @@ func execCommand(command []string, ws *pty.Winsize, pID int) (*exec.Cmd, *os.Fil
 	}
 	if ws != nil {
 		tty, err = ptyMux.StartWithSize(cmd, ws)
-		if err != nil {
-			Logger.Errorf("got an error starting with size %s", err)
-			return nil, nil, fmt.Errorf("Failed starting command: %q", err)
-		}
 	} else {
 		// TODO: remove the pty
 		tty, err = ptyMux.Start(cmd)

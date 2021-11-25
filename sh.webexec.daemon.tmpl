@@ -4,14 +4,10 @@
 <dict>
   <key>Label</key>
   <string>sh.webexec.daemon</string>
-
   <key>KeepAlive</key>
   <true/>
   <key>RunAtLoad</key>
   <true/>
-  <key>Debug</key>
-  <true/>
-
   <key>ProgramArguments</key>
   <array>
       <string>/usr/local/bin/webexec</string>
@@ -20,19 +16,9 @@
   </array>
   <key>ProcessType</key>
   <string>Interactive</string>
-
   <key>Nice</key>
   <integer>1</integer>
-
   <key>UserName</key>
-  <integer>daonb</integer>
-
-  <key>WorkingSirectory</key>
-  <string>/Users/daonb/src/webexec</string>
-
-  <key>StandardErrorPath</key>
-  <string>/tmp/webexec.err</string>
-  <key>StandardOutPath</key>
-  <string>/tmp/webexec.out</string>
+  <string>$USER</string>
 </dict>
 </plist>

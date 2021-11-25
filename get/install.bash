@@ -94,11 +94,15 @@ do_install() {
         if ! command -v go &> /dev/null; then
             brew install go
         fi
+        USER=$(whoami)
         GOBIN=/tmp go install github.com/tuzig/webexec@latest
         sudo mv /tmp/webexec /usr/local/bin
         # cp launchd file & load
+        envsubst < "$tmp/sh.webexec.daemon.plist" > "$tmp/sh.webexec.daemon.plist"
         sudo mv "$tmp/sh.webexec.daemon.plist" /Library/LaunchDaemons
-        launchctl load "/Library/LaunchDaemons/sh.webexec.daemon.plist"
+
+        sudo chown root:wheel "/Library/LaunchDaemons/sh.webexec.daemon.plist"
+        sudo launchctl load "/Library/LaunchDaemons/sh.webexec.daemon.plist"
 		;;
 	Linux)
         if [[ -f /etc/webexec ]]; then
