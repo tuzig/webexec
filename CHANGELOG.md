@@ -8,10 +8,12 @@ his file's format is define in
 [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 and the release workflow reads it to set github's release notes.
 
-## Unreleashed 
+## [0.13.0] 2021-11-25
 
 ### Added
 
+- one line installer
+- init scripts for linux & mac
 - letting the client start a pane in the directory of a "parent" pane
 
 ### Fixed

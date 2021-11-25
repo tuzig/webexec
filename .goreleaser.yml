@@ -52,6 +52,7 @@ archives:
       - LICENSE
       - CHANGELOG.md
       - webexecd.sh
+      - sh.webexec.daemon.plist
 
 checksum:
   name_template: 'checksums.txt'

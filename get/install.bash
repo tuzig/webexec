@@ -4,7 +4,7 @@
 # This script is meant for quick & easy install via:
 #   $ curl -fsSL https://get.webexec.sh | bash
 SCRIPT_COMMIT_SHA=UNKNOWN
-LATEST_VERSION="0.12.1"
+LATEST_VERSION="0.13.0"
 
 # This script should be run with an unprivileged user and install/setup Docker under $HOME/bin/.
 
@@ -31,7 +31,7 @@ fi
 STATIC_RELEASE_URL="https://github.com/tuzig/webexec/releases/download/v$LATEST_VERSION/webexec_${LATEST_VERSION}_$(uname -s | tr '[:upper:]' '[:lower:]')_$ARCH.tar.gz"
 
 init_vars() {
-	BIN="${WEBEXEC_BIN:-$HOME/bin}"
+	BIN="${WEBEXEC_BIN:/usr/local/bin}"
 
 	DAEMON=webexec
 	SYSTEMD=
@@ -85,22 +85,26 @@ do_install() {
 		curl -L -o webexec.tgz "$STATIC_RELEASE_URL"
 	)
 	(
-        mkdir -p "$BIN"
-        cd "$BIN"
-		tar zxf "$tmp/webexec.tgz" --strip-components=1
-        echo "==> We need root access to add the binary and the service"
-        sudo cp webexec /usr/local/bin
+        cd "$tmp"
+		tar zxf "webexec.tgz" --strip-components=1
+        echo "==> We need root access to add webexec's binary and service"
 	)
 	case "$(uname)" in
 	Darwin)
-        echo "darwin startup script is not ready yet"
-        echo "sorry, but you'll have to start manually on reboot"
-
+        if ! command -v go &> /dev/null; then
+            brew install go
+        fi
+        GOBIN=/tmp go install github.com/tuzig/webexec@latest
+        sudo mv /tmp/webexec /usr/local/bin
+        # cp launchd file & load
+        sudo mv "$tmp/sh.webexec.daemon.plist" /Library/LaunchDaemons
+        launchctl load "/Library/LaunchDaemons/sh.webexec.daemon.plist"
 		;;
 	Linux)
         if [[ -f /etc/webexec ]]; then
             echo "==X webexec is already used on this host by $(cut -d= -f2 < /etc/webexec)"
         else
+            sudo cp webexec /usr/local/bin
             ECHO_CONF="echo USER=$(whoami)"
             sudo sh -c "$ECHO_CONF >/etc/webexec"
             sudo cp webexecd.sh /etc/init.d/webexec
