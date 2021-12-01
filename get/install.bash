@@ -1,15 +1,14 @@
 #!/bin/bash
-# webexec installation script (Rootless mode)
+# webexec installation script
 #
 # This script is meant for quick & easy install via:
-#   $ curl -fsSL https://get.webexec.sh | bash
+#   $ curl -L https://get.webexec.sh | bash
+set -x
 SCRIPT_COMMIT_SHA=UNKNOWN
-LATEST_VERSION="0.13.1"
-
-# This script should be run with an unprivileged user and install/setup Docker under $HOME/bin/.
+LATEST_VERSION="0.13.2"
 
 # The latest release is currently hard-coded.
-echo "# Installing " $LATEST_VERISON "version"
+echo "Installing " $LATEST_VERSION "version"
          
 ARCH="$(uname -m)"  # -i is only linux, -m is linux and apple
 if [[ "$ARCH" = x86_64* ]]; then
@@ -28,7 +27,6 @@ else
     exit 1
 fi
 
-STATIC_RELEASE_URL="https://github.com/tuzig/webexec/releases/download/v$LATEST_VERSION/webexec_${LATEST_VERSION}_$(uname -s | tr '[:upper:]' '[:lower:]')_$ARCH.tar.gz"
 
 init_vars() {
 	BIN="${WEBEXEC_BIN:/usr/local/bin}"
@@ -74,37 +72,46 @@ checks() {
 
 }
 
-do_install() {
-	init_vars
-	checks
-
-	tmp=$(mktemp -d)
-	trap "rm -rf $tmp" EXIT INT TERM
-	(
-		cd "$tmp"
-		curl -L -o webexec.tgz "$STATIC_RELEASE_URL"
-	)
-	(
-        cd "$tmp"
-		tar zxf "webexec.tgz" --strip-components=1
-        echo "==> We need root access to add webexec's binary and service"
-	)
+get_n_extract() {
 	case "$(uname)" in
 	Darwin)
-        if ! command -v go &> /dev/null; then
-            brew install go
-        fi
-        USER=$(whoami)
-        GOBIN=/tmp go install github.com/tuzig/webexec@latest
-        sudo mv /tmp/webexec /usr/local/bin
-        # cp launchd file & load
-        envsubst < "$tmp/sh.webexec.daemon.plist" > "$tmp/sh.webexec.daemon.plist"
-        sudo mv "$tmp/sh.webexec.daemon.plist" /Library/LaunchDaemons
-
-        sudo chown root:wheel "/Library/LaunchDaemons/sh.webexec.daemon.plist"
-        sudo launchctl load "/Library/LaunchDaemons/sh.webexec.daemon.plist"
+        STATIC_RELEASE_URL="https://github.com/tuzig/webexec/releases/download/v$WEBEXEC_VERSION/webexec_${WEBEXEC_VERSION}.dmg"
+        # curl -L -o webexec.dmg "$STATIC_RELEASE_URL"
+        cp "/Users/daonb/src/webexec/dist/webexec_$LATEST_VERSION.dmg" .
+        hdiutil attach -mountroot . -quiet -readonly -noautofsck "webexec_$LATEST_VERSION.dmg"
 		;;
 	Linux)
+        STATIC_RELEASE_URL="https://github.com/tuzig/webexec/releases/download/v$LATEST_VERSION/webexec_${LATEST_VERSION}_$(uname -s | tr '[:upper:]' '[:lower:]')_$ARCH.tar.gz"
+       curl -L -o webexec.tgz "$STATIC_RELEASE_URL"
+	esac
+}
+# this should be run as root
+replace_n_launch() {
+    set -x 
+
+    if [[ -x /usr/local/bin/webexec ]]; then
+        su daonb -c "/usr/local/bin/webexec stop"
+        rm /usr/local/bin/webexec
+    fi
+	case "$(uname)" in
+	Darwin)
+        cp webexec/webexec /usr/local/bin
+        # TODO: fix launchd
+        # cp launchd file & load
+        # envsubst < "webexec/sh.webexec.daemon.tmpl" > "sh.webexec.daemon.plist"
+        # sudo mv "sh.webexec.daemon.plist" /Library/LaunchDaemons
+
+        # sudo chown root:wheel "/Library/LaunchDaemons/sh.webexec.daemon.plist"
+        # sudo launchctl load "/Library/LaunchDaemons/sh.webexec.daemon.plist"
+        umount webexec
+        echo "Sorry but our launchd daemon is not ready yet"
+        echo "Till we have it, You'll need to 'webexec start' after restart"
+        su daonb -c "/usr/local/bin/webexec start"
+		;;
+	Linux)
+        STATIC_RELEASE_URL="https://github.com/tuzig/webexec/releases/download/v$LATEST_VERSION/webexec_${LATEST_VERSION}_$(uname -s | tr '[:upper:]' '[:lower:]')_$ARCH.tar.gz"
+        curl -L -o webexec.tgz "$STATIC_RELEASE_URL"
+        tar zxf "webexec.tgz" --strip-components=1
         if [[ -f /etc/webexec ]]; then
             echo "==X webexec is already used on this host by $(cut -d= -f2 < /etc/webexec)"
         else
@@ -118,5 +125,18 @@ do_install() {
         fi
 		;;
 	esac
+}
+
+do_install() {
+	init_vars
+	checks
+
+	tmp=$(mktemp -d)
+
+    cd $tmp
+    get_n_extract
+    export -f replace_n_launch
+    echo "==> We need root access to add webexec's binary and service"
+    sudo nohup bash -c replace_n_launch
 }
 do_install "$@"

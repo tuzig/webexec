@@ -1,5 +1,6 @@
 webexec
 xversion.go
-
+dist
+.envrc
 # Local Netlify folder
 .netlify

@@ -22,35 +22,25 @@ builds:
     goarch:
       - amd64
       - arm64
-universal_binaries:
-  - replace: true
 
-    # signs:
-    # - signature: "${artifact}.dmg"
-    # ids:
-    # - darwin
-    # cmd: gon
-    # args:
-    # - gon.hcl
-    # artifacts: all
-     
+universal_binaries:
+   - 
+     id: darwin
+     replace: true
+     hooks: 
+       post: gon gon.hcl
+
 archives:
   - 
-    replacements:
-      darwin: darwin
-      linux: linux
-      freebsd: freebsd
-      386: 386
-      amd64: amd64
-      arm: arm
-      arm64: arm64
+    id: non-darwin
+    builds:
+      - non-darwin
     wrap_in_directory: true
     files:
       - README.md
       - LICENSE
       - CHANGELOG.md
       - webexecd.sh
-      - sh.webexec.daemon.plist
 
 checksum:
   name_template: 'checksums.txt'

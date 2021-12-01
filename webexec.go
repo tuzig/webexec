@@ -40,7 +40,6 @@ var (
 	gotExitSignal      chan bool
 	logWriter          io.Writer
 	pionLoggerFactory  *logging.DefaultLoggerFactory
-	done               chan os.Signal
 	key                *KeyType
 )
 
@@ -209,7 +208,7 @@ func createPIDFile() error {
 	return nil
 }
 
-func launchAgent(address string) error {
+func forkAgent(address string) error {
 	pidf, err := pidfile.Open(PIDFilePath)
 	if pidf != nil && !os.IsNotExist(err) && pidf.Running() {
 		fmt.Println("agent is already running, doing nothing")
@@ -252,18 +251,17 @@ func start(c *cli.Context) error {
 	} else {
 		if c.Bool("agent") {
 			InitAgentLogger()
-			err := createPIDFile()
 			if err != nil {
 				return err
 			}
 		} else {
-			return launchAgent(address)
+			return forkAgent(address)
 		}
 	}
 	// the code below runs for both --debug and --agent
 	Logger.Infof("Serving http on %q", address)
-	done = make(chan os.Signal, 1)
-	go HTTPGo(address)
+	sigChan := make(chan os.Signal, 1)
+	HTTPGo(address)
 	if Conf.peerbookHost != "" {
 		verified, err := verifyPeer(Conf.peerbookHost)
 		if err != nil {
@@ -280,12 +278,27 @@ func start(c *cli.Context) error {
 	}
 	// signal handling
 	if debug {
-		signal.Notify(done, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
+		signal.Notify(sigChan, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
 	} else {
-		signal.Notify(done, syscall.SIGINT, syscall.SIGTERM)
+		signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP)
 	}
-	<-done
-	err = os.Remove(PIDFilePath)
+	for {
+		select {
+		case s := <-sigChan:
+			switch s {
+			case syscall.SIGINT, syscall.SIGTERM:
+				Logger.Info("Exiting on SIGINT/SIGTERM")
+				os.Exit(1)
+			case syscall.SIGHUP:
+				Logger.Info("reloading conf on SIGHUP")
+				err := LoadConf(false)
+				if err != nil {
+					Logger.Errorf("Failed to reload conf: %s", err)
+				}
+			}
+		}
+	}
+	Logger.Info("Exiting with %s", err)
 	return err
 }
 

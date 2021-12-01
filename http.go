@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
 
 	"github.com/pion/webrtc/v3"
 	"github.com/rs/cors"
@@ -24,7 +23,6 @@ func HTTPGo(address string) {
 	h := cors.Default().Handler(http.DefaultServeMux)
 	err := http.ListenAndServe(address, h)
 	Logger.Errorf("%s", err)
-	done <- os.Interrupt
 }
 
 // handleConnect is called when a client requests the connect endpoint
