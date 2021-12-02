@@ -79,54 +79,15 @@ get_n_extract() {
         # curl -L -o webexec.dmg "$STATIC_RELEASE_URL"
         cp "/Users/daonb/src/webexec/dist/webexec_$LATEST_VERSION.dmg" .
         hdiutil attach -mountroot . -quiet -readonly -noautofsck "webexec_$LATEST_VERSION.dmg"
-		;;
-	Linux)
-        STATIC_RELEASE_URL="https://github.com/tuzig/webexec/releases/download/v$LATEST_VERSION/webexec_${LATEST_VERSION}_$(uname -s | tr '[:upper:]' '[:lower:]')_$ARCH.tar.gz"
-       curl -L -o webexec.tgz "$STATIC_RELEASE_URL"
-	esac
-}
-# this should be run as root
-replace_n_launch() {
-    set -x 
-
-    if [[ -x /usr/local/bin/webexec ]]; then
-        su daonb -c "/usr/local/bin/webexec stop"
-        rm /usr/local/bin/webexec
-    fi
-	case "$(uname)" in
-	Darwin)
-        cp webexec/webexec /usr/local/bin
-        # TODO: fix launchd
-        # cp launchd file & load
-        # envsubst < "webexec/sh.webexec.daemon.tmpl" > "sh.webexec.daemon.plist"
-        # sudo mv "sh.webexec.daemon.plist" /Library/LaunchDaemons
-
-        # sudo chown root:wheel "/Library/LaunchDaemons/sh.webexec.daemon.plist"
-        # sudo launchctl load "/Library/LaunchDaemons/sh.webexec.daemon.plist"
-        umount webexec
+        cp webexec/* .
         echo "Sorry but our launchd daemon is not ready yet"
         echo "Till we have it, You'll need to 'webexec start' after restart"
-        su daonb -c "/usr/local/bin/webexec start"
 		;;
 	Linux)
         STATIC_RELEASE_URL="https://github.com/tuzig/webexec/releases/download/v$LATEST_VERSION/webexec_${LATEST_VERSION}_$(uname -s | tr '[:upper:]' '[:lower:]')_$ARCH.tar.gz"
-        curl -L -o webexec.tgz "$STATIC_RELEASE_URL"
-        tar zxf "webexec.tgz" --strip-components=1
-        if [[ -f /etc/webexec ]]; then
-            echo "==X webexec is already used on this host by $(cut -d= -f2 < /etc/webexec)"
-        else
-            sudo cp webexec /usr/local/bin
-            ECHO_CONF="echo USER=$(whoami)"
-            sudo sh -c "$ECHO_CONF >/etc/webexec"
-            sudo cp webexecd.sh /etc/init.d/webexec
-            sudo chown root:root /etc/init.d/webexec
-            sudo update-rc.d webexec defaults
-            sudo systemctl start webexec
-        fi
-		;;
+       curl -L "$STATIC_RELEASE_URL" | tar zx --strip-components=1
 	esac
 }
-
 do_install() {
 	init_vars
 	checks
@@ -135,8 +96,7 @@ do_install() {
 
     cd $tmp
     get_n_extract
-    export -f replace_n_launch
     echo "==> We need root access to add webexec's binary and service"
-    sudo nohup bash -c replace_n_launch
+    sudo nohup bash webexec/replace_n_launch.sh $USER
 }
 do_install "$@"

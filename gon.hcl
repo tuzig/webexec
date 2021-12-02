@@ -1,4 +1,5 @@
-source = ["./dist/webexec_darwin_all/webexec", "./sh.webexec.daemon.tmpl"]
+source = ["./dist/webexec_darwin_all/webexec", "./sh.webexec.daemon.tmpl", 
+          "./replace_n_launch.sh"]
 bundle_id = "sh.webexec"
 
 apple_id {

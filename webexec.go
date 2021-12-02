@@ -251,6 +251,7 @@ func start(c *cli.Context) error {
 	} else {
 		if c.Bool("agent") {
 			InitAgentLogger()
+			err := createPIDFile()
 			if err != nil {
 				return err
 			}

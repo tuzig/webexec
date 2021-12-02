@@ -30,6 +30,7 @@ universal_binaries:
      hooks: 
        post: gon gon.hcl
 
+# darwin archive is a dmg defined in gon.hcl
 archives:
   - 
     id: non-darwin
@@ -41,6 +42,8 @@ archives:
       - LICENSE
       - CHANGELOG.md
       - webexecd.sh
+      - replace_n_launch.sh
+
 
 checksum:
   name_template: 'checksums.txt'
