@@ -261,7 +261,7 @@ func start(c *cli.Context) error {
 	// the code below runs for both --debug and --agent
 	Logger.Infof("Serving http on %q", address)
 	sigChan := make(chan os.Signal, 1)
-	HTTPGo(address)
+	go HTTPGo(address)
 	if Conf.peerbookHost != "" {
 		verified, err := verifyPeer(Conf.peerbookHost)
 		if err != nil {
