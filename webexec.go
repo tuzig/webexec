@@ -2,14 +2,10 @@
 package main
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
-	"net/http"
-	"net/url"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -277,6 +273,8 @@ func start(c *cli.Context) error {
 		}
 		go signalingGo()
 	}
+	// to speed up first connection
+	getICEServers(Conf.peerbookHost)
 	// signal handling
 	if debug {
 		signal.Notify(sigChan, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
@@ -414,38 +412,4 @@ func main() {
 	if err != nil {
 		fmt.Println(err)
 	}
-}
-func verifyPeer(host string) (bool, error) {
-	fp := getFP()
-	msg := map[string]string{"fp": fp, "email": Conf.email,
-		"kind": "webexec", "name": Conf.name}
-	m, err := json.Marshal(msg)
-	schema := "https"
-	if Conf.insecure {
-		schema = "http"
-	}
-	url := url.URL{Scheme: schema, Host: host, Path: "/verify"}
-	resp, err := http.Post(url.String(), "application/json", bytes.NewBuffer(m))
-	if err != nil {
-		return false, err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != 200 {
-		b, _ := ioutil.ReadAll(resp.Body)
-		return false, fmt.Errorf(string(b))
-	}
-	var ret map[string]interface{}
-	err = json.NewDecoder(resp.Body).Decode(&ret)
-	if err != nil {
-		return false, err
-	}
-	v, found := ret["verified"]
-	if found {
-		return v.(bool), nil
-	}
-	_, found = ret["peers"]
-	if found {
-		return true, nil
-	}
-	return false, nil
 }

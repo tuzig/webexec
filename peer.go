@@ -67,9 +67,13 @@ func NewPeer(fingerprint string) (*Peer, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to get certificates: %w", err)
 	}
+	is, err := getICEServers(Conf.peerbookHost)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get ice servers: %w", err)
+	}
 	config := webrtc.Configuration{
 		PeerIdentity: "webexec",
-		ICEServers:   Conf.iceServers,
+		ICEServers:   is,
 		Certificates: certs,
 	}
 	pc, err := WebRTCAPI.NewPeerConnection(config)

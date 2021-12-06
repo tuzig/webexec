@@ -160,6 +160,7 @@ func initTest(t *testing.T) {
 	require.Nil(t, err, "Failed setting a temp tokens file: %s", err)
 	err = parseConf(defaultConf)
 	require.Nil(t, err, "NewPeer failed with: %s", err)
+	Conf.insecure = true
 	Conf.iceServers = nil
 	f, err = ioutil.TempFile("", "private.key")
 	require.Nil(t, err)
