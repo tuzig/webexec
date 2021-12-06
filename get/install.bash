@@ -50,7 +50,7 @@ checks() {
 	esac
 
 	# HOME verification
-	if [ ! -d "$HOME" ]; then
+	if [  ! -d "$HOME" ]; then
 		>&2 echo "Aborting because HOME directory $HOME does not exist"; exit 1
 	fi
 
@@ -74,17 +74,31 @@ checks() {
 get_n_extract() {
 	case "$(uname)" in
 	Darwin)
-        STATIC_RELEASE_URL="https://github.com/tuzig/webexec/releases/download/v$LATEST_VERSION/webexec_${LATEST_VERSION}.dmg"
-        curl -sL -o webexec.dmg "$STATIC_RELEASE_URL"
+        if command -v go &> /dev/null; then
+            go install github.com/tuzig/webexec@v$LATEST_VERSION
+            webexec init
+            webexec start
+        else
+            echo "Sorry but our MacOS binary is still waiting notarization."
+            echo "For now, you will need to compile webexec yourself."
+            echo "Please install the latest go from: https://go.dev/doc/install"
+            echo "and re-run this installer."
+            exit -1
+        fi
+        # TODO: noptarize the binaries and then:
+        # STATIC_RELEASE_URL="https://github.com/tuzig/webexec/releases/download/v$LATEST_VERSION/webexec_${LATEST_VERSION}.dmg"
+        # curl -sL -o webexec.dmg "$STATIC_RELEASE_URL"
         # For debug:
         # cp "/Users/daonb/src/webexec/dist/webexec_$LATEST_VERSION.dmg" .
-        hdiutil attach -mountroot . -quiet -readonly -noautofsck "webexec.dmg"
-        cp webexec/* .
-        umount webexec
+        # hdiutil attach -mountroot . -quiet -readonly -noautofsck "webexec.dmg"
+        # cp webexec/* .
+        # umount webexec
+        
 		;;
 	Linux)
         STATIC_RELEASE_URL="https://github.com/tuzig/webexec/releases/download/v$LATEST_VERSION/webexec_${LATEST_VERSION}_$(uname -s | tr '[:upper:]' '[:lower:]')_$ARCH.tar.gz"
        curl -sL "$STATIC_RELEASE_URL" | tar zx --strip-components=1
+       ./webexec init
 	esac
 }
 do_install() {
@@ -96,7 +110,10 @@ do_install() {
     echo "Created temp dir: $tmp"
     cd $tmp
     get_n_extract
-    echo "==> We need root access to add webexec's binary and service"
-    sudo nohup bash webexec/replace_n_launch.sh $USER
+    # TODO: fixed launchd
+    if [[ "$(uname)" = Linux ]]; then
+        echo "==> We need root access to add webexec's binary and service"
+        sudo nohup bash webexec/replace_n_launch.sh $USER
+    fi
 }
 do_install "$@"
