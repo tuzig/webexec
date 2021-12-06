@@ -23,12 +23,13 @@ builds:
       - amd64
       - arm64
 
-universal_binaries:
-   - 
-     id: darwin
-     replace: true
-     hooks: 
-       post: gon gon.hcl
+# TODO: fix notarization
+# universal_binaries:
+# - 
+# id: darwin
+# replace: true
+# hooks: 
+# post: gon gon.hcl
 
 # darwin archive is a dmg defined in gon.hcl
 archives:
