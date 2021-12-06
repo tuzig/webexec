@@ -5,7 +5,7 @@
 #   $ curl -L https://get.webexec.sh | bash
 set -x
 SCRIPT_COMMIT_SHA=UNKNOWN
-LATEST_VERSION="0.13.2"
+LATEST_VERSION="0.13.3"
 
 # The latest release is currently hard-coded.
 echo "Installing " $LATEST_VERSION "version"
@@ -75,10 +75,11 @@ checks() {
 get_n_extract() {
 	case "$(uname)" in
 	Darwin)
-        STATIC_RELEASE_URL="https://github.com/tuzig/webexec/releases/download/v$WEBEXEC_VERSION/webexec_${WEBEXEC_VERSION}.dmg"
-        # curl -L -o webexec.dmg "$STATIC_RELEASE_URL"
-        cp "/Users/daonb/src/webexec/dist/webexec_$LATEST_VERSION.dmg" .
-        hdiutil attach -mountroot . -quiet -readonly -noautofsck "webexec_$LATEST_VERSION.dmg"
+        STATIC_RELEASE_URL="https://github.com/tuzig/webexec/releases/download/v$LATEST_VERSION/webexec_${LATEST_VERSION}.dmg"
+        curl -L webexec.dmg "$STATIC_RELEASE_URL"
+        # For debug:
+        # cp "/Users/daonb/src/webexec/dist/webexec_$LATEST_VERSION.dmg" .
+        hdiutil attach -mountroot . -quiet -readonly -noautofsck "webexec.dmg"
         cp webexec/* .
         echo "Sorry but our launchd daemon is not ready yet"
         echo "Till we have it, You'll need to 'webexec start' after restart"

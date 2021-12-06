@@ -8,6 +8,12 @@ his file's format is define in
 [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 and the release workflow reads it to set github's release notes.
 
+## [0.13.3] 2021-12-06
+
+### Fixed
+
+- MacOS one line install - with service
+
 ## [0.13.2] 2021-11-30
 
 ### Fixed
