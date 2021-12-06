@@ -35,5 +35,5 @@ func TestExecCommandWithParent(t *testing.T) {
 	require.Nil(t, err)
 	cwd, err := p.Cwd()
 	require.Nil(t, err)
-	require.Equal(t, "/private/tmp", cwd)
+	require.Regexp(t, "tmp", cwd)
 }

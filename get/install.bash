@@ -2,6 +2,8 @@
 # webexec installation script
 #
 # This script is meant for quick & easy install via:
+set -x
+
 #   $ curl -L https://get.webexec.sh | bash
 SCRIPT_COMMIT_SHA=UNKNOWN
 LATEST_VERSION="0.14.0"
@@ -113,7 +115,7 @@ do_install() {
     # TODO: fixed launchd
     if [[ "$(uname)" = Linux ]]; then
         echo "==> We need root access to add webexec's binary and service"
-        sudo nohup bash webexec/replace_n_launch.sh $USER
+        sudo nohup bash replace_n_launch.sh $USER
     fi
 }
 do_install "$@"
