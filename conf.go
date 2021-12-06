@@ -217,20 +217,12 @@ func loadFilePath(path string, def string) string {
 	return ret
 }
 
-// loadConf load the conf file. If create is true a new file will be created
-// if missing
-func LoadConf(create bool) error {
+// loadConf load the conf file
+func LoadConf() error {
 	confPath := ConfPath("webexec.conf")
 	_, err := os.Stat(confPath)
 	if os.IsNotExist(err) {
-		if create {
-			err = initConf()
-			if err != nil {
-				return err
-			}
-		} else {
-			return fmt.Errorf("Configuration file does not exists, run `webexec start` to create")
-		}
+		return fmt.Errorf("Missing conf file, run `webexec init` to create")
 	}
 	b, err := ioutil.ReadFile(confPath)
 	if err != nil {
@@ -252,33 +244,30 @@ func isValidEmail(email string) bool {
 	return emailRegex.MatchString(email)
 }
 
-// peerBook register is for the future. maybe.
-func peerbookRegister() error {
+// createConf creates the configuration files based on the defaults and user
+// input
+func createConf() error {
+	conf := defaultConf
 	stdin := bufio.NewReader(os.Stdin)
-	fmt.Println("To make it easier for your clients to find this server")
-	fmt.Println("and verify its fingerprints you are invited")
-	fmt.Println("to publish it to your private addres book.")
+	fmt.Println("To make it easier for clients to find this server")
+	fmt.Println("and enable trickle ICE you are invited")
+	fmt.Println("to publish it to peerbook.io")
 please:
 	fmt.Print("Please enter your email (blank to skip): ")
 	email, err := stdin.ReadString('\n')
 	if err != nil {
 		return fmt.Errorf("Failed to read input: %s", err)
 	}
-	// strange line from the future
+	// remove thje EOL at the end
 	email = email[:len(email)-1]
 	if email != "" {
 		if !isValidEmail(email) {
 			fmt.Println("Sorry, not a valid email. Please try again.")
 			goto please
 		}
+		conf = fmt.Sprintf(abConfTemplate, conf, email)
 	}
-	return nil
-}
-
-// createConf creates the configuration files based on the defaults
-func createConf() error {
 	confPath := ConfPath("webexec.conf")
-	conf := defaultConf
 	confFile, err := os.Create(confPath)
 	defer confFile.Close()
 	if err != nil {
@@ -289,7 +278,6 @@ func createConf() error {
 		return fmt.Errorf("Failed to write to configuration file: %s", err)
 	}
 	// creating the token file
-	// TODO: Rinse - add TokensPath()
 	if TokensFilePath == "" {
 		TokensFilePath = ConfPath("authorized_tokens")
 	}
@@ -311,18 +299,4 @@ func createConf() error {
 func ConfPath(suffix string) string {
 	usr, _ := user.Current()
 	return filepath.Join(usr.HomeDir, ".config", "webexec", suffix)
-}
-
-func initConf() error {
-	// init the dev logger so log messages are printed on the console
-	basePath := ConfPath("")
-	_, err := os.Stat(basePath)
-	// the next probably returns an err as "~/.config" already exists"
-	os.Mkdir(filepath.Dir(basePath), 0755)
-	err = os.Mkdir(basePath, 0755)
-	if err != nil {
-		return fmt.Errorf("Failed to create ~/.config/webexec")
-	}
-	err = createConf()
-	return err
 }

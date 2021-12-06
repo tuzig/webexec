@@ -3,7 +3,6 @@
 #
 # This script is meant for quick & easy install via:
 #   $ curl -L https://get.webexec.sh | bash
-set -x
 SCRIPT_COMMIT_SHA=UNKNOWN
 LATEST_VERSION="0.13.3"
 
@@ -76,17 +75,16 @@ get_n_extract() {
 	case "$(uname)" in
 	Darwin)
         STATIC_RELEASE_URL="https://github.com/tuzig/webexec/releases/download/v$LATEST_VERSION/webexec_${LATEST_VERSION}.dmg"
-        curl -L webexec.dmg "$STATIC_RELEASE_URL"
+        curl -sL -o webexec.dmg "$STATIC_RELEASE_URL"
         # For debug:
         # cp "/Users/daonb/src/webexec/dist/webexec_$LATEST_VERSION.dmg" .
         hdiutil attach -mountroot . -quiet -readonly -noautofsck "webexec.dmg"
         cp webexec/* .
-        echo "Sorry but our launchd daemon is not ready yet"
-        echo "Till we have it, You'll need to 'webexec start' after restart"
+        umount webexec
 		;;
 	Linux)
         STATIC_RELEASE_URL="https://github.com/tuzig/webexec/releases/download/v$LATEST_VERSION/webexec_${LATEST_VERSION}_$(uname -s | tr '[:upper:]' '[:lower:]')_$ARCH.tar.gz"
-       curl -L "$STATIC_RELEASE_URL" | tar zx --strip-components=1
+       curl -sL "$STATIC_RELEASE_URL" | tar zx --strip-components=1
 	esac
 }
 do_install() {
@@ -95,6 +93,7 @@ do_install() {
 
 	tmp=$(mktemp -d)
 
+    echo "Created temp dir: $tmp"
     cd $tmp
     get_n_extract
     echo "==> We need root access to add webexec's binary and service"

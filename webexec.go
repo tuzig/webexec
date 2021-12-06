@@ -168,7 +168,7 @@ func versionCMD(c *cli.Context) error {
 
 // stop - stops the agent
 func stop(c *cli.Context) error {
-	err := LoadConf(false)
+	err := LoadConf()
 	if err != nil {
 		return err
 	}
@@ -234,7 +234,7 @@ func forkAgent(address string) error {
 
 // start - start the user's agent
 func start(c *cli.Context) error {
-	err := LoadConf(true)
+	err := LoadConf()
 	if err != nil {
 		return err
 	}
@@ -244,6 +244,7 @@ func start(c *cli.Context) error {
 	} else {
 		address = Conf.httpServer
 	}
+	// TODO: do we need this?
 	ptyMux = ptyMuxType{}
 	debug := c.Bool("debug")
 	if debug {
@@ -292,7 +293,7 @@ func start(c *cli.Context) error {
 				os.Exit(1)
 			case syscall.SIGHUP:
 				Logger.Info("reloading conf on SIGHUP")
-				err := LoadConf(false)
+				err := LoadConf()
 				if err != nil {
 					Logger.Errorf("Failed to reload conf: %s", err)
 				}
@@ -326,7 +327,7 @@ func restart(c *cli.Context) error {
 
 // status function prints the status of the agent
 func status(c *cli.Context) error {
-	err := LoadConf(false)
+	err := LoadConf()
 	if err != nil {
 		return err
 	}
@@ -345,6 +346,49 @@ func status(c *cli.Context) error {
 	pid, err := pidf.Read()
 	fmt.Printf("agent is running with process id %d\n", pid)
 	return nil
+}
+func initCMD(c *cli.Context) error {
+	// init the dev logger so log messages are printed on the console
+	InitDevLogger()
+	homePath := ConfPath("")
+	_, err := os.Stat(homePath)
+	if os.IsNotExist(err) {
+		os.Mkdir(homePath, 0755)
+		fmt.Printf("Created %q directory\n", homePath)
+	} else {
+		return fmt.Errorf(
+			"%q already exists. To start fresh remove it and try again.",
+			homePath)
+	}
+	err = createConf()
+	if err != nil {
+		return err
+	}
+	err = LoadConf()
+	if err != nil {
+		return fmt.Errorf("Failed to parse default conf: %s", err)
+	}
+	fPath := ConfPath("certnkey.pem")
+	key = &KeyType{Name: fPath}
+	cert, err := key.generate()
+	if err != nil {
+		return fmt.Errorf("Failed to create certificate: %s", err)
+	}
+	key.save(cert)
+	fmt.Printf(" %s - certificate file\n", fPath)
+	if Conf.peerbookHost != "" {
+		verified, err := verifyPeer(Conf.peerbookHost)
+		if err != nil {
+			return fmt.Errorf("Got an error verifying peer: %s", err)
+		}
+		if verified {
+			fmt.Println("** verified ** by peerbook")
+		} else {
+			fmt.Println("** unverified ** peerbook sent you a verification email.")
+		}
+	}
+	return nil
+
 }
 func main() {
 	app := &cli.App{
@@ -407,6 +451,10 @@ func main() {
 				Name:   "stop",
 				Usage:  "stop the user's agent",
 				Action: stop,
+			}, {
+				Name:   "init",
+				Usage:  "initialize the conf file",
+				Action: initCMD,
 			},
 		},
 	}
