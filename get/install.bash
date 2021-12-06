@@ -4,7 +4,7 @@
 # This script is meant for quick & easy install via:
 #   $ curl -L https://get.webexec.sh | bash
 SCRIPT_COMMIT_SHA=UNKNOWN
-LATEST_VERSION="0.13.3"
+LATEST_VERSION="0.14.0"
 
 # The latest release is currently hard-coded.
 echo "Installing " $LATEST_VERSION "version"
