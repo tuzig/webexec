@@ -8,12 +8,12 @@ his file's format is define in
 [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 and the release workflow reads it to set github's release notes.
 
-## Unreleased
+## [0.14.1] 2021-12-07
 
 ### Fixed
 
 - the tests
-- linux boot script is now systemd based
+- linux boot script was fixed and refactored to systemd
 
 ## [0.14.0] 2021-12-06
 
