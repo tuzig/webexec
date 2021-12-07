@@ -1,0 +1,14 @@
+[Unit]
+Description=A terminal server over WebRTC
+After=network.target
+
+[Service]
+Type=forking
+Restart=always
+ExecStart=/usr/local/bin/webexec start
+ExecStop=/usr/local/bin/webexec stop
+PIDFile=/home/daonb/.config/webexec/agent.pid
+User=$USER
+
+[Install]
+WantedBy=multi-user.target
