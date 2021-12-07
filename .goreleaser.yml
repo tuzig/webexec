@@ -23,7 +23,7 @@ builds:
       - amd64
       - arm64
 
-# TODO: fix notarization
+# TODO: replace macos binaries
 # universal_binaries:
 # - 
 # id: darwin
@@ -42,7 +42,7 @@ archives:
       - README.md
       - LICENSE
       - CHANGELOG.md
-      - webexecd.sh
+      - webexec.service.tmpl
       - replace_n_launch.sh
 
 
