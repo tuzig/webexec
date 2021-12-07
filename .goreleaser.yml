@@ -41,7 +41,7 @@ archives:
       - README.md
       - LICENSE
       - CHANGELOG.md
-      - webexecd.sh
+      - webexec.service.tmpl
       - replace_n_launch.sh
 
 

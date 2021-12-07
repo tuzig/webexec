@@ -114,7 +114,7 @@ do_install() {
     get_n_extract
     # TODO: fixed launchd
     if [[ "$(uname)" = Linux ]]; then
-        echo "==> We need root access to add webexec's binary and service"
+        echo "==> We need su power to add webexec's binary and service"
         sudo nohup bash replace_n_launch.sh $USER
     fi
 }

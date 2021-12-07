@@ -13,6 +13,7 @@ and the release workflow reads it to set github's release notes.
 ### Fixed
 
 - the tests
+- linux boot script is now systemd based
 
 ## [0.14.0] 2021-12-06
 
