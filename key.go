@@ -8,14 +8,15 @@ import (
 	"crypto/x509/pkix"
 	"encoding/hex"
 	"fmt"
-	"github.com/pion/webrtc/v3"
 	"io/ioutil"
 	"math/big"
 	"os"
 	"time"
+
+	"github.com/pion/webrtc/v3"
 )
 
-// KeyType is the type used to hold our key and cache the webrtc certificates
+// KeyType is the type used to cache webexec's  certificates
 type KeyType struct {
 	Name  string
 	certs []webrtc.Certificate
@@ -58,23 +59,19 @@ func (k *KeyType) generate() (*webrtc.Certificate, error) {
 	})
 }
 func GetCerts() ([]webrtc.Certificate, error) {
+	fPath := ConfPath("certnkey.pem")
 	if key == nil {
-		key = &KeyType{Name: ConfPath("certnkey.pem")}
+		key = &KeyType{Name: fPath}
 	}
 	var cert *webrtc.Certificate
 	if key.certs == nil {
 		pb, err := ioutil.ReadFile(key.Name)
 		if err != nil {
-			Logger.Infof("No certificate found, generating a fresh one at %q",
-				key.Name)
-			cert, err = key.generate()
-			if err != nil {
-				return nil, err
-			}
-			key.save(cert)
+			return nil, fmt.Errorf("No certificate found at - %s", fPath)
 		} else {
 			cert, err = webrtc.CertificateFromPEM(string(pb))
 			if err != nil {
+				return nil, fmt.Errorf("Failed to decode certificate at - %s", fPath)
 				Logger.Infof("Failed to decode certificate, generating a fresh one: %w", err)
 				cert, err = key.generate()
 				if err != nil {

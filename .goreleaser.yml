@@ -23,12 +23,13 @@ builds:
       - amd64
       - arm64
 
-universal_binaries:
-   - 
-     id: darwin
-     replace: true
-     hooks: 
-       post: gon gon.hcl
+# TODO: replace macos binaries
+# universal_binaries:
+# - 
+# id: darwin
+# replace: true
+# hooks: 
+# post: gon gon.hcl
 
 # darwin archive is a dmg defined in gon.hcl
 archives:
@@ -41,7 +42,7 @@ archives:
       - README.md
       - LICENSE
       - CHANGELOG.md
-      - webexecd.sh
+      - webexec.service.tmpl
       - replace_n_launch.sh
 
 
