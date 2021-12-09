@@ -12,11 +12,11 @@ import (
 )
 
 type TURNResponse struct {
-	TTL     int                `json:"ttl"`
-	Servers []webrtc.ICEServer `json:"ice_servers"`
+	TTL     int                 `json:"ttl"`
+	Servers []map[string]string `json:"ice_servers"`
 }
 
-var PBICEServers []webrtc.ICEServer
+var PBICEServer *webrtc.ICEServer
 
 func verifyPeer(host string) (bool, error) {
 	fp := getFP()
@@ -56,7 +56,7 @@ func getICEServers(host string) ([]webrtc.ICEServer, error) {
 	if host == "" {
 		return Conf.iceServers, nil
 	}
-	if PBICEServers == nil {
+	if PBICEServer == nil {
 		schema := "https"
 		if Conf.insecure {
 			schema = "http"
@@ -79,7 +79,14 @@ func getICEServers(host string) ([]webrtc.ICEServer, error) {
 		if err != nil {
 			return nil, err
 		}
-		PBICEServers = d.Servers
+		s := d.Servers[0]
+
+		PBICEServer = &webrtc.ICEServer{
+			URLs:       []string{s["urls"]},
+			Username:   s["username"],
+			Credential: s["credential"],
+		}
+
 	}
-	return append(Conf.iceServers, PBICEServers[0]), nil
+	return append(Conf.iceServers, *PBICEServer), nil
 }
