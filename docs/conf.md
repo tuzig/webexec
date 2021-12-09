@@ -60,5 +60,5 @@ that keeps a live address book of users' peers. peerbook uses websocket
 to forward offers and answers between clients and webexec.
 
 - `email`: the user's email 
-- `host`: the host address. default is `pb.terminal7.dev`
+- `host`: the host address. default is `api.peerbook.io`
 - `name`: the host's name default is the system's hostname

@@ -43,7 +43,7 @@ TERM = "xterm"
 `
 const abConfTemplate = `%s[peerbook]
 email = "%s"`
-const defaultPeerbookHost = "pb.terminal7.dev"
+const defaultPeerbookHost = "api.peerbook.io"
 
 type ICEServer struct {
 	URLs     []string `toml:"urls"`
