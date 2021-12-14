@@ -12,6 +12,6 @@ sign {
 }
 
 dmg {
-  output_path = "./dist/webexec_0.14.1.dmg"
+  output_path = "./dist/webexec_0.15.0.dmg"
   volume_name = "webexec"
 }

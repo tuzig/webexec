@@ -8,6 +8,12 @@ his file's format is define in
 [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 and the release workflow reads it to set github's release notes.
 
+## [0.15.0] 2021-12-14
+
+### Added
+
+- Using TURN server from PeerBook
+
 ## [0.14.1] 2021-12-07
 
 ### Fixed
