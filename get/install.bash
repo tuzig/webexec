@@ -6,7 +6,7 @@ set -x
 
 #   $ curl -L https://get.webexec.sh | bash
 SCRIPT_COMMIT_SHA=UNKNOWN
-LATEST_VERSION="0.14.1"
+LATEST_VERSION="0.15.0"
 
 # The latest release is currently hard-coded.
 echo "Installing " $LATEST_VERSION "version"
