@@ -6,7 +6,7 @@ set -x
 
 #   $ curl -L https://get.webexec.sh | bash
 SCRIPT_COMMIT_SHA=UNKNOWN
-LATEST_VERSION="0.15.0"
+LATEST_VERSION="0.15.1"
 
 # The latest release is currently hard-coded.
 echo "Installing " $LATEST_VERSION "version"
@@ -20,10 +20,12 @@ if [[ "$ARCH" = x86_64* ]]; then
     fi
 elif [[ "$ARCH" = i*86 ]]; then
     ARCH='386'
-elif [[ "$ARCH" = arm* ]]; then
-    ARCH='arm6'
-elif test "$ARCH" = aARCH64; then
-    ARCH='arm7'
+elif [[ "$ARCH" = armv6* ]]; then
+    ARCH='armv6'
+elif [[ "$ARCH" = armv7* ]]; then
+    ARCH='armv7'
+elif [[ "$ARCH" = aARCH64 ]]; then
+    ARCH='armv7'
 else
     exit 1
 fi
