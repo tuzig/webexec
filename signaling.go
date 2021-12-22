@@ -57,9 +57,8 @@ func getFP() string {
 
 func dialWS() (*websocket.Conn, error) {
 	var cstDialer = websocket.Dialer{
-		ReadBufferSize:   4096,
-		WriteBufferSize:  4096,
-		HandshakeTimeout: 3 * time.Second,
+		ReadBufferSize:  4096,
+		WriteBufferSize: 4096,
 	}
 	fp := getFP()
 
