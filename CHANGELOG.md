@@ -8,6 +8,12 @@ his file's format is define in
 [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 and the release workflow reads it to set github's release notes.
 
+## [0.15.2] 2021-12-22
+
+### Fixed
+
+- Increasing PeerBook connection handshake timeout
+
 ## [0.15.1] 2021-12-14
 
 ### Fixed 
