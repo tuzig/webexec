@@ -16,7 +16,7 @@ Darwin)
 Linux)
     systemctl stop webexec.service
     cp webexec /usr/local/bin
-    USER="$1" envsubst < webexec.service.tmpl > /etc/systemd/system/webexec.service
+    USER="$1" HOME="$2" envsubst < webexec.service.tmpl > /etc/systemd/system/webexec.service
     chown root:root /etc/systemd/system/webexec.service
     systemctl daemon-reload
     systemctl enable webexec.service

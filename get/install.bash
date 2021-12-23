@@ -117,7 +117,7 @@ do_install() {
     # TODO: fixed launchd
     if [[ "$(uname)" = Linux ]]; then
         echo "==> We need su power to add webexec's binary and service"
-        sudo nohup bash replace_n_launch.sh $USER
+        sudo nohup bash replace_n_launch.sh $USER $HOME
     fi
 }
 do_install "$@"
