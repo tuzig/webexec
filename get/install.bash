@@ -12,7 +12,7 @@ LATEST_VERSION="0.15.3"
 echo "Installing webexec version " $LATEST_VERSION
          
 ARCH="$(uname -m | tr [:upper:] [:lower:])" 
-if [ "$ARCH" = x86_64* ]; then
+if [[ "$ARCH" = x86_64* ]]; then
     if [[ "$(uname -a)" = *ARM64* ]]; then
         ARCH='arm64'
     else
