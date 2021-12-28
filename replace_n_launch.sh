@@ -14,12 +14,15 @@ Darwin)
     launchctl load "/Library/LaunchDaemons/sh.webexec.daemon.plist"
     ;;
 Linux)
-    systemctl stop webexec.service
+    if [ -x /etc/init.d/webexec ]; then
+        /etc/init.d/webexec stop
+    fi
     cp webexec /usr/local/bin
-    USER="$1" HOME="$2" envsubst < webexec.service.tmpl > /etc/systemd/system/webexec.service
-    chown root:root /etc/systemd/system/webexec.service
-    systemctl daemon-reload
-    systemctl enable webexec.service
-    systemctl start webexec.service
+    ECHO_CONF="echo USER=$(whoami)"
+    sh -c "$ECHO_CONF >/etc/webexec"
+    cp webexecd.sh /etc/init.d/webexec
+    chown root:root /etc/init.d/webexec
+    update-rc.d webexec defaults
+    /etc/init.d/webexec start 
     ;;
 esac
