@@ -18,8 +18,7 @@ Linux)
         /etc/init.d/webexec stop
     fi
     cp webexec /usr/local/bin
-    ECHO_CONF="echo USER=$(whoami)"
-    sh -c "$ECHO_CONF >/etc/webexec"
+    sh -c "echo USER=$1 >/etc/webexec"
     cp webexecd.sh /etc/init.d/webexec
     chown root:root /etc/init.d/webexec
     update-rc.d webexec defaults
