@@ -2,37 +2,74 @@
 # webexec installation script
 #
 # This script is meant for quick & easy install via:
+#
+#   $ curl -L https://get.webexec.sh -o get-webexec.sh | bash get-webexec.sh
 set -x
-
-#   $ curl -L https://get.webexec.sh | bash
 SCRIPT_COMMIT_SHA=UNKNOWN
 LATEST_VERSION="0.15.3"
 
 # The latest release is currently hard-coded.
-echo "Installing " $LATEST_VERSION "version"
+echo "Installing webexec version " $LATEST_VERSION
          
-ARCH="$(uname -m)"  # -i is only linux, -m is linux and apple
-if [[ "$ARCH" = x86_64* ]]; then
+ARCH="$(uname -m | tr [:upper:] [:lower:])" 
+if [ "$ARCH" = x86_64* ]; then
     if [[ "$(uname -a)" = *ARM64* ]]; then
         ARCH='arm64'
     else
         ARCH="amd64"
     fi
-elif [[ "$ARCH" = i*86 ]]; then
+elif [ "$ARCH" = i386 ]; then
     ARCH='386'
 elif [[ "$ARCH" = armv6* ]]; then
     ARCH='armv6'
 elif [[ "$ARCH" = armv7* ]]; then
     ARCH='armv7'
-elif [[ "$ARCH" = aARCH64 ]]; then
+elif [[ "$ARCH" = aarch64 ]]; then
     ARCH='armv7'
 else
+    echo "Sorry, unsupported architecture $ARCH"
+    echo "Try using: `go install github.com/tuzig/webexec` to install from source"
     exit 1
 fi
 
+DEBUG=${DEBUG:-}
+while [ $# -gt 0 ]; do
+	case "$1" in
+		--debug)
+			DEBUG=1
+			;;
+		--*)
+			echo "Illegal option $1"
+			;;
+	esac
+	shift $(( $# > 0 ? 1 : 0 ))
+done
+
+debug() {
+	if [ -z "$DEBUG" ]; then
+		return 1
+	else
+		return 0
+	fi
+}
+
+command_exists() {
+	command -v "$@" > /dev/null 2>&1
+}
+
+get_distribution() {
+	lsb_dist=""
+	# Every system that we officially support has /etc/os-release
+	if [ -r /etc/os-release ]; then
+		lsb_dist="$(. /etc/os-release && echo "$ID")"
+	fi
+	# Returning an empty string here should be alright since the
+	# case statements don't act unless you provide an actual value
+	echo "$lsb_dist"
+}
 
 init_vars() {
-	BIN="${WEBEXEC_BIN:/usr/local/bin}"
+	BIN="${WEBEXEC_BIN:/usr/debug/bin}"
 
 	DAEMON=webexec
 	SYSTEMD=
@@ -78,7 +115,7 @@ checks() {
 get_n_extract() {
 	case "$(uname)" in
 	Darwin)
-        if command -v go &> /dev/null; then
+        if command_exists go; then
             go install github.com/tuzig/webexec@v$LATEST_VERSION
             webexec init
             webexec start
@@ -100,24 +137,53 @@ get_n_extract() {
         
 		;;
 	Linux)
-        STATIC_RELEASE_URL="https://github.com/tuzig/webexec/releases/download/v$LATEST_VERSION/webexec_${LATEST_VERSION}_$(uname -s | tr '[:upper:]' '[:lower:]')_$ARCH.tar.gz"
-       curl -sL "$STATIC_RELEASE_URL" | tar zx --strip-components=1
-       ./webexec init
+        BALL_NAME="webexec_${LATEST_VERSION}_$(uname -s | tr [:upper:] [:lower:])_$ARCH.tar.gz"
+        STATIC_RELEASE_URL="https://github.com/tuzig/webexec/releases/download/v$LATEST_VERSION/$BALL_NAME"
+        curl -sL "$STATIC_RELEASE_URL" -o $1/$BALL_NAME
+        tar zx --strip-components=1 -C $1 < $1/$BALL_NAME 
 	esac
 }
+
 do_install() {
 	init_vars
 	checks
 
-	tmp=$(mktemp -d)
+	sh_c='sh -c'
+	if [ "$user" != 'root' ]; then
+		if command_exists sudo; then
+			sh_c='sudo -E sh -c'
+		elif command_exists su; then
+			sh_c='su -c'
+		else
+			cat >&2 <<-'EOF'
+			Error: this installer needs the ability to run commands as root.
+			We are unable to find either "sudo" or "su" available to make this happen.
+			EOF
+			exit 1
+		fi
+	fi
+	lsb_dist=$( get_distribution )
+	lsb_dist="$(echo "$lsb_dist" | tr '[:upper:]' '[:lower:]')"
+	# Run setup for each distro accordingly
+	case "$lsb_dist" in
+		ubuntu|debian|raspbian)
+			pre_reqs="curl"
+            $sh_c 'apt-get update -qq >/dev/null'
+            $sh_c "DEBIAN_FRONTEND=noninteractive apt-get install -y -qq $pre_reqs >/dev/null"
+			;;
+    esac
 
-    echo "Created temp dir: $tmp"
-    cd $tmp
-    get_n_extract
+    tmp=$(mktemp -d)
+    echo "Created temp dir at $tmp"
+    get_n_extract $tmp
+    $tmp/webexec init
     # TODO: fixed launchd
-    if [[ "$(uname)" = Linux ]]; then
-        echo "==> We need su power to add webexec's binary and service"
-        sudo nohup bash replace_n_launch.sh $USER $HOME
+    if [ "$(uname)" = Linux ]; then
+        if debug; then
+            $sh_c "nohup bash replace_n_launch.sh $USER $HOME"
+        else
+            $sh_c "nohup bash $tmp/replace_n_launch.sh $USER $HOME"
+        fi
     fi
 }
 do_install "$@"
