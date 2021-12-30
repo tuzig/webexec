@@ -156,15 +156,13 @@ do_install() {
     tmp=$(mktemp -d)
     echo "Created temp dir at $tmp"
     get_n_extract $tmp
-	if debug; then
-		wd=.
-	else
-		wd=$tmp
+	if ! debug; then
+        cd $tmp
 	fi
-    $wd/webexec init
+    ./webexec init
     # TODO: fixed launchd
     if [ "$(uname)" = Linux ]; then
-		$sh_c "nohup bash cd $wd && replace_n_launch.sh $USER $HOME"
+		$sh_c "nohup bash ./replace_n_launch.sh $USER $HOME"
     fi
 }
 do_install "$@"
