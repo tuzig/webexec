@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 # this should be run as root
 set -x
 
@@ -16,6 +16,10 @@ Darwin)
 Linux)
     if [ -x /etc/init.d/webexec ]; then
         /etc/init.d/webexec stop
+    fi
+    if [ -f /etc/systemd/system/webexec.service ]; then
+        systemctl stop webexec.service
+        rm /etc/systemd/system/webexec.service
     fi
     cp webexec /usr/local/bin
     sh -c "echo USER=$1 >/etc/webexec"
