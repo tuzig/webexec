@@ -167,23 +167,25 @@ do_install() {
 	# Run setup for each distro accordingly
 	case "$lsb_dist" in
 		ubuntu|debian|raspbian)
-			pre_reqs="curl"
-            $sh_c 'apt-get update -qq >/dev/null'
-            $sh_c "DEBIAN_FRONTEND=noninteractive apt-get install -y -qq $pre_reqs >/dev/null"
+			if ! command_exists curl; then
+				$sh_c 'apt-get update -qq >/dev/null'
+				$sh_c "DEBIAN_FRONTEND=noninteractive apt-get install -y -qq $pre_reqs >/dev/null"
+			fi
 			;;
     esac
 
     tmp=$(mktemp -d)
     echo "Created temp dir at $tmp"
     get_n_extract $tmp
-    $tmp/webexec init
+	if debug; then
+		wd=.
+	else
+		wd=$tmp
+	fi
+    $wd/webexec init
     # TODO: fixed launchd
     if [ "$(uname)" = Linux ]; then
-        if debug; then
-            $sh_c "nohup bash replace_n_launch.sh $USER $HOME"
-        else
-            $sh_c "nohup bash $tmp/replace_n_launch.sh $USER $HOME"
-        fi
+		$sh_c "nohup bash $wd/replace_n_launch.sh $USER $HOME"
     fi
 }
 do_install "$@"
