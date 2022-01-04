@@ -351,7 +351,10 @@ func initCMD(c *cli.Context) error {
 	homePath := ConfPath("")
 	_, err := os.Stat(homePath)
 	if os.IsNotExist(err) {
-		os.Mkdir(homePath, 0755)
+		err = os.MkdirAll(homePath, 0755)
+		if err != nil {
+			return err
+		}
 		fmt.Printf("Created %q directory\n", homePath)
 	} else {
 		return fmt.Errorf(

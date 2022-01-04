@@ -3,7 +3,8 @@
 #
 # This script is meant for quick & easy install via:
 #
-#   $ curl -L https://get.webexec.sh -o get-webexec.sh | bash get-webexec.sh
+#   $ curl -L https://get.webexec.sh -o get-webexec.sh && bash get-webexec.sh
+#
 set -x
 SCRIPT_COMMIT_SHA=UNKNOWN
 LATEST_VERSION="0.15.3"
@@ -12,7 +13,8 @@ LATEST_VERSION="0.15.3"
 echo "Installing webexec version " $LATEST_VERSION
          
 ARCH="$(uname -m | tr [:upper:] [:lower:])" 
-if [ "$ARCH" = x86_64* ]; then
+if [[ "$ARCH" = x86_64* ]]; then
+    # and now for some M1 fun
     if [[ "$(uname -a)" = *ARM64* ]]; then
         ARCH='arm64'
     else
@@ -68,16 +70,6 @@ get_distribution() {
 	echo "$lsb_dist"
 }
 
-init_vars() {
-	BIN="${WEBEXEC_BIN:/usr/debug/bin}"
-
-	DAEMON=webexec
-	SYSTEMD=
-	if systemctl --user daemon-reload >/dev/null 2>&1; then
-		SYSTEMD=1
-	fi
-}
-
 checks() {
 	# OS verification: Linux only, point osx/win to helpful locations
 	case "$(uname)" in
@@ -98,17 +90,6 @@ checks() {
     if [ ! -w "$HOME" ]; then
         >&2 echo "Aborting because HOME (\"$HOME\") is not writable"; exit 1
     fi
-
-	# Validate XDG_RUNTIME_DIR
-	if [ ! -w "$XDG_RUNTIME_DIR" ]; then
-		if [ -n "$SYSTEMD" ]; then
-			>&2 echo "Aborting because systemd was detected but XDG_RUNTIME_DIR (\"$XDG_RUNTIME_DIR\") does not exist or is not writable"
-			>&2 echo "Hint: this could happen if you changed users with 'su' or 'sudo'. To work around this:"
-			>&2 echo "- try again by first running with root privileges 'loginctl enable-linger <user>' where <user> is the unprivileged user and export XDG_RUNTIME_DIR to the value of RuntimePath as shown by 'loginctl show-user <user>'"
-			>&2 echo "- or simply log back in as the desired unprivileged user (ssh works for remote machines)"
-			exit 1
-		fi
-	fi
 
 }
 
@@ -145,7 +126,6 @@ get_n_extract() {
 }
 
 do_install() {
-	init_vars
 	checks
 
 	sh_c='sh -c'
@@ -167,23 +147,22 @@ do_install() {
 	# Run setup for each distro accordingly
 	case "$lsb_dist" in
 		ubuntu|debian|raspbian)
-			pre_reqs="curl"
-            $sh_c 'apt-get update -qq >/dev/null'
-            $sh_c "DEBIAN_FRONTEND=noninteractive apt-get install -y -qq $pre_reqs >/dev/null"
+			if ! command_exists curl; then
+				$sh_c 'apt-get update -qq >/dev/null'
+				$sh_c "DEBIAN_FRONTEND=noninteractive apt-get install -y -qq $pre_reqs >/dev/null"
+			fi
 			;;
     esac
 
     tmp=$(mktemp -d)
     echo "Created temp dir at $tmp"
     get_n_extract $tmp
-    $tmp/webexec init
-    # TODO: fixed launchd
+	if ! debug; then
+        cd $tmp
+	fi
+    ./webexec init
     if [ "$(uname)" = Linux ]; then
-        if debug; then
-            $sh_c "nohup bash replace_n_launch.sh $USER $HOME"
-        else
-            $sh_c "nohup bash $tmp/replace_n_launch.sh $USER $HOME"
-        fi
+		$sh_c "nohup bash ./replace_n_launch.sh $USER $HOME"
     fi
 }
 do_install "$@"
