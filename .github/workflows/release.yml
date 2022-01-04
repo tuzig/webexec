@@ -36,12 +36,18 @@ jobs:
           export CF=$(mktemp)
           echo ::set-output name=changesfile::$CF
           echo "${{ steps.changelog_reader.outputs.changes }}" > $CF
-          echo "\nFor complete history read the (changelog)[./CHANGELOG.md]" >> $CF
+        shell: bash
+      - name: Create Footer File
+        id: create_footer
+        run: |
+          export CF=$(mktemp)
+          echo ::set-output name=footerfile::$CF
+          echo "For complete history read the (changelog)[./CHANGELOG.md]" > $CF
         shell: bash
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v2
         with:
           args:
-            release --rm-dist --release-notes ${{ steps.save_changes.outputs.changesfile }}
+            release --rm-dist --release-notes ${{ steps.save_changes.outputs.changesfile }} --release-footer ${{ steps.create_footer.outputs.footerfile }} 
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

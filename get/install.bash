@@ -7,7 +7,7 @@
 #
 set -x
 SCRIPT_COMMIT_SHA=UNKNOWN
-LATEST_VERSION="0.15.3"
+LATEST_VERSION="0.15.4"
 
 # The latest release is currently hard-coded.
 echo "Installing webexec version " $LATEST_VERSION
