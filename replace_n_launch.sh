@@ -1,6 +1,10 @@
-#!/bin/bash
+#!/bin/sh
 # this should be run as root
 set -x
+
+command_exists() {
+	command -v "$@" > /dev/null 2>&1
+}
 
 case "$(uname)" in
 Darwin)
@@ -14,12 +18,29 @@ Darwin)
     launchctl load "/Library/LaunchDaemons/sh.webexec.daemon.plist"
     ;;
 Linux)
-    systemctl stop webexec.service
+    if [ -x /etc/init.d/webexec ]; then
+        /etc/init.d/webexec stop
+        rm /etc/init.d/webexec
+    fi
+    if [ -f /etc/systemd/system/webexec.service ]; then
+        systemctl stop webexec.service
+        rm /etc/systemd/system/webexec.service
+    fi
     cp webexec /usr/local/bin
-    USER="$1" HOME="$2" envsubst < webexec.service.tmpl > /etc/systemd/system/webexec.service
-    chown root:root /etc/systemd/system/webexec.service
-    systemctl daemon-reload
-    systemctl enable webexec.service
-    systemctl start webexec.service
+    if command_exists systemctl; then
+        cp webexec.service.tmpl webexec.service
+        sed -i "s/\$USER/$1/g; s?\$HOME?$2?g" webexec.service
+        chown root:root webexec.service
+        mv webexec.service /etc/systemd/system/webexec.service
+        systemctl daemon-reload
+        systemctl enable webexec.service
+        systemctl start webexec.service
+    else
+        sh -c "echo USER=$1 >/etc/webexec"
+        cp webexecd.sh /etc/init.d/webexec
+        chown root:root /etc/init.d/webexec
+        update-rc.d webexec defaults
+        /etc/init.d/webexec start 
+    fi
     ;;
 esac
