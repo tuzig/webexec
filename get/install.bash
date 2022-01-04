@@ -161,7 +161,6 @@ do_install() {
         cd $tmp
 	fi
     ./webexec init
-    # TODO: fixed launchd
     if [ "$(uname)" = Linux ]; then
 		$sh_c "nohup bash ./replace_n_launch.sh $USER $HOME"
     fi
