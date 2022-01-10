@@ -27,15 +27,21 @@ Linux)
         rm /etc/systemd/system/webexec.service
     fi
     cp webexec /usr/local/bin
+    systemctl=0
     if command_exists systemctl; then
-        cp webexec.service.tmpl webexec.service
-        sed -i "s/\$USER/$1/g; s?\$HOME?$2?g" webexec.service
-        chown root:root webexec.service
-        mv webexec.service /etc/systemd/system/webexec.service
-        systemctl daemon-reload
-        systemctl enable webexec.service
-        systemctl start webexec.service
-    else
+        systemctl >/dev/null
+        if [ $? -eq 0 ]; then
+            cp webexec.service.tmpl webexec.service
+            sed -i "s/\$USER/$1/g; s?\$HOME?$2?g" webexec.service
+            chown root:root webexec.service
+            mv webexec.service /etc/systemd/system/webexec.service
+            systemctl daemon-reload
+            systemctl enable webexec.service
+            systemctl start webexec.service
+            systemctl=1
+        fi
+    fi
+    if [ $systemctl -eq 0 ]; then
         sh -c "echo USER=$1 >/etc/webexec"
         cp webexecd.sh /etc/init.d/webexec
         chown root:root /etc/init.d/webexec
