@@ -8,6 +8,12 @@ his file's format is define in
 [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 and the release workflow reads it to set github's release notes.
 
+## [0.15.5] 2022-01-10
+
+### Fixed
+
+- Installer on WSL2
+
 ## [0.15.4] 2022-01-04
 
 ### Added
