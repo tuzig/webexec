@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 	"unicode"
+	"os"
 
 	"github.com/creack/pty"
 	"github.com/pion/webrtc/v3"
@@ -392,7 +393,13 @@ func (peer *Peer) OnCTRLMsg(msg webrtc.DataChannelMessage) {
 				a.Command[0] = shell
 			}
 		}
-		pane, err := NewPane(a.Command, peer, ws, a.Parent)
+		dirname, err := os.UserHomeDir()
+		if err != nil {
+			Logger.Warnf("Failed to determine user's home directory: %v", err)
+			dirname = "/"
+		}
+		cmd := append([]string{"env", fmt.Sprintf("HOME=%s", dirname)}, a.Command...)
+		pane, err := NewPane(cmd, peer, ws, a.Parent)
 		if err != nil {
 			Logger.Warnf("Failed to add a new pane: %v", err)
 			return
