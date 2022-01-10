@@ -14,7 +14,7 @@ import (
 
 	"github.com/creack/pty"
 	"github.com/pion/webrtc/v3"
-    "github.com/riywo/loginshell"
+	"github.com/riywo/loginshell"
 )
 
 const keepAliveInterval = 2 * time.Second
