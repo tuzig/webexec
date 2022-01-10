@@ -13,6 +13,7 @@ import (
 
 	"github.com/creack/pty"
 	"github.com/pion/webrtc/v3"
+    "github.com/riywo/loginshell"
 )
 
 const keepAliveInterval = 2 * time.Second
@@ -381,6 +382,16 @@ func (peer *Peer) OnCTRLMsg(msg webrtc.DataChannelMessage) {
 			Logger.Warn("Got an add_pane commenad with no rows or cols")
 		}
 
+		if a.Command[0] == "*" {
+			shell, err := loginshell.Shell()
+			if err != nil {
+				Logger.Warnf("Failed to determine user's shell: %v", err)
+				a.Command[0] = "bash"
+			} else {
+				Logger.Infof("Using %s for shell", shell)
+				a.Command[0] = shell
+			}
+		}
 		pane, err := NewPane(a.Command, peer, ws, a.Parent)
 		if err != nil {
 			Logger.Warnf("Failed to add a new pane: %v", err)
