@@ -8,6 +8,12 @@ his file's format is define in
 [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 and the release workflow reads it to set github's release notes.
 
+## [0.16.0] 2022-01-12
+
+### Added
+
+- Client can send "*" in the shell to use user's default shell
+
 ## [0.15.5] 2022-01-10
 
 ### Fixed

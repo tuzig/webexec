@@ -15,7 +15,7 @@ require (
 	github.com/pelletier/go-toml v1.9.3
 	github.com/pion/logging v0.2.2
 	github.com/pion/webrtc/v3 v3.1.5
-	github.com/riywo/loginshell v0.0.0-20200815045211-7d26008be1ab // indirect
+	github.com/riywo/loginshell v0.0.0-20200815045211-7d26008be1ab
 	github.com/rs/cors v1.7.0
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
 	github.com/shirou/gopsutil/v3 v3.21.10
