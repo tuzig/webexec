@@ -274,6 +274,12 @@ func start(c *cli.Context) error {
 		}
 		go signalingGo()
 	}
+	err = StartSock()
+	if err != nil {
+		Logger.Infof("failed to start llistening on unix socket: %s", err)
+		return err
+	}
+
 	// to speed up first connection
 	getICEServers(Conf.peerbookHost)
 	// signal handling
