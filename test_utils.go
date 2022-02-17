@@ -16,6 +16,7 @@ import (
 
 	"github.com/pion/webrtc/v3"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest"
 	"golang.org/x/sys/unix"
 )
@@ -153,7 +154,7 @@ func initTest(t *testing.T) {
 	if ptyMux == nil {
 		ptyMux = ptyMuxType{}
 	}
-	Logger = zaptest.NewLogger(t).Sugar()
+	Logger = zaptest.NewLogger(t, zaptest.WrapOptions(zap.AddCaller())).Sugar()
 	f, err := ioutil.TempFile("", "authorized_tokens")
 	f.Close()
 	TokensFilePath = f.Name()
