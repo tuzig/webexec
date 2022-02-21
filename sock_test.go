@@ -21,9 +21,9 @@ func TestOfferGetCandidate(t *testing.T) {
 	var id string
 	initTest(t)
 	StartSock()
-	user, err := user.Current()
+	fp, err := GetSockFP()
 	require.Nil(t, err, "Failed to get current user: %s", err)
-	fp := fmt.Sprintf("/var/run/webexec.%s.sock", user.Username)
+
 	httpc := http.Client{
 		Transport: &http.Transport{
 			DialContext: func(_ context.Context, _, _ string) (net.Conn, error) {
@@ -37,7 +37,6 @@ func TestOfferGetCandidate(t *testing.T) {
 	var candidatesMux sync.Mutex
 	pendingCandidates := make([]*webrtc.ICECandidate, 0)
 	client.OnICECandidate(func(c *webrtc.ICECandidate) {
-		Logger.Info("Got can")
 		if c == nil {
 			return
 		}

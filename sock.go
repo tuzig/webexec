@@ -33,14 +33,19 @@ func (la *LiveOffer) OnCandidate(can *webrtc.ICECandidate) {
 		la.cs <- can
 	}
 }
-func StartSock() error {
-	currentOffers = make(map[string]*LiveOffer)
+func GetSockFP() (string, error) {
 	user, err := user.Current()
 	if err != nil {
-		return fmt.Errorf("Failed to get current user: %s", err)
+		return "", fmt.Errorf("Failed to get current user: %s", err)
 	}
-	fp := fmt.Sprintf("/var/run/webexec.%s.sock", user.Username)
-
+	return fmt.Sprintf("/var/run/webexec.%s.sock", user.Username), nil
+}
+func StartSock() error {
+	currentOffers = make(map[string]*LiveOffer)
+	fp, err := GetSockFP()
+	if err != nil {
+		return err
+	}
 	os.Remove(fp)
 	m := http.ServeMux{}
 	m.Handle("/layout", http.HandlerFunc(handleLayout))

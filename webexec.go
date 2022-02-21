@@ -2,10 +2,16 @@
 package main
 
 import (
+	"bufio"
+	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"io/ioutil"
+	"net"
+	"net/http"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -329,26 +335,125 @@ func restart(c *cli.Context) error {
 	return start(c)
 }
 
-// status function prints the status of the agent
-func status(c *cli.Context) error {
-	err := LoadConf()
+// accept function accepts offers to connect
+func accept(c *cli.Context) error {
+	var id string
+	fp, err := GetSockFP()
 	if err != nil {
 		return err
+	}
+	pid, err := getAgentPid()
+	if err != nil {
+		return err
+	}
+	if pid == 0 {
+		// start the agent
+		var address string
+		if c.IsSet("address") {
+			address = c.String("address")
+		} else {
+			err := LoadConf()
+			if err != nil {
+				return err
+			}
+			address = Conf.httpServer
+		}
+		forkAgent(address)
+	}
+	httpc := http.Client{
+		Transport: &http.Transport{
+			DialContext: func(_ context.Context, _, _ string) (net.Conn, error) {
+				return net.Dial("unix", fp)
+			},
+		},
+	}
+	scanner := bufio.NewScanner(os.Stdin)
+	for scanner.Scan() {
+		line := scanner.Bytes()
+		if id == "" {
+			resp, err := httpc.Post("http://unix/offer/", "application/json", bytes.NewBuffer(line))
+			if err != nil {
+				return fmt.Errorf("Failed to POST agent's unix socket: %s", err)
+			}
+			if resp.StatusCode != http.StatusOK {
+				msg, _ := ioutil.ReadAll(resp.Body)
+				defer resp.Body.Close()
+				return fmt.Errorf("Agent returned an error: %s", msg)
+			}
+			var body map[string]string
+			json.NewDecoder(resp.Body).Decode(&body)
+			defer resp.Body.Close()
+			id = body["id"]
+			getCandidate(httpc, id)
+		} else {
+			req, err := http.NewRequest("PUT", "http://unix/offer/"+id, bytes.NewReader(line))
+			if err != nil {
+				return fmt.Errorf("Failed to create new PUT request: %q", err)
+			}
+			req.Header.Set("Content-Type", "application/json")
+			resp, err := httpc.Do(req)
+			if err != nil {
+				return fmt.Errorf("Failed to PUT candidate: %q", err)
+			}
+			if resp.StatusCode != http.StatusOK {
+				msg, _ := ioutil.ReadAll(resp.Body)
+				defer resp.Body.Close()
+				return fmt.Errorf("Got a server error when PUTing: %s", msg)
+			}
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		return fmt.Errorf("Failed reading input: %q", err)
+	}
+	return nil
+}
+func getCandidate(httpc http.Client, id string) {
+	r, err := httpc.Get("http://unix/offer/" + id)
+	if err != nil {
+		Logger.Errorf("Failed to get candidate from the unix socket: %s", err)
+		return
+	}
+	body, _ := ioutil.ReadAll(r.Body)
+	defer r.Body.Close()
+	if r.StatusCode != http.StatusOK {
+		Logger.Errorf("Failed to get candidate from the unix socket: %s", body)
+		return
+	}
+	if len(body) > 0 {
+		fmt.Println(string(body))
+		getCandidate(httpc, id)
+	}
+}
+
+// status function prints the status of the agent
+func getAgentPid() (int, error) {
+	err := LoadConf()
+	if err != nil {
+		return 0, err
 	}
 	pidf, err := pidfile.Open(PIDFilePath)
 	if os.IsNotExist(err) {
-		fmt.Println("agent is not running")
-		return nil
+		return 0, nil
 	}
+	if err != nil {
+		return 0, err
+	}
+	if !pidf.Running() {
+		os.Remove(PIDFilePath)
+		return 0, nil
+	}
+	return pidf.Read()
+}
+func status(c *cli.Context) error {
+	pid, err := getAgentPid()
 	if err != nil {
 		return err
 	}
-	if !pidf.Running() {
+	if pid == 0 {
 		fmt.Println("agent is not running and pid is stale")
-		return nil
+	} else {
+		fmt.Printf("agent is running with process id %d\n", pid)
 	}
-	pid, err := pidf.Read()
-	fmt.Printf("agent is running with process id %d\n", pid)
 	return nil
 }
 func initCMD(c *cli.Context) error {
@@ -462,6 +567,10 @@ func main() {
 				Name:   "init",
 				Usage:  "initialize the conf file",
 				Action: initCMD,
+			}, {
+				Name:   "accept",
+				Usage:  "accepts an offer to connect",
+				Action: accept,
 			},
 		},
 	}
