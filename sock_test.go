@@ -43,19 +43,6 @@ func TestOfferGetCandidate(t *testing.T) {
 		}
 		candidatesMux.Lock()
 		pendingCandidates = append(pendingCandidates, c)
-		/*
-			payload := []byte(c.ToJSON().Candidate)
-			require.Nil(t, err, "Failed to marshal candidate: %q", err)
-			req, err := http.NewRequest("PUT", "http://unix/offer/"+id, bytes.NewReader(payload))
-			require.Nil(t, err, "Failed to create new PUT request: %q", err)
-			req.Header.Set("Content-Type", "application/json")
-			r, err := httpc.Do(req)
-			require.Nil(t, err, "Failed to put candidate: %q", err)
-			msg, _ := ioutil.ReadAll(r.Body)
-			require.Equal(t, http.StatusOK, r.StatusCode, string(msg))
-			err = r.Body.Close()
-			require.Nil(t, err, "Failed to close put body: %q", err)
-		*/
 	})
 	_, err = client.CreateDataChannel("%", nil)
 	require.Nil(t, err, "Failed to create the control data channel: %q", err)
