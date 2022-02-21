@@ -81,6 +81,7 @@ func hadnleOffer(w http.ResponseWriter, r *http.Request) {
 				http.StatusBadRequest)
 			return
 		}
+	replying:
 		for i := 0; i < 20; i++ {
 			select {
 			case c := <-a.cs:
@@ -94,7 +95,7 @@ func hadnleOffer(w http.ResponseWriter, r *http.Request) {
 				return
 			case <-time.After(time.Second):
 				if a.p.PC == nil || a.p.PC.ConnectionState() == webrtc.PeerConnectionStateConnected {
-					break
+					break replying
 				}
 			}
 		}
