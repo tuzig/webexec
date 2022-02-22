@@ -40,11 +40,11 @@ func GetSockFP() (string, error) {
 	}
 	return fmt.Sprintf("/var/run/webexec.%s.sock", user.Username), nil
 }
-func StartSock() error {
+func StartSock() (*http.Server, error) {
 	currentOffers = make(map[string]*LiveOffer)
 	fp, err := GetSockFP()
 	if err != nil {
-		return err
+		return nil, err
 	}
 	os.Remove(fp)
 	m := http.ServeMux{}
@@ -53,11 +53,15 @@ func StartSock() error {
 	server := http.Server{Handler: &m}
 	l, err := net.Listen("unix", fp)
 	if err != nil {
-		return fmt.Errorf("Failed to listen to unix socket: %s", err)
+		return nil, fmt.Errorf("Failed to listen to unix socket: %s", err)
 	}
-	go server.Serve(l)
-	Logger.Infof("Listening for request on %q", fp)
-	return nil
+	go func() {
+		server.Serve(l)
+		// this happens after main calles server.Shutdown()
+		os.Remove(fp)
+	}()
+	Logger.Infof("Listening for requests on %q", fp)
+	return &server, nil
 }
 
 func handleLayout(w http.ResponseWriter, r *http.Request) {

@@ -20,6 +20,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/gorilla/websocket"
 	"github.com/kardianos/osext"
 	"github.com/pion/logging"
 	"github.com/tuzig/webexec/pidfile"
@@ -241,6 +242,7 @@ func forkAgent(address string) error {
 
 // start - start the user's agent
 func start(c *cli.Context) error {
+	var peerbookCon *websocket.Conn
 	err := LoadConf()
 	if err != nil {
 		return err
@@ -270,7 +272,7 @@ func start(c *cli.Context) error {
 	// the code below runs for both --debug and --agent
 	Logger.Infof("Serving http on %q", address)
 	sigChan := make(chan os.Signal, 1)
-	go HTTPGo(address)
+	httpServer := HTTPGo(address)
 	if Conf.peerbookHost != "" {
 		verified, err := verifyPeer(Conf.peerbookHost)
 		if err != nil {
@@ -283,9 +285,12 @@ func start(c *cli.Context) error {
 			fmt.Printf("                 If you don't get it please visit %s",
 				Conf.peerbookHost)
 		}
-		go signalingGo()
+		peerbookCon, err = peerbookGo()
+		if err != nil {
+			Logger.Infof("Failed to connect to peerbook: %s", err)
+		}
 	}
-	err = StartSock()
+	sockServer, err := StartSock()
 	if err != nil {
 		Logger.Infof("failed to start llistening on unix socket: %s", err)
 		return err
@@ -299,13 +304,14 @@ func start(c *cli.Context) error {
 	} else {
 		signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP)
 	}
+forever:
 	for {
 		select {
 		case s := <-sigChan:
 			switch s {
 			case syscall.SIGINT, syscall.SIGTERM:
 				Logger.Info("Exiting on SIGINT/SIGTERM")
-				os.Exit(1)
+				break forever
 			case syscall.SIGHUP:
 				Logger.Info("reloading conf on SIGHUP")
 				err := LoadConf()
@@ -315,9 +321,14 @@ func start(c *cli.Context) error {
 			}
 		}
 	}
-	Logger.Info("Exiting with %s", err)
+	ctx, _ := context.WithTimeout(context.Background(), 3*time.Second)
+	httpServer.Shutdown(ctx)
+	sockServer.Shutdown(ctx)
+	if peerbookCon != nil {
+		peerbookCon.Close()
+	}
 	os.Remove(PIDFilePath())
-	return err
+	return nil
 }
 
 /* TBD:
@@ -391,6 +402,7 @@ func accept(c *cli.Context) error {
 			defer resp.Body.Close()
 			id = body["id"]
 			getCandidate(httpc, id)
+			break
 		} else {
 			req, err := http.NewRequest("PUT", "http://unix/offer/"+id, bytes.NewReader(line))
 			if err != nil {
@@ -421,8 +433,10 @@ func getCandidate(httpc http.Client, id string) {
 	}
 	body, _ := ioutil.ReadAll(r.Body)
 	defer r.Body.Close()
-	if r.StatusCode != http.StatusOK {
-		Logger.Errorf("Failed to get candidate from the unix socket: %s", body)
+	if r.StatusCode == http.StatusNoContent {
+		return
+	} else if r.StatusCode != http.StatusOK {
+		fmt.Fprintln(os.Stderr, string(body))
 		return
 	}
 	if len(body) > 0 {

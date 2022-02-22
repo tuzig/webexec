@@ -9,7 +9,6 @@ import (
 	"net/url"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/gorilla/websocket"
 	"github.com/pion/webrtc/v3"
@@ -96,30 +95,31 @@ func getICEServers(host string) ([]webrtc.ICEServer, error) {
 	return append(Conf.iceServers, *PBICEServer), nil
 }
 
-func signalingGo() {
+func peerbookGo() (*websocket.Conn, error) {
 	c, err := dialWS()
 	if err != nil {
-		Logger.Errorf("Failed to dial the signaling server: %q", err)
-		goto retry
+		return nil, fmt.Errorf("Failed to dial the signaling server: %q", err)
 	}
 	Logger.Infof("Connected to peerbook")
-	defer c.Close()
-	for {
-		mType, m, err := c.ReadMessage()
-		if err != nil {
-			Logger.Errorf("Signaling read error", err)
-			break
-		}
-		if mType == websocket.TextMessage {
-			Logger.Info("Received text message", string(m))
-			err = handleMessage(c, m)
+	go func() {
+		for {
+			mType, m, err := c.ReadMessage()
 			if err != nil {
-				Logger.Errorf("Failed to handle message: %w", err)
+				if !strings.Contains(err.Error(), "use of closed network connection") {
+					Logger.Errorf("Signaling read error", err)
+				}
+				break
+			}
+			if mType == websocket.TextMessage {
+				Logger.Info("Received text message", string(m))
+				err = handleMessage(c, m)
+				if err != nil {
+					Logger.Errorf("Failed to handle message: %w", err)
+				}
 			}
 		}
-	}
-retry:
-	time.AfterFunc(Conf.peerbookTimeout, signalingGo)
+	}()
+	return c, nil
 }
 func getFP() string {
 	certs, err := GetCerts()
