@@ -15,6 +15,7 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
+	"os/user"
 	"strings"
 	"syscall"
 	"time"
@@ -29,8 +30,6 @@ import (
 )
 
 var (
-	// PIDFilePath is the path of the conf file
-	PIDFilePath = ConfPath("agent.pid")
 	// Logger is our global logger
 	Logger  *zap.SugaredLogger
 	commit  = "0000000"
@@ -44,6 +43,12 @@ var (
 	pionLoggerFactory  *logging.DefaultLoggerFactory
 	key                *KeyType
 )
+
+// PIDFIlePath return the path of the PID file
+func PIDFilePath() string {
+	user, _ := user.Current()
+	return fmt.Sprintf("/var/run/webexec.%s.pid", user.Username)
+}
 
 func newPionLoggerFactory() *logging.DefaultLoggerFactory {
 	factory := logging.DefaultLoggerFactory{}
@@ -174,7 +179,7 @@ func stop(c *cli.Context) error {
 	if err != nil {
 		return err
 	}
-	pidf, err := pidfile.Open(PIDFilePath)
+	pidf, err := pidfile.Open(PIDFilePath())
 	if os.IsNotExist(err) {
 		return ErrAgentNotRunning
 	}
@@ -200,7 +205,7 @@ func stop(c *cli.Context) error {
 // createPIDFile creates the pid file or returns an error if it exists
 func createPIDFile() error {
 	pionLoggerFactory = newPionLoggerFactory()
-	_, err := pidfile.New(PIDFilePath)
+	_, err := pidfile.New(PIDFilePath())
 	if err == pidfile.ErrProcessRunning {
 		return fmt.Errorf("agent is already running, doing nothing")
 	}
@@ -211,7 +216,7 @@ func createPIDFile() error {
 }
 
 func forkAgent(address string) error {
-	pidf, err := pidfile.Open(PIDFilePath)
+	pidf, err := pidfile.Open(PIDFilePath())
 	if pidf != nil && !os.IsNotExist(err) && pidf.Running() {
 		fmt.Println("agent is already running, doing nothing")
 		return nil
@@ -311,6 +316,7 @@ func start(c *cli.Context) error {
 		}
 	}
 	Logger.Info("Exiting with %s", err)
+	os.Remove(PIDFilePath())
 	return err
 }
 
@@ -427,11 +433,8 @@ func getCandidate(httpc http.Client, id string) {
 
 // status function prints the status of the agent
 func getAgentPid() (int, error) {
-	err := LoadConf()
-	if err != nil {
-		return 0, err
-	}
-	pidf, err := pidfile.Open(PIDFilePath)
+	fp := PIDFilePath()
+	pidf, err := pidfile.Open(fp)
 	if os.IsNotExist(err) {
 		return 0, nil
 	}
@@ -439,7 +442,7 @@ func getAgentPid() (int, error) {
 		return 0, err
 	}
 	if !pidf.Running() {
-		os.Remove(PIDFilePath)
+		os.Remove(fp)
 		return 0, nil
 	}
 	return pidf.Read()
@@ -450,7 +453,7 @@ func status(c *cli.Context) error {
 		return err
 	}
 	if pid == 0 {
-		fmt.Println("agent is not running and pid is stale")
+		fmt.Println("agent is not running")
 	} else {
 		fmt.Printf("agent is running with process id %d\n", pid)
 	}
