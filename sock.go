@@ -90,16 +90,20 @@ func hadnleOffer(w http.ResponseWriter, r *http.Request) {
 		for i := 0; i < 20; i++ {
 			select {
 			case c := <-a.cs:
-				m, err := json.Marshal(c)
-				Logger.Infof("replying to GET with: %v", string(m))
+				m, err := json.Marshal(c.ToJSON())
 				if err != nil {
 					http.Error(w, "Failed to marshal candidate", http.StatusInternalServerError)
 				} else {
+					Logger.Infof("replying to GET with: %v", string(m))
 					w.Write(m)
 				}
 				return
 			case <-time.After(time.Second):
-				if a.p.PC == nil || a.p.PC.ConnectionState() == webrtc.PeerConnectionStateConnected {
+				if a.p.PC == nil {
+					http.Error(w, "Connection failed", http.StatusServiceUnavailable)
+					break replying
+				} else if a.p.PC.ConnectionState() == webrtc.PeerConnectionStateConnected {
+					http.Error(w, "Connection established", http.StatusNoContent)
 					break replying
 				}
 			}

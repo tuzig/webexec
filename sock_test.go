@@ -64,14 +64,17 @@ func TestOfferGetCandidate(t *testing.T) {
 	require.NotNil(t, body["answer"], "Servers response didn't include 'answer': %v", body)
 	err = resp.Body.Close()
 	require.Nil(t, err, "Failed to parse offer+id url: %q", err)
-	for i := 0; i < 3; i++ {
+	for {
 		r, err := httpc.Get("http://unix/offer/" + id)
 		require.Nil(t, err, "Failed to get candidate: %q", err)
 		msg, _ := ioutil.ReadAll(r.Body)
-		Logger.Infof("Got candidate: %q", string(msg))
-		require.Equal(t, http.StatusOK, r.StatusCode, string(msg))
 		err = r.Body.Close()
 		require.Nil(t, err, "Failed to close offer+body: %q", err)
+		Logger.Infof("Got candidate: %q", string(msg))
+		if r.StatusCode == http.StatusServiceUnavailable {
+			break
+		}
+		require.Equal(t, http.StatusOK, r.StatusCode, string(msg))
 	}
 }
 func TestOfferPutCandidates(t *testing.T) {
