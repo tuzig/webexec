@@ -5,12 +5,12 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 	"unicode"
-	"os"
 
 	"github.com/creack/pty"
 	"github.com/pion/webrtc/v3"
