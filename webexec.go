@@ -20,7 +20,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/gorilla/websocket"
 	"github.com/kardianos/osext"
 	"github.com/pion/logging"
 	"github.com/tuzig/webexec/pidfile"
@@ -242,7 +241,6 @@ func forkAgent(address string) error {
 
 // start - start the user's agent
 func start(c *cli.Context) error {
-	var peerbookCon *websocket.Conn
 	err := LoadConf()
 	if err != nil {
 		return err
@@ -285,10 +283,7 @@ func start(c *cli.Context) error {
 			fmt.Printf("                 If you don't get it please visit %s",
 				Conf.peerbookHost)
 		}
-		peerbookCon, err = peerbookGo()
-		if err != nil {
-			Logger.Infof("Failed to connect to peerbook: %s", err)
-		}
+		peerbookGo()
 	}
 	sockServer, err := StartSock()
 	if err != nil {
@@ -324,8 +319,8 @@ forever:
 	ctx, _ := context.WithTimeout(context.Background(), 3*time.Second)
 	httpServer.Shutdown(ctx)
 	sockServer.Shutdown(ctx)
-	if peerbookCon != nil {
-		peerbookCon.Close()
+	if PeerbookConn != nil {
+		PeerbookConn.Close()
 	}
 	os.Remove(PIDFilePath())
 	return nil
