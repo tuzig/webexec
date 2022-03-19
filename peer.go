@@ -71,7 +71,7 @@ func NewPeer(fingerprint string) (*Peer, error) {
 	}
 	is, err := getICEServers(Conf.peerbookHost)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get ice servers: %w", err)
+		Logger.Warn("failed to get ice servers: %w", err)
 	}
 	config := webrtc.Configuration{
 		PeerIdentity: "webexec",
