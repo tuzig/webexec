@@ -121,7 +121,7 @@ Ack message.
 This request is used when reconnecting after an orderly disconnect.
 this request requires a marker recieved in the ack to the "mark" message.
 After getting this message and new channels the client reconnects to will first
-be send all ithe output cwsince the marker was received.
+be send all ithe output since the marker was received.
 
 Example JSON request:
 
