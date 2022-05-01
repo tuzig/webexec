@@ -18,11 +18,12 @@ type ConnectRequest struct {
 }
 
 // HTTPGo starts to listen and serve http requests
-func HTTPGo(address string) {
+func HTTPGo(address string) *http.Server {
 	http.HandleFunc("/connect", handleConnect)
 	h := cors.Default().Handler(http.DefaultServeMux)
-	err := http.ListenAndServe(address, h)
-	Logger.Errorf("%s", err)
+	server := &http.Server{Addr: address, Handler: h}
+	go server.ListenAndServe()
+	return server
 }
 
 // handleConnect is called when a client requests the connect endpoint
