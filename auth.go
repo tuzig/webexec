@@ -3,9 +3,10 @@ package main
 import (
 	"bufio"
 	"fmt"
-	"github.com/pion/webrtc/v3"
 	"os"
 	"strings"
+
+	"github.com/pion/webrtc/v3"
 )
 
 // TokensFilePath holds the path to a file where each authorized token has a line
@@ -21,11 +22,11 @@ func compressFP(fp string) string {
 func ReadAuthorizedTokens() ([]string, error) {
 	var tokens []string
 	if TokensFilePath == "" {
-		TokensFilePath = ConfPath("authorized_tokens")
+		TokensFilePath = ConfPath("authorized_fingerprints")
 	}
 	file, err := os.Open(TokensFilePath)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to open authorized_tokens: %w", err)
+		return nil, fmt.Errorf("Failed to open authorized_fingerprints: %w", err)
 	}
 	defer file.Close()
 	scanner := bufio.NewScanner(file)
@@ -34,7 +35,7 @@ func ReadAuthorizedTokens() ([]string, error) {
 	}
 
 	if err := scanner.Err(); err != nil {
-		return nil, fmt.Errorf("Failed to read authorized_tokens: %s", err)
+		return nil, fmt.Errorf("Failed to read authorized_fingerprints: %s", err)
 	}
 	return tokens, nil
 }

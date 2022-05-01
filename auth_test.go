@@ -34,7 +34,7 @@ func TestWrongFingerprint(t *testing.T) {
 func TestIsAuthorized(t *testing.T) {
 	// create the token file and test good & bad tokens
 	initTest(t)
-	file, err := ioutil.TempFile("", "authorized_tokens")
+	file, err := ioutil.TempFile("", "authorized_fingerprints")
 	TokensFilePath = file.Name()
 	require.Nil(t, err, "Failed to create a temp tokens file: %s", err)
 	file.WriteString("GOODTOKEN\nANOTHERGOODTOKEN\n")

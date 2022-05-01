@@ -279,7 +279,7 @@ please:
 	}
 	// creating the token file
 	if TokensFilePath == "" {
-		TokensFilePath = ConfPath("authorized_tokens")
+		TokensFilePath = ConfPath("authorized_fingerprints")
 	}
 	_, err = os.Stat(TokensFilePath)
 	if os.IsNotExist(err) {

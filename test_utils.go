@@ -155,7 +155,7 @@ func initTest(t *testing.T) {
 		ptyMux = ptyMuxType{}
 	}
 	Logger = zaptest.NewLogger(t, zaptest.WrapOptions(zap.AddCaller())).Sugar()
-	f, err := ioutil.TempFile("", "authorized_tokens")
+	f, err := ioutil.TempFile("", "authorized_fingerprints")
 	f.Close()
 	TokensFilePath = f.Name()
 	require.Nil(t, err, "Failed setting a temp tokens file: %s", err)
@@ -209,7 +209,7 @@ func SendRestore(cdc *webrtc.DataChannel, ref int, marker int) error {
 func TestMain(m *testing.M) {
 	code := m.Run()
 	// If we've used a temporary file, remove it
-	if TokensFilePath != ConfPath("authorized_tokens") {
+	if TokensFilePath != ConfPath("authorized_fingerprints") {
 		os.Remove(TokensFilePath)
 	}
 	os.Exit(code)

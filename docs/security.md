@@ -17,7 +17,7 @@ This method only works for servers with static IPs.
 webexec listens for requests coming on a dedicated port - 7777 by default.
 The `/connect` API endpoint accepts post requests with offers.
 webexec extracts the fingerprint from the offer and test whether the
-fingerprint is in `/.webexec/authorized_tokens`.
+fingerprint is in `/.webexec/authorized_fingerprints`.
 If it is, the request is accepetd, webexec replys with his answer
 and waits for a webrtc connection from that client. 
 

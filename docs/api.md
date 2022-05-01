@@ -34,7 +34,7 @@ three fields:
 ```
 
 Upon receiving a request, webexec checks if the token is in 
-`~/.webexec/autherized_tokens`. If it's not, the server will reply
+`~/.webexec/autherized_fingerprints`. If it's not, the server will reply
 with a 401 error code.  If it's in the file, webexec will start listening for
 a webrtc peer connection request that offer and reply with his webrtc answer
 in the http body.

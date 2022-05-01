@@ -8,11 +8,16 @@ his file's format is define in
 [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 and the release workflow reads it to set github's release notes.
 
-## Unreleased
+## Unreleasd
+
+### Added 
+
+- The accept command, enabling using SSH for signaling
 
 ### Fixed 
 
-- Still try to connect when no turn servers are available
+- moving `authorized_tokens` file to `authorized_fingerprints"
+- Try to connect even no turn servers are available
 
 ## [0.16.0] 2022-01-12
 

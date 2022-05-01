@@ -50,7 +50,7 @@ func TestConnect(t *testing.T) {
 		buf := make([]byte, 4096)
 		l, err := EncodeOffer(buf, *client.LocalDescription())
 		require.Nil(t, err, "Failed ending an offer: %v", clientOffer)
-		file, err := ioutil.TempFile("", "authorized_tokens")
+		file, err := ioutil.TempFile("", "authorized_fingerprints")
 		TokensFilePath = file.Name()
 		require.Nil(t, err, "Failed to create a temp tokens file: %s", err)
 		file.WriteString(compressFP(cert))
