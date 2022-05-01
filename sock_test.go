@@ -4,11 +4,9 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
 	"io/ioutil"
 	"net"
 	"net/http"
-	"os/user"
 	"sync"
 	"testing"
 	"time"
@@ -81,9 +79,7 @@ func TestOfferPutCandidates(t *testing.T) {
 	var id string
 	initTest(t)
 	StartSock()
-	user, err := user.Current()
-	require.Nil(t, err, "Failed to get current user: %s", err)
-	fp := fmt.Sprintf("/var/run/webexec.%s.sock", user.Username)
+	fp := ConfPath("webexec.sock")
 	httpc := http.Client{
 		Transport: &http.Transport{
 			DialContext: func(_ context.Context, _, _ string) (net.Conn, error) {

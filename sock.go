@@ -7,7 +7,6 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"os/user"
 	"strings"
 	"sync"
 	"time"
@@ -34,11 +33,7 @@ func (la *LiveOffer) OnCandidate(can *webrtc.ICECandidate) {
 	}
 }
 func GetSockFP() (string, error) {
-	user, err := user.Current()
-	if err != nil {
-		return "", fmt.Errorf("Failed to get current user: %s", err)
-	}
-	return fmt.Sprintf("/var/run/webexec.%s.sock", user.Username), nil
+	return ConfPath("webexec.sock"), nil
 }
 func StartSock() (*http.Server, error) {
 	currentOffers = make(map[string]*LiveOffer)
