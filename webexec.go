@@ -15,7 +15,6 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
-	"os/user"
 	"strings"
 	"syscall"
 	"time"
@@ -46,8 +45,7 @@ var (
 
 // PIDFIlePath return the path of the PID file
 func PIDFilePath() string {
-	user, _ := user.Current()
-	return fmt.Sprintf("/var/run/webexec.%s.pid", user.Username)
+	return ConfPath("webexec.pid")
 }
 
 func newPionLoggerFactory() *logging.DefaultLoggerFactory {
