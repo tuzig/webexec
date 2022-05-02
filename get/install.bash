@@ -10,10 +10,12 @@ SCRIPT_COMMIT_SHA=UNKNOWN
 LATEST_VERSION="0.16.0"
 
 # The latest release is currently hard-coded.
-echo "Installing webexec version " $LATEST_VERSION
+echo ">>> Installing webexec latest version"
          
 ARCH="$(uname -m | tr [:upper:] [:lower:])" 
-if [[ "$ARCH" = x86_64* ]]; then
+if [[ "$ARCH" = arm64 ]]; then
+    ARCH='arm64'
+elif [[ "$ARCH" = x86_64* ]]; then
     # and now for some M1 fun
     if [[ "$(uname -a)" = *ARM64* ]]; then
         ARCH='arm64'
@@ -29,8 +31,8 @@ elif [[ "$ARCH" = armv7* ]]; then
 elif [[ "$ARCH" = aarch64 ]]; then
     ARCH='armv7'
 else
-    echo "Sorry, unsupported architecture $ARCH"
-    echo "Try using: `go install github.com/tuzig/webexec` to install from source"
+    >&2 echo "Sorry, unsupported architecture $ARCH"
+    >&2 echo "Try installing from source: go install github.com/tuzig/webexec@latest"
     exit 1
 fi
 
@@ -67,7 +69,6 @@ get_distribution() {
 	fi
 	# Returning an empty string here should be alright since the
 	# case statements don't act unless you provide an actual value
-	echo "$lsb_dist"
 }
 
 checks() {
@@ -78,7 +79,8 @@ checks() {
 	Linux)
 		;;
 	*)
-		>&2 echo "webexec cannot be installed on $(uname)"; exit 1
+		>&2 echo "FAILED: webexec cannot be installed on $(uname)"
+        >&2 echo "Try installing fro source: `go install github.com/tuzig/webexec@latest`"
 		;;
 	esac
 
@@ -103,9 +105,9 @@ get_n_extract() {
         else
             echo "Sorry but our MacOS binary is still waiting notarization."
             echo "For now, you will need to compile webexec yourself."
-            echo "Please install the latest go from: https://go.dev/doc/install"
+            echo "Please follow the installation guide at https://go.dev/doc/install"
             echo "and re-run this installer."
-            exit -1
+            exit 3
         fi
         # TODO: noptarize the binaries and then:
         # STATIC_RELEASE_URL="https://github.com/tuzig/webexec/releases/download/v$LATEST_VERSION/webexec_${LATEST_VERSION}.dmg"
@@ -139,7 +141,7 @@ do_install() {
 			Error: this installer needs the ability to run commands as root.
 			We are unable to find either "sudo" or "su" available to make this happen.
 			EOF
-			exit 1
+			exit 4
 		fi
 	fi
 	lsb_dist=$( get_distribution )
@@ -162,6 +164,7 @@ do_install() {
 	fi
     ./webexec init
     if [ "$(uname)" = Linux ]; then
+        echo ">>> installation finished, [re]starting webexec"
 		$sh_c "nohup bash ./replace_n_launch.sh $USER $HOME"
     fi
 }
