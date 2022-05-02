@@ -252,26 +252,28 @@ func isValidEmail(email string) bool {
 
 // createConf creates the configuration files based on the defaults and user
 // input
-func createConf() error {
+func createConf(silent bool) error {
 	conf := defaultConf
-	stdin := bufio.NewReader(os.Stdin)
-	fmt.Println("To make it easier for clients to find this server")
-	fmt.Println("and enable trickle ICE you are invited")
-	fmt.Println("to publish it to peerbook.io")
-please:
-	fmt.Print("Please enter your email (blank to skip): ")
-	email, err := stdin.ReadString('\n')
-	if err != nil {
-		return fmt.Errorf("Failed to read input: %s", err)
-	}
-	// remove thje EOL at the end
-	email = email[:len(email)-1]
-	if email != "" {
-		if !isValidEmail(email) {
-			fmt.Println("Sorry, not a valid email. Please try again.")
-			goto please
+	if !silent {
+		stdin := bufio.NewReader(os.Stdin)
+		fmt.Println("To make it easier for clients to find this server")
+		fmt.Println("and enable trickle ICE you are invited")
+		fmt.Println("to publish it to peerbook.io")
+	please:
+		fmt.Print("Please enter your email (blank to skip): ")
+		email, err := stdin.ReadString('\n')
+		if err != nil {
+			return fmt.Errorf("Failed to read input: %s", err)
 		}
-		conf = fmt.Sprintf(abConfTemplate, conf, email)
+		// remove the EOL at the end
+		email = email[:len(email)-1]
+		if email != "" {
+			if !isValidEmail(email) {
+				fmt.Println("Sorry, not a valid email. Please try again.")
+				goto please
+			}
+			conf = fmt.Sprintf(abConfTemplate, conf, email)
+		}
 	}
 	confPath := ConfPath("webexec.conf")
 	confFile, err := os.Create(confPath)
