@@ -27,8 +27,8 @@ error = "agent.err"
 # pion_levels = { trace = "sctp" }
 [net]
 http_server = "0.0.0.0:7777"
-udp_port_min = 7000
-udp_port_max = 7777
+udp_port_min = 60000
+udp_port_max = 61000
 [timeouts]
 disconnect = 3000
 failed = 6000
@@ -156,10 +156,14 @@ func parseConf(s string) error {
 	v = t.Get("net.udp_port_min")
 	if v != nil {
 		Conf.portMin = uint16(v.(int64))
+	} else {
+		Conf.portMin = 60000
 	}
 	v = t.Get("net.udp_port_max")
 	if v != nil {
 		Conf.portMax = uint16(v.(int64))
+	} else {
+		Conf.portMax = 61000
 	}
 	// unsecured cotrol which shema to use
 	v = t.Get("peerbook.insecure")
@@ -222,14 +226,16 @@ func LoadConf() error {
 	confPath := ConfPath("webexec.conf")
 	_, err := os.Stat(confPath)
 	if os.IsNotExist(err) {
+		err = parseConf("")
 		return fmt.Errorf("Missing conf file, run `webexec init` to create")
+	} else {
+		b, err := ioutil.ReadFile(confPath)
+		if err != nil {
+			return fmt.Errorf("Failed to read conf file %q: %s", confPath,
+				err)
+		}
+		err = parseConf(string(b))
 	}
-	b, err := ioutil.ReadFile(confPath)
-	if err != nil {
-		return fmt.Errorf("Failed to read conf file %q: %s", confPath,
-			err)
-	}
-	err = parseConf(string(b))
 	if err != nil {
 		return fmt.Errorf("Failed to parse conf file %q: %s", confPath,
 			err)

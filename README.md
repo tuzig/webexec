@@ -31,7 +31,7 @@ $ go install ./...
 
 webexec has a signlaing server that listen for connection request in
 ports 7777. Once communication is established, WebRTC uses UDP ports with 
-a default range of 7000-7777.
+a default range of 60000-61000.
 If you prefer another range you can set the `udp_port_min` and `udp_port_max`
 in the `[net]` section of the conf file and `webexec restart`.
 
