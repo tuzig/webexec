@@ -45,7 +45,7 @@ var (
 
 // PIDFIlePath return the path of the PID file
 func PIDFilePath() string {
-	return ConfPath("webexec.pid")
+	return ConfPath("agent.pid")
 }
 
 func newPionLoggerFactory() *logging.DefaultLoggerFactory {

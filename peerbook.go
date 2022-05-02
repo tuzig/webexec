@@ -114,13 +114,6 @@ func peerbookGo() {
 
 			mType, m, err := PeerbookConn.ReadMessage()
 			if err != nil {
-				/*
-					if strings.Contains(err.Error(), "use of closed network connection") {
-						Logger.Errorf("Failed to read message from peerbook: %q", err)
-						PeerbookConn = nil
-						time.Sleep(Conf.peerbookTimeout)
-						continue
-					} */
 				Logger.Warnf("Signaling read error: %w", err)
 				time.Sleep(Conf.peerbookTimeout)
 				PeerbookConn = nil
