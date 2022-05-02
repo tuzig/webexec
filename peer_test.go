@@ -274,6 +274,8 @@ func TestMarkerRestore(t *testing.T) {
 func TestAddPaneMessage(t *testing.T) {
 	var wg sync.WaitGroup
 	initTest(t)
+	// the trinity: a new datachannel, an ack and BADWOLF (aka command output)
+	wg.Add(3)
 	client, cert, err := NewClient(true)
 	require.Nil(t, err, "Failed to create a new client %v", err)
 	peer, err := NewPeer(cert)
@@ -281,7 +283,8 @@ func TestAddPaneMessage(t *testing.T) {
 	done := make(chan bool)
 	client.OnDataChannel(func(d *webrtc.DataChannel) {
 		d.OnMessage(func(msg webrtc.DataChannelMessage) {
-			require.Equal(t, "BADWOLF\r\n", string(msg.Data))
+			Logger.Infof("Got a new datachannel message: %s", string(msg.Data))
+			require.Equal(t, "BADWOLF", string(msg.Data[:7]))
 			Logger.Infof(string(msg.Data))
 			wg.Done()
 		})
@@ -297,11 +300,12 @@ func TestAddPaneMessage(t *testing.T) {
 		cdc.OnMessage(func(msg webrtc.DataChannelMessage) {
 			ack := ParseAck(t, msg)
 			if ack.Ref == 456 {
+				Logger.Infof("Got the ACK")
 				wg.Done()
 			}
 		})
 		addPaneArgs := AddPaneArgs{Rows: 12, Cols: 34,
-			Command: []string{"echo", "BADWOLF"}}
+			Command: []string{"echo", "BADWOLF"}} //, "&&", "sleep", "5"}}
 		m := CTRLMessage{time.Now().UnixNano(), 456, "add_pane",
 			&addPaneArgs}
 		msg, err := json.Marshal(m)
@@ -309,7 +313,6 @@ func TestAddPaneMessage(t *testing.T) {
 		time.Sleep(time.Second / 10)
 		cdc.Send(msg)
 	})
-	wg.Add(3)
 	go func() {
 		wg.Wait()
 		done <- true
