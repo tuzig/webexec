@@ -478,9 +478,7 @@ func initCMD(c *cli.Context) error {
 		}
 		fmt.Printf("Created %q directory\n", homePath)
 	} else {
-		return fmt.Errorf(
-			"%q already exists.\nTo start fresh move it to a backup and run again.",
-			homePath)
+		return fmt.Errorf("%q already exists, doing nothing.", homePath)
 	}
 	// TODO: add a CLI option to make it !sillent
 	err = createConf(true)
@@ -489,13 +487,13 @@ func initCMD(c *cli.Context) error {
 	}
 	err = LoadConf()
 	if err != nil {
-		return fmt.Errorf("Failed to parse default conf: %s", err)
+		return cli.Exit(fmt.Sprintf("Failed to parse default conf: %s", err), 1)
 	}
 	fPath := ConfPath("certnkey.pem")
 	key = &KeyType{Name: fPath}
 	cert, err := key.generate()
 	if err != nil {
-		return fmt.Errorf("Failed to create certificate: %s", err)
+		return cli.Exit(fmt.Sprintf("Failed to create certificate: %s", err), 2)
 	}
 	key.save(cert)
 	fmt.Printf(" %s - certificate file\n", fPath)
