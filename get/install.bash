@@ -5,9 +5,7 @@
 #
 #   $ curl -L https://get.webexec.sh -o get-webexec.sh && bash get-webexec.sh
 #
-set -x
-SCRIPT_COMMIT_SHA=UNKNOWN
-LATEST_VERSION="0.16.0"
+LATEST_VERSION="0.17.0"
 
 # The latest release is currently hard-coded.
 echo ">>> Installing webexec latest version"
@@ -100,6 +98,11 @@ get_n_extract() {
 	Darwin)
         if command_exists go; then
             go install github.com/tuzig/webexec@v$LATEST_VERSION
+            if [ $? -ne 0 ]; then
+                echo "Sorry, but go based installation failed."
+                echo "Please visit https://github.com/tuzig/webexec for help"
+                exit 7
+            fi
             webexec init
             webexec start
         else

@@ -1,21 +1,24 @@
 #!/bin/sh
 # this should be run as root
-set -x
-
 command_exists() {
 	command -v "$@" > /dev/null 2>&1
 }
 
 case "$(uname)" in
 Darwin)
-    # TODO: Darwin is not running today - fix launchd
-    cp webexec/webexec /usr/local/bin
-    cp launchd file & load
-    envsubst < "webexec/sh.webexec.daemon.tmpl" > "sh.webexec.daemon.plist"
-    mv "sh.webexec.daemon.plist" /Library/LaunchDaemons
+    
+    
+    if command_exists webexec; then
+        webexec stop
+    cp webexec /usr/local/bin
 
-    chown root:wheel "/Library/LaunchDaemons/sh.webexec.daemon.plist"
-    launchctl load "/Library/LaunchDaemons/sh.webexec.daemon.plist"
+    # TODO: Darwin is not running today - fix launchd
+    # cp launchd file & load
+    # envsubst < "webexec/sh.webexec.daemon.tmpl" > "sh.webexec.daemon.plist"
+    # mv "sh.webexec.daemon.plist" /Library/LaunchDaemons
+
+    # chown root:wheel "/Library/LaunchDaemons/sh.webexec.daemon.plist"
+     #launchctl load "/Library/LaunchDaemons/sh.webexec.daemon.plist"
     ;;
 Linux)
     if [ -x /etc/init.d/webexec ]; then
