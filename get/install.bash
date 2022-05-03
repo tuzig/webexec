@@ -5,7 +5,7 @@
 #
 #   $ curl -L https://get.webexec.sh -o get-webexec.sh && bash get-webexec.sh
 #
-LATEST_VERSION="0.17.0"
+LATEST_VERSION="0.17.1"
 
 # The latest release is currently hard-coded.
 echo ">>> Installing webexec latest version"
