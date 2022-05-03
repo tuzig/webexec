@@ -8,8 +8,7 @@ his file's format is define in
 [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 and the release workflow reads it to set github's release notes.
 
-<<<<<<< Updated upstream
-## Unreleasd
+## [0.17.0] 2022-05-03
 
 ### Added 
 
@@ -20,6 +19,7 @@ and the release workflow reads it to set github's release notes.
 - moving `authorized_tokens` file to `authorized_fingerprints"
 - Try to connect even no turn servers are available
 - Handling of PeerBook disconnection
+- MacOS one line installer
 
 ## [0.16.0] 2022-01-12
 
