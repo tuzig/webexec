@@ -5,7 +5,7 @@
 #
 #   $ curl -L https://get.webexec.sh -o get-webexec.sh && bash get-webexec.sh
 #
-LATEST_VERSION="0.17.1"
+LATEST_VERSION="0.17.2"
 
 # The latest release is currently hard-coded.
 echo ">>> Installing webexec latest version"
@@ -167,7 +167,7 @@ do_install() {
 	fi
     ./webexec init
     if [ "$(uname)" = Linux ]; then
-        echo ">>> installation finished, [re]starting webexec"
+        echo ">>> version downloaded, needs su power to install"
 		$sh_c "nohup bash ./replace_n_launch.sh $USER $HOME"
     fi
 }

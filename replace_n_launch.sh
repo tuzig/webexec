@@ -10,6 +10,7 @@ Darwin)
     
     if command_exists webexec; then
         webexec stop
+    fi
     cp webexec /usr/local/bin
 
     # TODO: Darwin is not running today - fix launchd
