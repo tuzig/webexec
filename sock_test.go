@@ -79,7 +79,7 @@ func TestOfferPutCandidates(t *testing.T) {
 	var id string
 	initTest(t)
 	StartSock()
-	fp := ConfPath("agent.sock")
+	fp := RunPath("agent.sock")
 	httpc := http.Client{
 		Transport: &http.Transport{
 			DialContext: func(_ context.Context, _, _ string) (net.Conn, error) {

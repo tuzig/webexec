@@ -310,3 +310,10 @@ func ConfPath(suffix string) string {
 	usr, _ := user.Current()
 	return filepath.Join(usr.HomeDir, ".config", "webexec", suffix)
 }
+
+// RunPath returns the full path of a configuration file
+func RunPath(suffix string) string {
+	usr, _ := user.Current()
+	dirname := fmt.Sprintf("webexec.%s", usr.Username)
+	return filepath.Join("/run", dirname, suffix)
+}

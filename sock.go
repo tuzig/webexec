@@ -33,7 +33,7 @@ func (la *LiveOffer) OnCandidate(can *webrtc.ICECandidate) {
 	}
 }
 func GetSockFP() (string, error) {
-	return ConfPath("agent.sock"), nil
+	return RunPath("agent.sock"), nil
 	// return fmt.Sprintf("/var/run/webexec.%s.sock", user.Username), nil
 }
 func StartSock() (*http.Server, error) {
