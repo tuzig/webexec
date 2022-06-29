@@ -315,5 +315,5 @@ func ConfPath(suffix string) string {
 func RunPath(suffix string) string {
 	usr, _ := user.Current()
 	dirname := fmt.Sprintf("webexec.%s", usr.Username)
-	return filepath.Join("/run", dirname, suffix)
+	return filepath.Join("/var/run", dirname, suffix)
 }
