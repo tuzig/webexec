@@ -59,11 +59,10 @@ command_exists() {
 	command -v "$@" > /dev/null 2>&1
 }
 
-get_distribution() {
-	lsb_dist=""
+get_dist() {
 	# Every system that we officially support has /etc/os-release
 	if [ -r /etc/os-release ]; then
-		lsb_dist="$(. /etc/os-release && echo "$ID")"
+		dist=$(. /etc/os-release && echo $ID |  tr '[:upper:]' '[:lower:]')
 	fi
 	# Returning an empty string here should be alright since the
 	# case statements don't act unless you provide an actual value
@@ -147,28 +146,46 @@ do_install() {
 			exit 4
 		fi
 	fi
-	lsb_dist=$( get_distribution )
-	lsb_dist="$(echo "$lsb_dist" | tr '[:upper:]' '[:lower:]')"
-	# Run setup for each distro accordingly
-	case "$lsb_dist" in
-		ubuntu|debian|raspbian)
-			if ! command_exists curl; then
-				$sh_c 'apt-get update -qq >/dev/null'
-				$sh_c "DEBIAN_FRONTEND=noninteractive apt-get install -y -qq $pre_reqs >/dev/null"
-			fi
-			;;
-    esac
+	get_dist
+    dname="webexec.${USER:-root}"
+    echo ">>> version downloaded succesfully"
+    echo "    root power required to:"
+    echo "    - create /var/log/$dname & /var/run/$dname"
+    echo "    - make you their owner"
 
+	case "$(uname)" in
+	Darwin)
+        echo "    - add you to the wheel & daemon groups"
+        if ! command_exists curl; then
+            brew install curl
+        fi
+        $sh_c "dseditgroup -o edit -a $USER -t user wheel"
+        $sh_c "dseditgroup -o edit -a $USER -t user daemon"
+        ;;
+    Linux)
+        echo "    - install curl if missing"
+        echo "    - add a /usr/liotmpfiles/var/log/$dname"
+        if ! command_exists curl; then
+            $sh_c 'apt-get update -qq >/dev/null'
+            $sh_c "DEBIAN_FRONTEND=noninteractive apt-get install -y -qq curl >/dev/null"
+        fi
+        tmpfile="d /var/run/$dname 0755 ${USER:-root} ${GROUP:-root}"
+        $sh_c "echo $tmpfile > /usr/lib/tmpfiles.d/$dname"
+        ;;
+
+    esac
+    $sh_c "mkdir -p /var/log/$dname && mkdir /var/run/$dname"
+    $sh_c "chown $UID:$(id -g) /var/log/$dname /var/run/$dname"
+	# Run setup for each distro accordingly
     tmp=$(mktemp -d)
-    echo "Created temp dir at $tmp"
+    echo ">>> created temp dir at $tmp"
     get_n_extract $tmp
 	if ! debug; then
         cd $tmp
 	fi
     ./webexec init
     if [ "$(uname)" = Linux ]; then
-        echo ">>> version downloaded, needs su power to install"
-		$sh_c "nohup bash ./replace_n_launch.sh $USER $HOME"
+		$sh_c "nohup bash ./replace_n_launch.sh ${USER:-root} ${HOME:-root}"
     fi
 }
 do_install "$@"

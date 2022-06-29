@@ -21,6 +21,7 @@ const defaultConf = `# webexec's configuration. in toml.
 [log]
 level = "info"
 # for absolute path by starting with a /
+# relative path is /var/log/webexec.$USER
 file = "agent.log"
 error = "agent.err"
 # next can be uncommented to debug pion components
@@ -86,8 +87,8 @@ func parseConf(s string) error {
 		return fmt.Errorf("toml parsing failed: %s", err)
 	}
 	Conf.T = t
-	Conf.logFilePath = loadFilePath("log.file", "agent.log")
-	Conf.errFilePath = loadFilePath("log.error", "agent.err")
+	Conf.logFilePath = logFilePath("log.file", "agent.log")
+	Conf.errFilePath = logFilePath("log.error", "agent.err")
 	Conf.logLevel = zapcore.ErrorLevel
 	l := Conf.T.Get("log.level").(string)
 	if l == "info" {
@@ -211,14 +212,14 @@ func parseConf(s string) error {
 
 }
 
-func loadFilePath(path string, def string) string {
+func logFilePath(path string, def string) string {
 	v := Conf.T.Get(path)
 	if v == nil {
-		return ConfPath(def)
+		return LogPath(def)
 	}
 	ret := v.(string)
 	if ret[0] != '/' {
-		ret = ConfPath(def)
+		ret = LogPath(def)
 	}
 	return ret
 }
@@ -311,9 +312,16 @@ func ConfPath(suffix string) string {
 	return filepath.Join(usr.HomeDir, ".config", "webexec", suffix)
 }
 
-// RunPath returns the full path of a configuration file
+// RunPath returns the full path of a run file: socket & pid
 func RunPath(suffix string) string {
 	usr, _ := user.Current()
 	dirname := fmt.Sprintf("webexec.%s", usr.Username)
 	return filepath.Join("/var/run", dirname, suffix)
+}
+
+// RunPath returns the full path of a run file: socket & pid
+func LogPath(suffix string) string {
+	usr, _ := user.Current()
+	dirname := fmt.Sprintf("webexec.%s", usr.Username)
+	return filepath.Join("/var/log", dirname, suffix)
 }
