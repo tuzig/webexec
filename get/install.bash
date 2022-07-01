@@ -99,7 +99,8 @@ get_n_extract() {
             go install github.com/tuzig/webexec@v$LATEST_VERSION
             if [ $? -ne 0 ]; then
                 echo "Sorry, but go based installation failed."
-                echo "Please visit https://github.com/tuzig/webexec for help"
+                echo "Please visit our discord server at"
+                echo "https://discord.gg/GneEDB7ZZQ for help"
                 exit 7
             fi
             webexec init
@@ -126,6 +127,7 @@ get_n_extract() {
         STATIC_RELEASE_URL="https://github.com/tuzig/webexec/releases/download/v$LATEST_VERSION/$BALL_NAME"
         curl -sL "$STATIC_RELEASE_URL" -o $1/$BALL_NAME
         tar zx --strip-components=1 -C $1 < $1/$BALL_NAME 
+        ./webexec init
 	esac
 }
 
@@ -183,7 +185,6 @@ do_install() {
 	if ! debug; then
         cd $tmp
 	fi
-    ./webexec init
     if [ "$(uname)" = Linux ]; then
 		$sh_c "nohup bash ./replace_n_launch.sh ${USER:-root} ${HOME:-root}"
     fi

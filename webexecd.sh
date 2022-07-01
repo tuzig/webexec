@@ -31,7 +31,7 @@ else
     . /etc/default/$NAME
 fi
 
-PIDFILE_DIR=$( getent passwd "$USER" | cut -d: -f6 )/.config/webexec
+PIDFILE_DIR="/var/run/webexec.$USER"
 PIDFILE=$PIDFILE_DIR/agent.pid
 
 if [ ! -d "$PIDFILE_DIR" ];then
