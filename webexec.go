@@ -348,10 +348,7 @@ func restart(c *cli.Context) error {
 // accept function accepts offers to connect
 func accept(c *cli.Context) error {
 	var id string
-	fp, err := GetSockFP()
-	if err != nil {
-		return err
-	}
+	fp := GetSockFP()
 	pid, err := getAgentPid()
 	if err != nil {
 		return err

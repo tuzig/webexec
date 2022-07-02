@@ -82,8 +82,8 @@ func getICEServers(host string) ([]webrtc.ICEServer, error) {
 		if err != nil {
 			return nil, err
 		}
-		if err != nil {
-			return nil, err
+		if len(d.Servers) == 0 {
+			return nil, nil
 		}
 		s := d.Servers[0]
 

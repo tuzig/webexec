@@ -32,17 +32,20 @@ func (la *LiveOffer) OnCandidate(can *webrtc.ICECandidate) {
 		la.cs <- can
 	}
 }
-func GetSockFP() (string, error) {
-	return RunPath("agent.sock"), nil
+func GetSockFP() string {
+	return RunPath("agent.sock")
 	// return fmt.Sprintf("/var/run/webexec.%s.sock", user.Username), nil
 }
 func StartSock() (*http.Server, error) {
 	currentOffers = make(map[string]*LiveOffer)
-	fp, err := GetSockFP()
-	if err != nil {
-		return nil, err
+	fp := GetSockFP()
+	stat, err := os.Stat(fp)
+
+	if err != nil || !stat.IsDir() {
+		os.Mkdir(RunPath(""), 0755)
+	} else {
+		os.Remove(fp)
 	}
-	os.Remove(fp)
 	m := http.ServeMux{}
 	m.Handle("/layout", http.HandlerFunc(handleLayout))
 	m.Handle("/offer/", http.HandlerFunc(hadnleOffer))
