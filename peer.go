@@ -387,7 +387,7 @@ func (peer *Peer) OnCTRLMsg(msg webrtc.DataChannelMessage) {
 			shell, err := loginshell.Shell()
 			if err != nil {
 				Logger.Warnf("Failed to determine user's shell: %v", err)
-				a.Command[0] = "bash"
+				a.Command[0] = "/bin/bash"
 			} else {
 				Logger.Infof("Using %s for shell", shell)
 				a.Command[0] = shell
