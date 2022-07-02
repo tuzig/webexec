@@ -61,7 +61,7 @@ func execCommand(command []string, ws *pty.Winsize, pID int) (*exec.Cmd, *os.Fil
 			return nil, nil, err
 		}
 	}
-	Logger.Infof("Starting command %s in dir %s", command[0], dir)
+	Logger.Infof("Starting command %v in dir %s", command, dir)
 	cmd.Dir = dir
 	if Conf.env != nil {
 		for k, v := range Conf.env {
