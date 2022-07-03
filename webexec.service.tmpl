@@ -7,7 +7,7 @@ Type=forking
 Restart=always
 ExecStart=/usr/local/bin/webexec start
 ExecStop=/usr/local/bin/webexec stop
-PIDFile=$HOME/.config/webexec/agent.pid
+PIDFile=/run/webexec.$USER/agent.pid
 User=$USER
 
 [Install]
