@@ -36,55 +36,55 @@ fi
 
 DEBUG=${DEBUG:-}
 while [ $# -gt 0 ]; do
-    case "$1" in
-        --debug)
-            DEBUG=1
-            ;;
-        --*)
-            echo "Illegal option $1"
-            ;;
-    esac
-    shift $(( $# > 0 ? 1 : 0 ))
+	case "$1" in
+		--debug)
+			DEBUG=1
+			;;
+		--*)
+			echo "Illegal option $1"
+			;;
+	esac
+	shift $(( $# > 0 ? 1 : 0 ))
 done
 
 debug() {
-    if [ -z "$DEBUG" ]; then
-        return 1
-    else
-        return 0
-    fi
+	if [ -z "$DEBUG" ]; then
+		return 1
+	else
+		return 0
+	fi
 }
 
 command_exists() {
-    command -v "$@" > /dev/null 2>&1
+	command -v "$@" > /dev/null 2>&1
 }
 
 get_dist() {
-    # Every system that we officially support has /etc/os-release
-    if [ -r /etc/os-release ]; then
-        dist=$(. /etc/os-release && echo $ID |  tr '[:upper:]' '[:lower:]')
-    fi
-    # Returning an empty string here should be alright since the
-    # case statements don't act unless you provide an actual value
+	# Every system that we officially support has /etc/os-release
+	if [ -r /etc/os-release ]; then
+		dist=$(. /etc/os-release && echo $ID |  tr '[:upper:]' '[:lower:]')
+	fi
+	# Returning an empty string here should be alright since the
+	# case statements don't act unless you provide an actual value
 }
 
 checks() {
-    # OS verification: Linux only, point osx/win to helpful locations
-    case "$(uname)" in
-    Darwin)
-        ;;
-    Linux)
-        ;;
-    *)
-        >&2 echo "FAILED: webexec cannot be installed on $(uname)"
+	# OS verification: Linux only, point osx/win to helpful locations
+	case "$(uname)" in
+	Darwin)
+		;;
+	Linux)
+		;;
+	*)
+		>&2 echo "FAILED: webexec cannot be installed on $(uname)"
         >&2 echo "Try installing fro source: `go install github.com/tuzig/webexec@latest`"
-        ;;
-    esac
+		;;
+	esac
 
-    # HOME verification
-    if [  ! -d "$HOME" ]; then
-        >&2 echo "Aborting because HOME directory $HOME does not exist"; exit 1
-    fi
+	# HOME verification
+	if [  ! -d "$HOME" ]; then
+		>&2 echo "Aborting because HOME directory $HOME does not exist"; exit 1
+	fi
 
     if [ ! -w "$HOME" ]; then
         >&2 echo "Aborting because HOME (\"$HOME\") is not writable"; exit 1
@@ -93,8 +93,8 @@ checks() {
 }
 
 get_n_extract() {
-    case "$(uname)" in
-    Darwin)
+	case "$(uname)" in
+	Darwin)
         if command_exists go; then
             go install github.com/tuzig/webexec@v$LATEST_VERSION
             if [ $? -ne 0 ]; then
@@ -121,48 +121,51 @@ get_n_extract() {
         # cp webexec/* .
         # umount webexec
         
-        ;;
-    Linux)
+		;;
+	Linux)
         BALL_NAME="webexec_${LATEST_VERSION}_$(uname -s | tr [:upper:] [:lower:])_$ARCH.tar.gz"
         STATIC_RELEASE_URL="https://github.com/tuzig/webexec/releases/download/v$LATEST_VERSION/$BALL_NAME"
         curl -sL "$STATIC_RELEASE_URL" -o $1/$BALL_NAME
         tar zx --strip-components=1 -C $1 < $1/$BALL_NAME 
         ./webexec init
-    esac
+        ;;
+	esac
 }
 
 do_install() {
-    checks
-
-    sh_c='sh -c'
-    if [ "$user" != 'root' ]; then
-        if command_exists sudo; then
-            sh_c='sudo -E sh -c'
-        elif command_exists su; then
-            sh_c='su -c'
-        else
-            cat >&2 <<-'EOF'
-            Error: this installer needs the ability to run commands as root.
-            We are unable to find either "sudo" or "su" available to make this happen.
-            EOF
-            exit 4
-        fi
-    fi
-    get_dist
-    dname="webexec.${USER:-root}"
+	checks
+    user="${USER:-root}"
+	sh_c='sh -c'
+	if [ "$user" != 'root' ]; then
+		if command_exists sudo; then
+			sh_c='sudo -E sh -c'
+		elif command_exists su; then
+			sh_c='su -c'
+		else
+			cat >&2 <<-'EOF'
+			Error: this installer needs the ability to run commands as root.
+			We are unable to find either "sudo" or "su" available to make this happen.
+			EOF
+			exit 4
+		fi
+	fi
+	get_dist
+    dname="webexec.$user"
     echo ">>> version downloaded succesfully"
     echo "    root power required to:"
     echo "    - create /var/log/$dname & /var/run/$dname"
     echo "    - make you their owner"
 
-    case "$(uname)" in
-    Darwin)
+	case "$(uname)" in
+	Darwin)
         echo "    - add you to the wheel & daemon groups"
         if ! command_exists curl; then
             brew install curl
         fi
-        $sh_c "dseditgroup -o edit -a $USER -t user wheel"
-        $sh_c "dseditgroup -o edit -a $USER -t user daemon"
+        if [ $user != "root" ]; then
+            $sh_c "dseditgroup -o edit -a $user -t user wheel"
+            $sh_c "dseditgroup -o edit -a $user -t user daemon"
+        fi
         ;;
     Linux)
         echo "    - install curl if missing"
@@ -171,22 +174,22 @@ do_install() {
             $sh_c 'apt-get update -qq >/dev/null'
             $sh_c "DEBIAN_FRONTEND=noninteractive apt-get install -y -qq curl >/dev/null"
         fi
-        tmpfile="d /var/run/$dname 0755 ${USER:-root} ${GROUP:-root}"
+        tmpfile="d /var/run/$dname 0755 $user ${GROUP:-root}\nd /var/log/$dname 0755 $user ${GROUP:-root}"
         $sh_c "echo $tmpfile > /usr/lib/tmpfiles.d/$dname"
         ;;
 
     esac
     $sh_c "mkdir -p /var/log/$dname && mkdir /var/run/$dname"
     $sh_c "chown $UID:$(id -g) /var/log/$dname /var/run/$dname"
-    # Run setup for each distro accordingly
+	# Run setup for each distro accordingly
     tmp=$(mktemp -d)
     echo ">>> created temp dir at $tmp"
     get_n_extract $tmp
-    if ! debug; then
+	if ! debug; then
         cd $tmp
-    fi
+	fi
     if [ "$(uname)" = Linux ]; then
-        $sh_c "nohup bash ./replace_n_launch.sh ${USER:-root} ${HOME:-root}"
+		$sh_c "nohup bash ./replace_n_launch.sh $user ${HOME:-/root}"
     fi
 }
 do_install "$@"
