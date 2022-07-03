@@ -43,8 +43,9 @@ func StartSock() (*http.Server, error) {
 	if err == nil {
 		os.Remove(fp)
 	} else if errors.Is(err, os.ErrNotExist) {
+		// file does not exist, let's make sure the dir does
 		dir := RunPath("")
-		_, err := os.Stat(fp)
+		_, err := os.Stat(dir)
 		if errors.Is(err, os.ErrNotExist) {
 			err = os.Mkdir(dir, 0755)
 			if err != nil {
