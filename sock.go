@@ -44,7 +44,7 @@ func StartSock() (*http.Server, error) {
 		dir := RunPath("")
 		err = os.Mkdir(dir, 0755)
 		if err != nil {
-			Logger.error("Failed to make dir %q: %s", dir, err)
+			Logger.Error("Failed to make dir %q: %s", dir, err)
 			return nil, err
 		}
 	} else {
