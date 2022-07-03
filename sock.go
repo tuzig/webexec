@@ -34,7 +34,6 @@ func (la *LiveOffer) OnCandidate(can *webrtc.ICECandidate) {
 }
 func GetSockFP() string {
 	return RunPath("agent.sock")
-	// return fmt.Sprintf("/var/run/webexec.%s.sock", user.Username), nil
 }
 func StartSock() (*http.Server, error) {
 	currentOffers = make(map[string]*LiveOffer)
@@ -42,7 +41,12 @@ func StartSock() (*http.Server, error) {
 	stat, err := os.Stat(fp)
 
 	if err != nil || !stat.IsDir() {
-		os.Mkdir(RunPath(""), 0755)
+		dir := RunPath("")
+		err = os.Mkdir(dir, 0755)
+		if err != nil {
+			Logger.error("Failed to make dir %q: %s", dir, err)
+			return nil, err
+		}
 	} else {
 		os.Remove(fp)
 	}
