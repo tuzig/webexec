@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"net"
@@ -38,17 +39,22 @@ func GetSockFP() string {
 func StartSock() (*http.Server, error) {
 	currentOffers = make(map[string]*LiveOffer)
 	fp := GetSockFP()
-	stat, err := os.Stat(fp)
-
-	if err != nil || !stat.IsDir() {
+	_, err := os.Stat(fp)
+	if err == nil {
+		os.Remove(fp)
+	} else if errors.Is(err, os.ErrNotExist) {
 		dir := RunPath("")
-		err = os.Mkdir(dir, 0755)
-		if err != nil {
-			Logger.Error("Failed to make dir %q: %s", dir, err)
+		_, err := os.Stat(fp)
+		if errors.Is(err, os.ErrNotExist) {
+			err = os.Mkdir(dir, 0755)
+			if err != nil {
+				Logger.Errorf("Failed to make dir %q: %s", dir, err)
+				return nil, err
+			}
+		} else if err != nil {
+			Logger.Errorf("Failed to stat dir %q: %s", dir, err)
 			return nil, err
 		}
-	} else {
-		os.Remove(fp)
 	}
 	m := http.ServeMux{}
 	m.Handle("/layout", http.HandlerFunc(handleLayout))
