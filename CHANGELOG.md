@@ -8,6 +8,13 @@ his file's format is define in
 [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 and the release workflow reads it to set github's release notes.
 
+## Unreleased
+
+### Fixed
+
+- run files such as .pid and .sock are in /var/run/webexec.<user>
+- Peerbook connection is much stabler
+
 ## [0.17.2] 2022-05-06
 
 ### Fixed 

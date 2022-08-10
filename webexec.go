@@ -317,9 +317,6 @@ forever:
 	ctx, _ := context.WithTimeout(context.Background(), 3*time.Second)
 	httpServer.Shutdown(ctx)
 	sockServer.Shutdown(ctx)
-	if PeerbookConn != nil {
-		PeerbookConn.Close()
-	}
 	os.Remove(PIDFilePath())
 	return nil
 }

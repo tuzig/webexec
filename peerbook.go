@@ -7,6 +7,8 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/url"
+	"os"
+	"os/signal"
 	"strings"
 	"sync"
 	"time"
@@ -15,6 +17,8 @@ import (
 	"github.com/pion/webrtc/v3"
 )
 
+const writeWait = time.Second * 10
+
 type TURNResponse struct {
 	TTL     int                 `json:"ttl"`
 	Servers []map[string]string `json:"ice_servers"`
@@ -22,7 +26,9 @@ type TURNResponse struct {
 
 var PBICEServer *webrtc.ICEServer
 var wsWriteM sync.Mutex
-var PeerbookConn *websocket.Conn
+
+// outChan is used to send messages to peerbook
+var outChan chan []byte
 
 func verifyPeer(host string) (bool, error) {
 	fp := getFP()
@@ -98,33 +104,83 @@ func getICEServers(host string) ([]webrtc.ICEServer, error) {
 }
 
 func peerbookGo() {
+	var c *websocket.Conn
+	outChan = make(chan []byte)
+	done := make(chan struct{})
+	// reader
 	go func() {
 		var err error
+		defer close(done)
 		for {
-			if PeerbookConn == nil {
-				PeerbookConn, err = dialWS()
+			if c == nil {
+				Logger.Infof("Dialing PeerBook in %s", time.Now())
+				c, err = dialWS()
 				if err != nil {
 					Logger.Errorf("Failed to dial the peerbook server: %q", err)
-					PeerbookConn = nil
+					c = nil
 					time.Sleep(Conf.peerbookTimeout)
 					continue
 				}
 				Logger.Infof("Connected to peerbook")
 			}
 
-			mType, m, err := PeerbookConn.ReadMessage()
+			mType, m, err := c.ReadMessage()
 			if err != nil {
 				Logger.Warnf("Signaling read error: %w", err)
 				time.Sleep(Conf.peerbookTimeout)
-				PeerbookConn = nil
+				c = nil
 				continue
 			}
 			if mType == websocket.TextMessage {
-				Logger.Info("Received text message", string(m))
-				err = handleMessage(PeerbookConn, m)
+				Logger.Infof("Received text message %s", string(m))
+				err = handleMessage(c, m)
 				if err != nil {
 					Logger.Errorf("Failed to handle message: %w", err)
 				}
+			} else {
+				Logger.Infof("Ignoring mssage of type %d", mType)
+			}
+		}
+	}()
+	// writer
+	go func() {
+		interrupt := make(chan os.Signal, 1)
+		signal.Notify(interrupt, os.Interrupt)
+		for {
+			Logger.Info("in sender for")
+			select {
+			case <-done:
+				return
+			case msg, ok := <-outChan:
+				if !ok {
+					Logger.Errorf("Got a bad message to send")
+					continue
+				}
+				Logger.Infof("sending to pb: %s", msg)
+				c.SetWriteDeadline(time.Now().Add(writeWait))
+				err := c.WriteMessage(websocket.TextMessage, msg)
+				if err != nil {
+					if websocket.IsUnexpectedCloseError(err,
+						websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
+						Logger.Warnf("Failed to send websocket message: %s", err)
+						return
+					}
+					continue
+				}
+			case <-interrupt:
+				// Cleanly close the connection by sending a close message and then
+				// waiting (with timeout) for the server to close the connection.
+				Logger.Info("Closing peerbook connection")
+				err := c.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
+				if err != nil {
+					Logger.Errorf("Failed to close websocket", err)
+					return
+				}
+				select {
+				case <-done:
+				case <-time.After(time.Second):
+				}
+				return
 			}
 		}
 	}()
@@ -186,7 +242,7 @@ func handleMessage(c *websocket.Conn, message []byte) error {
 	}
 	code, found := m["code"]
 	if found {
-		Logger.Infof("Got a status message: %v", code)
+		Logger.Infof("Got a status message: %v %s", code, m["text"].(string))
 		return nil
 	}
 	_, found = m["peers"]
@@ -239,9 +295,7 @@ func handleMessage(c *websocket.Conn, message []byte) error {
 					Logger.Errorf("Failed to encode offer : %w", err)
 					return
 				}
-				wsWriteM.Lock()
-				c.WriteMessage(websocket.TextMessage, j)
-				wsWriteM.Unlock()
+				outChan <- j
 			}
 		})
 		err = peer.PC.SetRemoteDescription(offer)
@@ -264,12 +318,7 @@ func handleMessage(c *websocket.Conn, message []byte) error {
 		if err != nil {
 			return fmt.Errorf("Failed to encode offer : %w", err)
 		}
-		wsWriteM.Lock()
-		err = c.WriteMessage(websocket.TextMessage, j)
-		if err != nil {
-			return fmt.Errorf("Failed to write answer: %w", err)
-		}
-		wsWriteM.Unlock()
+		outChan <- j
 		return nil
 	}
 	_, found = m["candidate"]
