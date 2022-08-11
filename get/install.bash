@@ -3,9 +3,10 @@
 #
 # This script is meant for quick & easy install via:
 #
-#   $ curl -L https://get.webexec.sh -o get-webexec.sh && bash get-webexec.sh
+#   $ curl -sL https://get.webexec.sh -o get-webexec.sh
+#   $ ./get-webexec.sh
 #
-LATEST_VERSION="0.17.2"
+LATEST_VERSION="0.17.3"
 
 # The latest release is currently hard-coded.
 echo ">>> Installing webexec latest version"
