@@ -6,10 +6,8 @@
 #   $ curl -sL https://get.webexec.sh -o get-webexec.sh
 #   $ ./get-webexec.sh
 #
-LATEST_VERSION="0.17.4"
-
 # The latest release is currently hard-coded.
-echo ">>> Installing webexec latest version"
+LATEST_VERSION="0.17.5"
          
 ARCH="$(uname -m | tr [:upper:] [:lower:])" 
 if [[ "$ARCH" = arm64 ]]; then
@@ -103,6 +101,8 @@ get_n_extract() {
                 echo "Please visit our discord server at"
                 echo "https://discord.gg/GneEDB7ZZQ for help"
                 exit 7
+            else
+                echo ">>> Installed webexec v$LATEST_VERSION using 'go install'"
             fi
             webexec init
             webexec start
@@ -152,9 +152,9 @@ do_install() {
 	fi
 	get_dist
     dname="webexec.$user"
-    echo ">>> version downloaded succesfully"
     echo "    root power required to:"
     echo "    - create /var/log/$dname & /var/run/$dname"
+    echo "    - make you their owner"
     echo "    - make you their owner"
 
 	case "$(uname)" in
