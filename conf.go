@@ -315,13 +315,11 @@ func ConfPath(suffix string) string {
 // RunPath returns the full path of a run file: socket & pid
 func RunPath(suffix string) string {
 	usr, _ := user.Current()
-	dirname := fmt.Sprintf("webexec.%s", usr.Username)
-	return filepath.Join("/var/run", dirname, suffix)
+	return filepath.Join(usr.HomeDir, ".local", "run", suffix)
 }
 
 // RunPath returns the full path of a run file: socket & pid
 func LogPath(suffix string) string {
 	usr, _ := user.Current()
-	dirname := fmt.Sprintf("webexec.%s", usr.Username)
-	return filepath.Join("/var/log", dirname, suffix)
+	return filepath.Join(usr.HomeDir, ".local", "log", suffix)
 }
