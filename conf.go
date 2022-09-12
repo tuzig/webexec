@@ -315,11 +315,21 @@ func ConfPath(suffix string) string {
 // RunPath returns the full path of a run file: socket & pid
 func RunPath(suffix string) string {
 	usr, _ := user.Current()
-	return filepath.Join(usr.HomeDir, ".local", "run", suffix)
+	dir := filepath.Join(usr.HomeDir, ".local", "run")
+	_, err := os.Stat(dir)
+	if os.IsNotExist(err) {
+		os.MkdirAll(dir, 0755)
+	}
+	return filepath.Join(dir, suffix)
 }
 
-// RunPath returns the full path of a run file: socket & pid
+// LogPath returns the full path of a run file: socket & pid
 func LogPath(suffix string) string {
 	usr, _ := user.Current()
-	return filepath.Join(usr.HomeDir, ".local", "log", suffix)
+	dir := filepath.Join(usr.HomeDir, ".local", "log")
+	_, err := os.Stat(dir)
+	if os.IsNotExist(err) {
+		os.MkdirAll(dir, 0755)
+	}
+	return filepath.Join(dir, suffix)
 }
