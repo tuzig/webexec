@@ -80,7 +80,8 @@ var Conf struct {
 var emailRegex = regexp.MustCompile("^[a-zA-Z0-9.!#$%&'*+\\/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$")
 
 // parseConf loads a configuration from a toml string and fills all Conf value.
-//			If a key is missing LoadConf will load the default value
+//
+//	If a key is missing LoadConf will load the default value
 func parseConf(s string) error {
 	t, err := toml.Load(s)
 	if err != nil {
@@ -90,15 +91,20 @@ func parseConf(s string) error {
 	Conf.logFilePath = logFilePath("log.file", "agent.log")
 	Conf.errFilePath = logFilePath("log.error", "agent.err")
 	Conf.logLevel = zapcore.ErrorLevel
-	l := Conf.T.Get("log.level").(string)
-	if l == "info" {
-		Conf.logLevel = zapcore.InfoLevel
-	} else if l == "warn" {
+	v := Conf.T.Get("log.level")
+	if v != nil {
+		l := v.(string)
+		if l == "info" {
+			Conf.logLevel = zapcore.InfoLevel
+		} else if l == "warn" {
+			Conf.logLevel = zapcore.WarnLevel
+		} else if l == "debug" {
+			Conf.logLevel = zapcore.DebugLevel
+		}
+	} else {
 		Conf.logLevel = zapcore.WarnLevel
-	} else if l == "debug" {
-		Conf.logLevel = zapcore.DebugLevel
 	}
-	v := t.Get("timeouts.disconnect")
+	v = t.Get("timeouts.disconnect")
 	if v != nil {
 		Conf.disconnectTimeout = time.Duration(v.(int64)) * time.Millisecond
 	} else {
@@ -229,7 +235,6 @@ func LoadConf() error {
 	confPath := ConfPath("webexec.conf")
 	_, err := os.Stat(confPath)
 	if os.IsNotExist(err) {
-		err = parseConf("")
 		return fmt.Errorf("Missing conf file, run `webexec init` to create")
 	} else {
 		b, err := ioutil.ReadFile(confPath)
