@@ -8,11 +8,11 @@ his file's format is define in
 [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 and the release workflow reads it to set github's release notes.
 
-## Unreleased
+## [0.17.6] 2022-09-12
 
 ### Fixed
 
-- run files are stores in ~/.local/run and ~/.local/log
+- run files are stored in ~/.local/run and ~/.local/log
 
 ## [0.17.5] 2022-08-13
 
