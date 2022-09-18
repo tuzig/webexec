@@ -185,10 +185,10 @@ do_install() {
 	# Run setup for each distro accordingly
     tmp=$(mktemp -d)
     echo ">>> created temp dir at $tmp"
-    get_n_extract $tmp
 	if ! debug; then
         cd $tmp
 	fi
+    get_n_extract $tmp
     if [ "$(uname)" = Linux ]; then
 		$sh_c "nohup bash ./replace_n_launch.sh $user ${HOME:-/root}"
     fi
