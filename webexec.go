@@ -472,7 +472,7 @@ func initCMD(c *cli.Context) error {
 		}
 		fmt.Printf("Created %q directory\n", homePath)
 	} else {
-		return fmt.Errorf("%q already exists, doing nothing.", homePath)
+		return fmt.Errorf("%q already exists, leaving as is.", homePath)
 	}
 	// TODO: add a CLI option to make it !sillent
 	err = createConf(true)
