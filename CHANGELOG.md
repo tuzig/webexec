@@ -14,6 +14,7 @@ and the release workflow reads it to set github's release notes.
 
 - pid file is at ~/.local/run/webexec.pid
 - socket file is at ~/.local/run/webexec.sock
+- log file is called `webexec.log`
 
 ## [0.17.6] 2022-09-12
 

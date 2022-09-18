@@ -22,8 +22,8 @@ const defaultConf = `# webexec's configuration. in toml.
 level = "info"
 # for absolute path by starting with a /
 # relative path is /var/log/webexec.$USER
-file = "agent.log"
-error = "agent.err"
+file = "webexec.log"
+error = "webexec.err"
 # next can be uncommented to debug pion components
 # pion_levels = { trace = "sctp" }
 [net]
@@ -88,8 +88,8 @@ func parseConf(s string) error {
 		return fmt.Errorf("toml parsing failed: %s", err)
 	}
 	Conf.T = t
-	Conf.logFilePath = logFilePath("log.file", "agent.log")
-	Conf.errFilePath = logFilePath("log.error", "agent.err")
+	Conf.logFilePath = logFilePath("log.file", "webexec.log")
+	Conf.errFilePath = logFilePath("log.error", "webexec.err")
 	Conf.logLevel = zapcore.ErrorLevel
 	v := Conf.T.Get("log.level")
 	if v != nil {

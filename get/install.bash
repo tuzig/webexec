@@ -135,7 +135,7 @@ get_n_extract() {
 
 do_install() {
 	checks
-    user="${USER:-root}"
+    user="$(whoami)"
 	sh_c='sh -c'
 	if [ "$user" != 'root' ]; then
 		if command_exists sudo; then
