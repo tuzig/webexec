@@ -32,7 +32,7 @@ else
 fi
 
 PIDFILE_DIR="/var/run/webexec.$USER"
-PIDFILE=$PIDFILE_DIR/agent.pid
+PIDFILE=$PIDFILE_DIR/webexec.pid
 
 if [ ! -d "$PIDFILE_DIR" ];then
         mkdir -p "$PIDFILE_DIR"

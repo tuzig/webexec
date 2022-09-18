@@ -77,7 +77,7 @@ func TestOfferPutCandidates(t *testing.T) {
 	var id string
 	initTest(t)
 	StartSock()
-	fp := RunPath("agent.sock")
+	fp := RunPath("webexec.sock")
 	httpc := http.Client{
 		Transport: &http.Transport{
 			DialContext: func(_ context.Context, _, _ string) (net.Conn, error) {

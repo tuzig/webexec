@@ -34,7 +34,7 @@ func (la *LiveOffer) OnCandidate(can *webrtc.ICECandidate) {
 	}
 }
 func GetSockFP() string {
-	return RunPath("agent.sock")
+	return RunPath("webexec.sock")
 }
 func StartSock() (*http.Server, error) {
 	currentOffers = make(map[string]*LiveOffer)

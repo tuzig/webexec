@@ -259,7 +259,7 @@ func TestMarkerRestore(t *testing.T) {
 		dc.OnMessage(func(msg webrtc.DataChannelMessage) {
 			// ignore null messages
 			if len(msg.Data) > 0 {
-				require.Equal(t, "789\r\n", string(msg.Data))
+				require.Contains(t, string(msg.Data), "789")
 				gotSecondAgain <- true
 			}
 
