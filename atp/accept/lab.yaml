@@ -1,0 +1,28 @@
+version: "3.9"
+services:
+  runner:
+    build: 
+      context: .
+      dockerfile: ./atp/infra/runner/Dockerfile
+    volumes:
+      - ./atp/accept:/runner
+      - ./atp/result:/result
+      - ./atp/accept/webexec_conf:/webexec_config
+    depends_on:
+      - client
+      - webexec
+  client:
+    image: halverneus/static-file-server:latest
+    environment:
+      PORT: 80
+    volumes:
+      - ./atp/accept/client:/web
+  webexec:
+    build:
+      context: .
+      dockerfile: ./atp/infra/webexec/Dockerfile
+    expose:
+      - "22"
+      - "7777"
+    volumes:
+      - .:/home/webexec/src
