@@ -1,9 +1,9 @@
-FROM golang:alpine
-RUN apk update
-RUN apk add git bash
-RUN addgroup -S webexec && adduser -S webexec -G webexec
-RUN mkdir -p /run/webexec.webexec /var/log/webexec.webexec && \
-    chown webexec:webexec /run/webexec.webexec /var/log/webexec.webexec
-USER webexec
-WORKDIR /home/webexec/src
+FROM golang:bullseye
+RUN apt update
+RUN apt install -y git bash openssh-server
+COPY ./atp/infra/webexec/config/ssh_config /etc/ssh/
+RUN /etc/init.d/ssh start
+RUN useradd -d /home/webexec -M -p VDueK9QTyseeA webexec
+
+WORKDIR /home/webexec
 CMD ./atp/infra/webexec/cmd.sh

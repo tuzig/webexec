@@ -7,7 +7,6 @@ services:
     volumes:
       - ./atp/accept:/runner
       - ./atp/result:/result
-      - ./atp/accept/webexec_conf:/webexec_config
     depends_on:
       - client
       - webexec
@@ -15,6 +14,8 @@ services:
     image: halverneus/static-file-server:latest
     environment:
       PORT: 80
+    expose:
+      - "80"
     volumes:
       - ./atp/accept/client:/web
   webexec:
@@ -25,4 +26,5 @@ services:
       - "22"
       - "7777"
     volumes:
-      - .:/home/webexec/src
+      - .:/home/webexec
+      - ./atp/accept/webexec_conf:/webexec_config

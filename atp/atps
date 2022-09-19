@@ -8,7 +8,7 @@ then
     for compose in `find atp -name "lab.yaml"`
     do
         dir=$(dirname $compose)
-        echo ">>> bringing up a lab from $dir"
+        echo ">>> Setting a lab based on $dir"
         build_n_run $compose
         if [ $? -ne 0 ]
         then
@@ -20,7 +20,7 @@ else
     npx vite build
     for arg in $@
     do
-        echo ">>> setting up a lab from $arg"
+        echo ">>> Setting a lab based on $arg"
         build_n_run $arg/lab.yaml
         if [ $? -ne 0 ]
         then
