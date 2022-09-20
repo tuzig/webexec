@@ -1,9 +1,8 @@
 #!/usr/bin/env bash
 /etc/init.d/ssh start
-go run . init 
-go run . start 
-while true
-do
-    sleep 3
-done
-
+su webexec <<EOS
+go generate .
+go build .
+./webexec init 
+./webexec start --debug
+EOS
