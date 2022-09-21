@@ -23,6 +23,7 @@ require (
 	github.com/stretchr/testify v1.7.0
 	github.com/urfave/cli/v2 v2.3.0
 	go.uber.org/zap v1.17.0
+	golang.org/x/crypto v0.0.0-20220919173607-35f4265a4bc0 // indirect
 	golang.org/x/sys v0.0.0-20211025201205-69cdffdb9359
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0
 )

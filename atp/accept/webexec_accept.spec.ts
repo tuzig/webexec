@@ -31,7 +31,7 @@ test.describe('use webexec accept to start a session', ()  => {
                 conn.connect({
                   host: 'webexec',
                   port: 22,
-                  username: 'webexec',
+                  username: 'runner',
                   password: 'webexec'
                 })
             })
@@ -100,7 +100,7 @@ test.describe('use webexec accept to start a session', ()  => {
                 })
             })
         } catch(e) { expect(e).toBeNull() }
-        stream.write("./webexec accept\n")
+        stream.write("webexec accept\n")
         stream.write(offer + "\n")
         let pcState = null
         while (pcState != "connected") {

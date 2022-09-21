@@ -251,16 +251,16 @@ func start(c *cli.Context) error {
 	}
 	// TODO: do we need this?
 	ptyMux = ptyMuxType{}
+	err = createPIDFile()
+	if err != nil {
+		return err
+	}
 	debug := c.Bool("debug")
 	if debug {
 		InitDevLogger()
 	} else {
 		if c.Bool("agent") {
 			InitAgentLogger()
-			err := createPIDFile()
-			if err != nil {
-				return err
-			}
 		} else {
 			return forkAgent(address)
 		}
@@ -371,11 +371,21 @@ func accept(c *cli.Context) error {
 			},
 		},
 	}
+	can := []byte{}
+	InitDevLogger()
 	scanner := bufio.NewScanner(os.Stdin)
-	for scanner.Scan() {
+	for {
 		line := scanner.Bytes()
+		can = append(can, line...)
+		var js json.RawMessage
+		// If it's not the end of a candidate, continue reading
+		if len(line) == 0 || line[len(line)-1] != '}' || json.Unmarshal(can, &js) != nil {
+			continue
+		}
+		Logger.Info("Got candidate")
 		if id == "" {
-			resp, err := httpc.Post("http://unix/offer/", "application/json", bytes.NewBuffer(line))
+			resp, err := httpc.Post(
+				"http://unix/offer/", "application/json", bytes.NewBuffer(can))
 			if err != nil {
 				return fmt.Errorf("Failed to POST agent's unix socket: %s", err)
 			}
@@ -391,7 +401,7 @@ func accept(c *cli.Context) error {
 			getCandidate(httpc, id)
 			break
 		} else {
-			req, err := http.NewRequest("PUT", "http://unix/offer/"+id, bytes.NewReader(line))
+			req, err := http.NewRequest("PUT", "http://unix/offer/"+id, bytes.NewReader(can))
 			if err != nil {
 				return fmt.Errorf("Failed to create new PUT request: %q", err)
 			}
@@ -406,9 +416,7 @@ func accept(c *cli.Context) error {
 				return fmt.Errorf("Got a server error when PUTing: %s", msg)
 			}
 		}
-	}
-	if err := scanner.Err(); err != nil {
-		return fmt.Errorf("Failed reading input: %q", err)
+		can = []byte{}
 	}
 	return nil
 }

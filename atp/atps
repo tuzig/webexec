@@ -3,6 +3,7 @@ build_n_run() {
     docker compose -f $1  --project-directory . build
     docker compose -f $1  --project-directory . up --exit-code-from runner
 }
+go build .
 if [ $# -eq 0 ]
 then
     for compose in `find atp -name "lab.yaml"`
