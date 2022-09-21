@@ -72,32 +72,36 @@ test.describe('use webexec accept to start a session', ()  => {
         })
         conn.on('end', e => console.log("ssh ended", e))
         conn.on('keyboard-interactive', e => console.log("ssh interaction", e))
-        let { pc, offer } = await page.evaluate(async () => {
-            window.candidates = []
-            return new Promise<{pc, offer}>((resolve) => {
-                window.connectionState = "init"
-                window.pc = new RTCPeerConnection({
-                  iceServers: [{
-                    urls: 'stun:stun.l.google.com:19302',
-                  }],
-                })
-                const sendChannel = pc.createDataChannel('%')
-                sendChannel.onclose = () => console.log('cdcChannel has closed')
-                sendChannel.onopen = () => console.log('cdcChannel has opened')
+        let offer
+        try {
+            offer = await page.evaluate(async () => {
+                window.candidates = []
+                return new Promise<{pc, offer}>((resolve, reject) => {
+                    window.connectionState = "init"
+                    window.pc = new RTCPeerConnection({
+                      iceServers: [{
+                        urls: 'stun:stun.l.google.com:19302',
+                      }],
+                    })
+                    const sendChannel = pc.createDataChannel('%')
+                    sendChannel.onclose = () => console.log('cdcChannel has closed')
+                    sendChannel.onopen = () => console.log('cdcChannel has opened')
 
-                pc.onconnectionstatechange = ev => 
-                    window.connectionState =  ev.connectionState
-                pc.onnegotiationneeded = () => {
-                    pc.createOffer().then(offer => {
-                          pc.setLocalDescription(offer)
-                          resolve({ pc, offer })
-                    }).catch(e => reject(e))
-                }
-                pc.onicecandidate = event => window.candidates.push(event.candidate)
+                    pc.onconnectionstatechange = ev => 
+                        window.connectionState =  ev.connectionState
+                    pc.onnegotiationneeded = () => {
+                        pc.createOffer().then(offer => {
+                            console.log("offer", offer)
+                            pc.setLocalDescription(offer)
+                            resolve(JSON.stringify(offer))
+                        }).catch(e => reject(e))
+                    }
+                    pc.onicecandidate = event => window.candidates.push(event.candidate)
+                })
             })
-        })
+        } catch(e) { expect(e).toBeNull() }
         stream.write("./webexec accept\n")
-        stream.write(JSON.stringify(offer) + "\n")
+        stream.write(offer + "\n")
         let pcState = null
         while (pcState != "connected") {
             let cans = []
