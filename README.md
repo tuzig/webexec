@@ -16,13 +16,12 @@ server and then initiates a WebRTC connection.
 ## Install
 
 This repo inscludes a [one-line installer](install.sh) for installing on Mac & Linux.
-To use to install the latest version it run `curl https://get.webexec.sh | bash`.
-
+To use to install the latest version it run
+`bash -c "$(curl -sL https://get.webexec.sh)".
 
 ### from the source
 
 ```
-
 $ go install ./...
 
 ```
