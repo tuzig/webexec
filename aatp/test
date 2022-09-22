@@ -1,37 +1,47 @@
 #!/usr/bin/env bash
 BUILD=0
 build_n_run() {
-    [ $BUILD -eq 1 ] && docker compose -f $1  --project-directory . build
+    [ $BUILD -eq 1 ] && docker compose -f $1  --project-directory . build --no-cach
     docker compose -f $1  --project-directory . up --exit-code-from runner
 }
-help() {
-   echo "This script runs the acceptance test procedures"
-   echo
-   echo "Syntax: scriptTemplate [-h|b] <test_path>"
-   echo "options:"
-   echo "h     Print this Help"
-   echo "b     Build the docker images before running"
-   echo
+usage() {
+   cat <<EOS
+This script runs the acceptance test procedures
+
+Syntax: scriptTemplate [-h|b] <test_path>
+options:
+
+h     Print this usage"
+b     Build the docker images from scratch before running"
+
+EOS
 }
-go build .
-if [ $? .ne 0 ]
+
+exit_error() {
+    usage
+    exit 1
+}
+env GOOS="linux" go build -v .
+if [ $? -ne 0 ]
 then
     exit "build failed"
 fi
 
-while getopts ":bh:" option; do
+while getopts ":bh" option; do
+    echo "option " $option
    case $option in
-      h) # display Help
-         Help
+      h) # display usage
+         usage
          exit;;
       b) # Enter a name
          BUILD=1
-         break;;
+         ;;
       \?) # Invalid option
          echo "Error: Invalid option"
-         exit;;
+         exit_error;;
    esac
 done
+shift $((OPTIND-1))
 if [ $# -eq 0 ]
 then
     for compose in `find aatp -name "lab.yaml"`
