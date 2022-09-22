@@ -3,10 +3,10 @@ services:
   runner:
     build: 
       context: .
-      dockerfile: ./atp/infra/runner/Dockerfile
+      dockerfile: ./aatp/infra/runner/Dockerfile
     volumes:
-      - ./atp/accept:/runner
-      - ./atp/result:/result
+      - ./aatp/accept:/suite
+      - ./aatp/result:/result
     depends_on:
       - client
       - webexec
@@ -17,14 +17,14 @@ services:
     expose:
       - "80"
     volumes:
-      - ./atp/accept/client:/web
+      - ./aatp/accept/client:/web
   webexec:
     build:
       context: .
-      dockerfile: ./atp/infra/webexec/Dockerfile
+      dockerfile: ./aatp/infra/webexec/Dockerfile
     expose:
       - "22"
       - "7777"
     volumes:
       - .:/webexec
-      - ./atp/accept/webexec_conf:/config/webexec
+      - ./aatp/accept/webexec_conf:/config/webexec

@@ -1,0 +1,60 @@
+#!/usr/bin/env bash
+BUILD=0
+build_n_run() {
+    [ $BUILD -eq 1 ] && docker compose -f $1  --project-directory . build
+    docker compose -f $1  --project-directory . up --exit-code-from runner
+}
+help() {
+   echo "This script runs the acceptance test procedures"
+   echo
+   echo "Syntax: scriptTemplate [-h|b] <test_path>"
+   echo "options:"
+   echo "h     Print this Help"
+   echo "b     Build the docker images before running"
+   echo
+}
+go build .
+if [ $? .ne 0 ]
+then
+    exit "build failed"
+fi
+
+while getopts ":bh:" option; do
+   case $option in
+      h) # display Help
+         Help
+         exit;;
+      b) # Enter a name
+         BUILD=1
+         break;;
+      \?) # Invalid option
+         echo "Error: Invalid option"
+         exit;;
+   esac
+done
+if [ $# -eq 0 ]
+then
+    for compose in `find aatp -name "lab.yaml"`
+    do
+        dir=$(dirname $compose)
+        echo ">>> Setting a lab based on $dir"
+        build_n_run $compose
+        if [ $? -ne 0 ]
+        then
+            echo ">>> $dir tests FAILED"
+             exit 4
+        fi
+    done
+else
+    for arg in $@
+    do
+        echo ">>> Setting a lab based on $arg"
+        build_n_run $arg/lab.yaml
+        if [ $? -ne 0 ]
+        then
+             echo ">>> $arg FAILED"
+             exit 4
+        fi
+        echo ">>> $arg tests PASSED"
+    done
+fi

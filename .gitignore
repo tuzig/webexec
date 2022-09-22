@@ -5,3 +5,4 @@ dist
 .envrc
 # Local Netlify folder
 .netlify
+node_modules

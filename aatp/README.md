@@ -1,6 +1,6 @@
 # Acceptance Test Procedure
 
-TL:DR; From the project's root `./atp/atps`
+TL:DR; From the project's root `./atps/test`
 
 This folder contains automated acceptance test procedures for webexec. 
 The tests are using docker-compose for lab setup and playwright
