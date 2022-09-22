@@ -1,5 +1,6 @@
 import { test, expect, Page, BrowserContext } from '@playwright/test'
 import { Client } from 'ssh2'
+import { getOffer } from '../infra/lib'
 import * as fs from 'fs'
 import waitPort from 'wait-port'
 
@@ -36,9 +37,17 @@ test.describe('use webexec accept to start a session', ()  => {
                 })
             })
         } catch(e) { expect(e).toBeNull() }
+        // log key SSH events
+        conn.on('error', e => console.log("ssh error", e))
+        conn.on('close', e => {
+            cmdClosed = true
+            console.log("ssh closed", e)
+        })
+        conn.on('end', e => console.log("ssh ended", e))
+        conn.on('keyboard-interactive', e => console.log("ssh interaction", e))
         try {
             stream = await new Promise((resolve, reject) => {
-                conn.shell(async (err, s) => {
+                conn.exec("webexec accept", { pty: true }, async (err, s) => {
                     if (err)
                         reject(err)
                     else 
@@ -48,59 +57,23 @@ test.describe('use webexec accept to start a session', ()  => {
         } catch(e) { expect(e).toBeNull() }
         let dataLines = 0
         stream.on('close', (code, signal) => {
-          cmdClosed = true
-          conn.end()
-        }).on('data', async (data) => {
-            console.log("data: " + data)
-            /*
-            dataLines++
-            if (dataLines < 3)
-                return
-            else if (dataLines == 2) {
-                expect(""+data).toEqual("$ ")
-            }*/
-
-          // let s = JSON.parse(data)
-          // await page.evaluate(can => windows.pc.addIceCandidate(can), s)
-        }).stderr.on('data', (data) => {
-          console.log("ERROR: " + data)
-        })
-        conn.on('error', e => console.log("ssh error", e))
-        conn.on('close', e => {
+            console.log(`closed with ${signal}`)
             cmdClosed = true
-            console.log("ssh closed", e)
+            conn.end()
+        }).on('data', async (data) => {
+            const line = "" + data
+            dataLines++
+            console.log(`>${dataLines} ${line}`)
+            let s
+            try {
+                s = JSON.parse(data)
+                console.log("parssed succesfully")
+            } catch(e) { return }
+            await page.evaluate(can => window.pc.addIceCandidate(can), s)
+        }).stderr.on('data', (data) => {
+              console.log("ERROR: " + data)
         })
-        conn.on('end', e => console.log("ssh ended", e))
-        conn.on('keyboard-interactive', e => console.log("ssh interaction", e))
-        let offer
-        try {
-            offer = await page.evaluate(async () => {
-                window.candidates = []
-                return new Promise<{pc, offer}>((resolve, reject) => {
-                    window.connectionState = "init"
-                    window.pc = new RTCPeerConnection({
-                      iceServers: [{
-                        urls: 'stun:stun.l.google.com:19302',
-                      }],
-                    })
-                    const sendChannel = pc.createDataChannel('%')
-                    sendChannel.onclose = () => console.log('cdcChannel has closed')
-                    sendChannel.onopen = () => console.log('cdcChannel has opened')
-
-                    pc.onconnectionstatechange = ev => 
-                        window.connectionState =  ev.connectionState
-                    pc.onnegotiationneeded = () => {
-                        pc.createOffer().then(offer => {
-                            console.log("offer", offer)
-                            pc.setLocalDescription(offer)
-                            resolve(JSON.stringify(offer))
-                        }).catch(e => reject(e))
-                    }
-                    pc.onicecandidate = event => window.candidates.push(event.candidate)
-                })
-            })
-        } catch(e) { expect(e).toBeNull() }
-        stream.write("webexec accept\n")
+        const offer = await getOffer(page)
         stream.write(offer + "\n")
         let pcState = null
         while (pcState != "connected") {
@@ -112,9 +85,9 @@ test.describe('use webexec accept to start a session', ()  => {
                     return ret
                 })
             } catch(e) { expect(e).toBeNull() }
-            cans.forEach((c) => stream.write(JSON.stringify(c)+"\n"))
+           cans.forEach((c) => stream.write(JSON.stringify(c)+"\n"))
             try {
-                let pcState = await page.evaluate(() => window.connectionState)
+                pcState = await page.evaluate(() => window.connectionState)
             } catch(e) { expect(e).toBeNull() }
             console.log("PC state", pcState)
             await sleep(500)
