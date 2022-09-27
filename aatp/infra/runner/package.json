@@ -14,7 +14,8 @@
     "playwright-firefox": "^1.22.2",
     "playwright-webkit": "^1.22.2",
     "redis": "<5",
+    "ssh2": "~1.11.0",
     "wait-port": "^0.2.9",
-    "ssh2": "~1.11.0"
+    "@types/node": "^18.7.18"
   }
 }

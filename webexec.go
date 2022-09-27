@@ -203,7 +203,6 @@ func stop(c *cli.Context) error {
 
 // createPIDFile creates the pid file or returns an error if it exists
 func createPIDFile() error {
-	pionLoggerFactory = newPionLoggerFactory()
 	_, err := pidfile.New(PIDFilePath())
 	if err == pidfile.ErrProcessRunning {
 		return fmt.Errorf("agent is already running, doing nothing")
@@ -214,16 +213,16 @@ func createPIDFile() error {
 	return nil
 }
 
-func forkAgent(address string) error {
+func forkAgent(address string) (int, error) {
 	pidf, err := pidfile.Open(PIDFilePath())
 	if pidf != nil && !os.IsNotExist(err) && pidf.Running() {
 		fmt.Println("agent is already running, doing nothing")
-		return nil
+		return 0, nil
 	}
 	// start the agent process and exit
 	execPath, err := osext.Executable()
 	if err != nil {
-		return fmt.Errorf("Failed to find the executable: %s", err)
+		return 0, fmt.Errorf("Failed to find the executable: %s", err)
 	}
 	cmd := exec.Command("bash", "-c",
 		fmt.Sprintf("%s start --agent --address %s >> %s",
@@ -231,11 +230,10 @@ func forkAgent(address string) error {
 	cmd.Env = nil
 	err = cmd.Start()
 	if err != nil {
-		return fmt.Errorf("agent failed to start :%q", err)
+		return 0, fmt.Errorf("agent failed to start :%q", err)
 	}
 	time.Sleep(100 * time.Millisecond)
-	fmt.Printf("agent started as process #%d\n", cmd.Process.Pid)
-	return nil
+	return cmd.Process.Pid, nil
 }
 
 // start - start the user's agent
@@ -252,18 +250,28 @@ func start(c *cli.Context) error {
 	}
 	// TODO: do we need this?
 	ptyMux = ptyMuxType{}
-	err = createPIDFile()
-	if err != nil {
-		return err
-	}
 	debug := c.Bool("debug")
 	if debug {
 		InitDevLogger()
+		err := createPIDFile()
+		if err != nil {
+			return err
+		}
 	} else {
 		if c.Bool("agent") {
 			InitAgentLogger()
+			pionLoggerFactory = newPionLoggerFactory()
+			err := createPIDFile()
+			if err != nil {
+				return err
+			}
 		} else {
-			return forkAgent(address)
+			pid, err := forkAgent(address)
+			if err != nil {
+				return err
+			}
+			fmt.Printf("agent started as process #%d\n", pid)
+			return nil
 		}
 	}
 	// the code below runs for both --debug and --agent
@@ -353,7 +361,6 @@ func accept(c *cli.Context) error {
 	}
 	if pid == 0 {
 		// start the agent
-		fmt.Printf("Starting the agent")
 		var address string
 		if c.IsSet("address") {
 			address = c.String("address")
@@ -364,7 +371,10 @@ func accept(c *cli.Context) error {
 			}
 			address = Conf.httpServer
 		}
-		forkAgent(address)
+		_, err = forkAgent(address)
+		if err != nil {
+			return fmt.Errorf("Failed to fork agent: %s", err)
+		}
 	}
 	httpc := http.Client{
 		Transport: &http.Transport{
@@ -374,15 +384,11 @@ func accept(c *cli.Context) error {
 		},
 	}
 	can := []byte{}
-	InitDevLogger()
 	for {
 		line, err := terminal.ReadPassword(0)
 		if err != nil {
 			fmt.Printf("ReadPassword error: %s", err)
 			return err
-		}
-		if len(line) > 0 {
-			fmt.Printf("Got line - %q\n", string(line))
 		}
 		can = append(can, line...)
 		var js json.RawMessage
@@ -390,7 +396,6 @@ func accept(c *cli.Context) error {
 		if len(line) == 0 || line[len(line)-1] != '}' || json.Unmarshal(can, &js) != nil {
 			continue
 		}
-		Logger.Info("Got candidate")
 		if id == "" {
 			resp, err := httpc.Post(
 				"http://unix/offer/", "application/json", bytes.NewBuffer(can))
@@ -406,8 +411,22 @@ func accept(c *cli.Context) error {
 			json.NewDecoder(resp.Body).Decode(&body)
 			defer resp.Body.Close()
 			id = body["id"]
-			getCandidate(httpc, id)
-			break
+			delete(body, "id")
+			msg, err := json.Marshal(body)
+			fmt.Println(string(msg))
+			go func() {
+				for {
+					can, err := getCandidate(httpc, id)
+					if err != nil {
+						return
+					}
+					if len(can) > 0 {
+						fmt.Println(can)
+					} else {
+						fmt.Println("got 0 length candodate")
+					}
+				}
+			}()
 		} else {
 			req, err := http.NewRequest("PUT", "http://unix/offer/"+id, bytes.NewReader(can))
 			if err != nil {
@@ -419,33 +438,28 @@ func accept(c *cli.Context) error {
 				return fmt.Errorf("Failed to PUT candidate: %q", err)
 			}
 			if resp.StatusCode != http.StatusOK {
-				msg, _ := ioutil.ReadAll(resp.Body)
-				defer resp.Body.Close()
-				return fmt.Errorf("Got a server error when PUTing: %s", msg)
+				// msg, _ := ioutil.ReadAll(resp.Body)
+				// defer resp.Body.Close()
+				return fmt.Errorf("Got a server error when PUTing: %v", resp.StatusCode)
 			}
 		}
 		can = []byte{}
 	}
 	return nil
 }
-func getCandidate(httpc http.Client, id string) {
+func getCandidate(httpc http.Client, id string) (string, error) {
 	r, err := httpc.Get("http://unix/offer/" + id)
 	if err != nil {
-		Logger.Errorf("Failed to get candidate from the unix socket: %s", err)
-		return
+		return "", fmt.Errorf("Failed to get candidate from the unix socket: %s", err)
 	}
 	body, _ := ioutil.ReadAll(r.Body)
 	defer r.Body.Close()
 	if r.StatusCode == http.StatusNoContent {
-		return
+		return "", nil
 	} else if r.StatusCode != http.StatusOK {
-		fmt.Fprintln(os.Stderr, string(body))
-		return
+		return "", fmt.Errorf("agent's socker return status: %d", r.StatusCode)
 	}
-	if len(body) > 0 {
-		fmt.Println(string(body))
-		getCandidate(httpc, id)
-	}
+	return string(body), nil
 }
 
 // status function prints the status of the agent

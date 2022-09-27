@@ -59,7 +59,7 @@ func StartSock() (*http.Server, error) {
 	}
 	m := http.ServeMux{}
 	m.Handle("/layout", http.HandlerFunc(handleLayout))
-	m.Handle("/offer/", http.HandlerFunc(hadnleOffer))
+	m.Handle("/offer/", http.HandlerFunc(handleOffer))
 	server := http.Server{Handler: &m}
 	l, err := net.Listen("unix", fp)
 	if err != nil {
@@ -83,8 +83,7 @@ func handleLayout(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func hadnleOffer(w http.ResponseWriter, r *http.Request) {
-	Logger.Infof("Got request: %v", r)
+func handleOffer(w http.ResponseWriter, r *http.Request) {
 	cs := strings.Split(r.URL.Path[1:], "/")
 	if r.Method == "GET" {
 		// store the w and use it to reply with new candidates when they're available
@@ -100,29 +99,23 @@ func hadnleOffer(w http.ResponseWriter, r *http.Request) {
 				http.StatusBadRequest)
 			return
 		}
-	replying:
-		for i := 0; i < 20; i++ {
-			select {
-			case c := <-a.cs:
-				m, err := json.Marshal(c.ToJSON())
-				if err != nil {
-					http.Error(w, "Failed to marshal candidate", http.StatusInternalServerError)
-				} else {
-					Logger.Infof("replying to GET with: %v", string(m))
-					w.Write(m)
-				}
-				return
-			case <-time.After(time.Second):
-				if a.p.PC == nil {
-					http.Error(w, "Connection failed", http.StatusServiceUnavailable)
-					break replying
-				} else if a.p.PC.ConnectionState() == webrtc.PeerConnectionStateConnected {
-					http.Error(w, "Connection established", http.StatusNoContent)
-					break replying
-				}
+		select {
+		case c := <-a.cs:
+			m, err := json.Marshal(c.ToJSON())
+			if err != nil {
+				http.Error(w, "Failed to marshal candidate", http.StatusInternalServerError)
+			} else {
+				Logger.Infof("replying to GET with: %v", string(m))
+				w.Write(m)
+			}
+			return
+		case <-time.After(time.Second * 5):
+			if a.p.PC == nil {
+				http.Error(w, "Connection failed", http.StatusServiceUnavailable)
+			} else if a.p.PC.ConnectionState() == webrtc.PeerConnectionStateConnected {
+				http.Error(w, "Connection established", http.StatusNoContent)
 			}
 		}
-		delete(currentOffers, h)
 		return
 	} else if r.Method == "POST" {
 		if len(cs) != 2 || cs[1] != "" {
@@ -139,15 +132,17 @@ func hadnleOffer(w http.ResponseWriter, r *http.Request) {
 
 		fp, err := GetFingerprint(&offer)
 		if err != nil {
-			http.Error(w, "Failed to get fingerprint from offer", http.StatusBadRequest)
+			msg := fmt.Sprintf("Failed to get fingerprint from offer: %s", err)
+			http.Error(w, msg, http.StatusBadRequest)
 			return
 		}
 		peer, err := NewPeer(fp)
 		if err != nil {
-			http.Error(w, "Failed to get fingerprint from offer", http.StatusInternalServerError)
+			http.Error(w, "Failed to create a new peer", http.StatusInternalServerError)
 			return
 		}
 		h := uniuri.New()
+		// TODO: move the 5 to conf, to refactored ice section
 		currentOffers[h] = &LiveOffer{p: peer, id: h,
 			cs: make(chan *webrtc.ICECandidate, 5)}
 		peer.PC.OnICECandidate(currentOffers[h].OnCandidate)
@@ -162,14 +157,12 @@ func hadnleOffer(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Failed to create answer", http.StatusInternalServerError)
 		}
 		err = peer.PC.SetLocalDescription(answer)
-		payload := make([]byte, 4096)
-		l, err := EncodeOffer(payload, answer)
 		if err != nil {
-			http.Error(w, "Failed to encode offer", http.StatusInternalServerError)
+			http.Error(w, "Failed to set local description", http.StatusInternalServerError)
 			return
 		}
-		m := map[string]string{"answer": string(payload[:l]), "id": h}
-		Logger.Infof("Sending answer: %v", m)
+
+		m := map[string]string{"type": "answer", "sdp": answer.SDP, "id": h}
 		j, err := json.Marshal(m)
 		if err != nil {
 			http.Error(w, "Failed to encode offer", http.StatusInternalServerError)
@@ -180,7 +173,7 @@ func hadnleOffer(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Failed to write answer", http.StatusInternalServerError)
 			return
 		}
-		// cleanup
+		// cleanup: 30 should be in the conf under the [ice] section
 		time.AfterFunc(30*time.Second, func() {
 			delete(currentOffers, h)
 		})
