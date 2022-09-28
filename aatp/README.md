@@ -1,13 +1,13 @@
 # Acceptance Test Procedure
 
-TL:DR; From the project's root `./atps/test`
+TL:DR; From the project's root `./aatp/test`
 
 This folder contains automated acceptance test procedures for webexec. 
 The tests are using docker-compose for lab setup and playwright
-for end-to-end and user journies testing.
+for end-to-end and browser testing.
 
-The script can also accept one of more argument with a folder name.
-Each of these folders focus on a different aspect of users' scenarios.
+The script support some old style options, use `./aatp/test -h` to see the 
+current options. It also accepts one of more argument with a folder name.
 
 ## The runner
 
@@ -17,8 +17,7 @@ its syntax and expectations. To pass options to playwright use the
 after the first failure and keep the logs short:
 
 ```
-PWARGS=-x ./qa/qa.bash fubar
+PWARGS=-x ./aatp/test ./aatp/accept
 ```
 
-
-Run `npx playwright test --help` for the list of options
+Run `npx playwright test --help` for its list of options
