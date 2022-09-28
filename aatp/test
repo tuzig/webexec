@@ -1,7 +1,14 @@
 #!/usr/bin/env bash
 BUILD=0
 build_n_run() {
-    [ $BUILD -eq 1 ] && docker compose -f $1  --project-directory . build --no-cach
+    if [ $BUILD -eq 1 ]
+    then
+        docker compose -f $1  --project-directory . build --no-cache
+        if [ $? -ne 0 ]
+        then
+            exit "docker compose build failed"
+        fi
+    fi
     docker compose -f $1  --project-directory . up --exit-code-from runner
 }
 usage() {
@@ -24,7 +31,7 @@ exit_error() {
 env GOOS="linux" go build -v .
 if [ $? -ne 0 ]
 then
-    exit "build failed"
+    exit "go build failed"
 fi
 
 while getopts ":bh" option; do
@@ -33,7 +40,7 @@ while getopts ":bh" option; do
       h) # display usage
          usage
          exit;;
-      b) # Enter a name
+      b) # Build
          BUILD=1
          ;;
       \?) # Invalid option
