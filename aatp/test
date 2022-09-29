@@ -31,7 +31,8 @@ exit_error() {
     usage
     exit 1
 }
-env GOOS="linux" go build -v .
+mkdir -p aatp/assets
+env GOOS="linux" go build -o ./aatp/assets/webexec -v .
 if [ $? -ne 0 ]
 then
     exit "go build failed"

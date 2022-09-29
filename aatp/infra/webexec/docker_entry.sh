@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 set -x
-EXE="/webexec/webexec"
+EXE="/assets/webexec"
 CONF="/config/webexec"
 
 /etc/init.d/ssh start
