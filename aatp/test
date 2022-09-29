@@ -37,7 +37,7 @@ then
     exit "go build failed"
 fi
 
-while getopts ":cnh" option; do
+while getopts ":hnz" option; do
     echo "option " $option
    case $option in
       h) # display usage
