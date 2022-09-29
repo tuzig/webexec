@@ -1,0 +1,10 @@
+name: Terminal7-Tests
+
+on: push
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - run: bash -x ./aatp/test
