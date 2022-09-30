@@ -1,6 +1,6 @@
 # webexec
 
-![Test](https://github.com/tuzig/webexec/workflows/Test/badge.svg)
+![Test](https://github.com/tuzig/webexec/workflows/test.yml/badge.svg)
 
 webexec is a terminal server running over WebRTC with support for
 signaling over SSH or HTTP.
