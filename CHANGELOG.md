@@ -8,6 +8,17 @@ his file's format is define in
 [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 and the release workflow reads it to set github's release notes.
 
+## [0.17.8] 2022-09-30
+
+### Fixed
+
+- the accept command for SSH based signaling
+
+### Added
+
+- a docker compose based automated testing infrastructure
+- an automated acceptance test procedure for `webexec accept`
+
 ## [0.17.7] 2022-09-18
 
 ### Fixed
