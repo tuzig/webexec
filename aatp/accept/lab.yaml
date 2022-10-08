@@ -10,6 +10,8 @@ services:
     depends_on:
       - client
       - webexec
+    environment:
+      PWARGS: ${PWARGS}
   client:
     image: halverneus/static-file-server:latest
     environment:
