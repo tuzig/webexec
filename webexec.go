@@ -423,7 +423,7 @@ func accept(c *cli.Context) error {
 					if len(can) > 0 {
 						fmt.Println(can)
 					} else {
-						fmt.Println("got 0 length candodate")
+						os.Exit(0)
 					}
 				}
 			}()
