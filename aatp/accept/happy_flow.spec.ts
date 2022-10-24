@@ -70,6 +70,11 @@ test.describe('use webexec accept to start a session', ()  => {
             // remove the CR & LF in the end
             if (webexecCan.slice(-1) == "\n")
                 webexecCan = webexecCan.slice(0, -2)
+            // ignore the leading READY
+            if (webexecCan == "READY") {
+                webexecCan = ""
+                return
+            }
             try {
                 s = JSON.parse(webexecCan)
             } catch(e) { return }
