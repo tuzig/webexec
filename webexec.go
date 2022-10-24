@@ -384,6 +384,7 @@ func accept(c *cli.Context) error {
 		},
 	}
 	can := []byte{}
+	fmt.Println("READY")
 	for {
 		line, err := terminal.ReadPassword(0)
 		if err != nil {

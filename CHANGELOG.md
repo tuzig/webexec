@@ -8,6 +8,17 @@ his file's format is define in
 [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 and the release workflow reads it to set github's release notes.
 
+## [0.17.8] 2022-10-24
+
+## Added
+
+- accept command emits a line with "READY" when it's ready to accept offers
+and candidates
+
+## Fixed 
+
+- accept command exits on 0 length candidate
+
 ## [0.17.9] 2022-10-06
 
 ## Fixed
