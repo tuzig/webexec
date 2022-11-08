@@ -75,7 +75,7 @@ jobs:
           cp $PP_PATH ~/Library/MobileDevice/Provisioning\ Profiles
 
       - name: Run GoReleaser
-        uses: goreleaser/goreleaser-n@v2
+        uses: goreleaser/goreleaser-action@v2
         with:
           args:
             release --rm-dist --release-notes ${{ steps.save_changes.outputs.changesfile }} --release-footer ${{ steps.create_footer.outputs.footerfile }}
