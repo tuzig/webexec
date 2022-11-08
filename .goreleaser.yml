@@ -22,30 +22,61 @@ builds:
     goarch:
       - amd64
       - arm64
+    hooks:
+      post:
+        - |
+          sh -c '
+          fn=dist/darwin_{{.Target}}/gon.hcl
+          cat >"$fn" <<EOF
+          bundle_id = "{{.Env.BUNDLE_ID}}"
+          apple_id {
+            username = "{{.Env.APPLE_ID_USERNAME}}"
+            password = "{{.Env.APPLE_ID_PASSWORD}}"
+          }
+          source = ["dist/darwin_{{.Target}}/{{.Name}}"]
+          sign {
+            application_identity = "{{.Env.APPLE_APPLICATION_IDENTITY}}"
+          }
+          EOF
+          '
+        - "gon 'dist/darwin_{{.Target}}/gon.hcl'"
 
-# TODO: replace macos binaries
-# universal_binaries:
-# - 
-# id: darwin
-# replace: true
-# hooks: 
-# post: gon gon.hcl
-
-# darwin archive is a dmg defined in gon.hcl
 archives:
-  - 
+  - format: zip
     id: non-darwin
-    builds:
-      - non-darwin
+    builds: [non-darwin]
+      # name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
     wrap_in_directory: true
-    files:
-      - README.md
-      - LICENSE
-      - CHANGELOG.md
-      - webexecd.sh
-      - webexec.service.tmpl
-      - replace_n_launch.sh
+  - id: darwin
+    builds:
+      - darwin
+    format: zip
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+      # wrap_in_directory: true
 
+signs:
+  - id: darwin-notarized
+    ids: [darwin]
+    signature: "${artifact}"
+      # output: true
+    cmd: sh
+    args:
+      - "-c"
+      - |-
+        cat >"dist/gon.notarize.hcl" <<EOF
+        apple_id {
+          username = "{{.Env.APPLE_ID_USERNAME}}"
+          password = "{{.Env.APPLE_ID_PASSWORD}}"
+        }
+        notarize {
+          path = "${artifact}"
+          bundle_id = "{{.Env.BUNDLE_ID}}"
+        }
+        EOF
+        gon "dist/gon.notarize.hcl"
+    # you can follow the gon docs to properly create the gon.hcl config file:
+    # https://github.com/mitchellh/gon
+    artifacts: archive
 
 checksum:
   name_template: 'checksums.txt'
@@ -53,3 +84,5 @@ snapshot:
   name_template: "{{ .Tag }}-next"
 changelog:
   skip: true
+release:
+   ids: [non-darwin, darwin-notarized]
