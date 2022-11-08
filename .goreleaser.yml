@@ -39,7 +39,7 @@ builds:
           }
           EOF
           '
-        - "gon 'dist/darwin_{{.Target}}/gon.hcl'"
+        - "gon -log-level=debug 'dist/darwin_{{.Target}}/gon.hcl'"
 
 archives:
   - format: zip
@@ -73,9 +73,7 @@ signs:
           bundle_id = "{{.Env.BUNDLE_ID}}"
         }
         EOF
-        gon "dist/gon.notarize.hcl"
-    # you can follow the gon docs to properly create the gon.hcl config file:
-    # https://github.com/mitchellh/gon
+        gon -log-level=debug "dist/gon.notarize.hcl"
     artifacts: archive
 
 checksum:
