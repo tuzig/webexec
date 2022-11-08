@@ -74,8 +74,6 @@ signs:
         }
         EOF
         gon "dist/gon.notarize.hcl"
-    # you can follow the gon docs to properly create the gon.hcl config file:
-    # https://github.com/mitchellh/gon
     artifacts: archive
 
 checksum:
