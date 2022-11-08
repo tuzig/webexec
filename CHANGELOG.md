@@ -8,24 +8,30 @@ his file's format is define in
 [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 and the release workflow reads it to set github's release notes.
 
+## Unreleased
+
+### Added
+
+- Notarization of Mac binaries
+
 ## [0.17.10] 2022-10-24
 
-## Added
+### Added
 
 - accept command emits a line with "READY" when it's ready to accept offers
 and candidates
 
-## Fixed 
+### Fixed 
 
 - accept command exits on 0 length candidate
 
 ## [0.17.9] 2022-10-06
 
-## Fixed
+### Fixed
 
 - updted the install script which was stuck on 0.17.6
 
-## [0.17.8] 2022-09-30
+### [0.17.8] 2022-09-30
 
 ### Fixed
 
