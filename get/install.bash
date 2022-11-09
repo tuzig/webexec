@@ -8,6 +8,8 @@
 #
 # The latest release is currently hard-coded.
 LATEST_VERSION="0.17.12"
+
+echo "webexec version $LATEST_VERSION installer"
          
 ARCH="$(uname -m | tr [:upper:] [:lower:])" 
 if [[ "$ARCH" = arm64 ]]; then
@@ -85,6 +87,7 @@ checks() {
 get_n_extract() {
     BASE_NAME="webexec_${LATEST_VERSION}_$(uname -s | tr [:upper:] [:lower:])_$ARCH"
     cd $1
+    echo "Downloading binary..."
 	case "$(uname)" in
 	Darwin)
         BALL_NAME="$BASE_NAME.zip"
@@ -121,7 +124,7 @@ do_install() {
 	fi
 	# Run setup for each distro accordingly
     tmp=$(mktemp -d)
-    echo ">>> created temp dir at $tmp"
+    echo "Created temp dir at $tmp"
 	if ! debug; then
         cd $tmp
 	fi
@@ -132,13 +135,13 @@ do_install() {
         $sh_c "nohup bash ./replace_n_launch.sh $user ${HOME:-/root}"
     else
         if command_exists webexec; then
-            webexec stop
+            webexec stop > /dev/null
         fi
-        cp webexec /usr/local/bin
+        cp webexec /usr/local/bin 2> /dev/null
         if [ $? -ne 0 ]
         then
-            echo "Failed copying webexec to /usr/local/bin. Trying as root"
-            $sh_c cp webexec /usr/local/bin
+            echo "Failed copying webexec to /usr/local/bin. Retrying as root"
+            $sh_c "cp webexec /usr/local/bin"
         fi
         if [ $? -ne 0 ]
         then
