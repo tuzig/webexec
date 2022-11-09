@@ -7,7 +7,7 @@
 #   $ ./get-webexec.sh
 #
 # The latest release is currently hard-coded.
-LATEST_VERSION="0.17.11"
+LATEST_VERSION="0.17.12"
          
 ARCH="$(uname -m | tr [:upper:] [:lower:])" 
 if [[ "$ARCH" = arm64 ]]; then
@@ -56,15 +56,6 @@ debug() {
 
 command_exists() {
 	command -v "$@" > /dev/null 2>&1
-}
-
-get_dist() {
-	# Every system that we officially support has /etc/os-release
-	if [ -r /etc/os-release ]; then
-		dist=$(. /etc/os-release && echo $ID |  tr '[:upper:]' '[:lower:]')
-	fi
-	# Returning an empty string here should be alright since the
-	# case statements don't act unless you provide an actual value
 }
 
 checks() {
@@ -128,38 +119,6 @@ do_install() {
 			exit 4
 		fi
 	fi
-	get_dist
-    dname="webexec.$user"
-    echo "    root power required to:"
-    echo "    - create /var/log/$dname & /var/run/$dname"
-    echo "    - make you their owner"
-    echo "    - make you their owner"
-
-	case "$(uname)" in
-	Darwin)
-        echo "    - add you to the wheel & daemon groups"
-        if ! command_exists curl; then
-            brew install curl
-        fi
-        if [ $user != "root" ]; then
-            $sh_c "dseditgroup -o edit -a $user -t user wheel"
-            $sh_c "dseditgroup -o edit -a $user -t user daemon"
-        fi
-        ;;
-    Linux)
-        echo "    - install curl if missing"
-        echo "    - add a /usr/liotmpfiles/var/log/$dname"
-        if ! command_exists curl; then
-            $sh_c 'apt-get update -qq >/dev/null'
-            $sh_c "DEBIAN_FRONTEND=noninteractive apt-get install -y -qq curl >/dev/null"
-        fi
-        tmpfile="d /var/run/$dname 0755 $user ${GROUP:-root}\nd /var/log/$dname 0755 $user ${GROUP:-root}"
-        $sh_c "echo $tmpfile > /usr/lib/tmpfiles.d/$dname"
-        ;;
-
-    esac
-    $sh_c "mkdir -p /var/log/$dname && mkdir /var/run/$dname"
-    $sh_c "chown $UID:$(id -g) /var/log/$dname /var/run/$dname"
 	# Run setup for each distro accordingly
     tmp=$(mktemp -d)
     echo ">>> created temp dir at $tmp"
@@ -167,6 +126,18 @@ do_install() {
         cd $tmp
 	fi
     get_n_extract $tmp
-    $sh_c "nohup bash ./replace_n_launch.sh $user ${HOME:-/root}"
+    if [ -z $SSH_TTY ]
+    then
+        echo "Moving to another shell to survive this connection ending"
+        $sh_c "nohup bash ./replace_n_launch.sh $user ${HOME:-/root}"
+    else
+        if command_exists webexec; then
+            webexec stop
+        fi
+        cp webexec /usr/local/bin
+        echo "Install finished, please exit and reconnect to enjoy version $LATEST_VERSION."
+    fi
+
+
 }
 do_install "$@"
