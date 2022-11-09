@@ -50,8 +50,6 @@ archives:
       - README.md
       - LICENSE
       - CHANGELOG.md
-      - webexecd.sh
-      - webexec.service.tmpl
       - replace_n_launch.sh
   - id: darwin
     builds: [darwin]
@@ -61,8 +59,6 @@ archives:
       - README.md
       - LICENSE
       - CHANGELOG.md
-      - webexecd.sh
-      - webexec.service.tmpl
       - replace_n_launch.sh
     wrap_in_directory: true
 
