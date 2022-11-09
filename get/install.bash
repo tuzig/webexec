@@ -7,7 +7,7 @@
 #   $ ./get-webexec.sh
 #
 # The latest release is currently hard-coded.
-LATEST_VERSION="0.17.10"
+LATEST_VERSION="0.17.11"
          
 ARCH="$(uname -m | tr [:upper:] [:lower:])" 
 if [[ "$ARCH" = arm64 ]]; then
@@ -92,45 +92,23 @@ checks() {
 }
 
 get_n_extract() {
+    BASE_NAME="webexec_${LATEST_VERSION}_$(uname -s | tr [:upper:] [:lower:])_$ARCH"
+    cd $1
 	case "$(uname)" in
 	Darwin)
-        if command_exists go; then
-            go install github.com/tuzig/webexec@v$LATEST_VERSION
-            if [ $? -ne 0 ]; then
-                echo "Sorry, but go based installation failed."
-                echo "Please visit our discord server at"
-                echo "https://discord.gg/GneEDB7ZZQ for help"
-                exit 7
-            else
-                echo ">>> Installed webexec v$LATEST_VERSION using 'go install'"
-            fi
-            webexec init
-            webexec start
-        else
-            echo "Sorry but our MacOS binary is still waiting notarization."
-            echo "For now, you will need to compile webexec yourself."
-            echo "Please follow the installation guide at https://go.dev/doc/install"
-            echo "and re-run this installer."
-            exit 3
-        fi
-        # TODO: noptarize the binaries and then:
-        # STATIC_RELEASE_URL="https://github.com/tuzig/webexec/releases/download/v$LATEST_VERSION/webexec_${LATEST_VERSION}.dmg"
-        # curl -sL -o webexec.dmg "$STATIC_RELEASE_URL"
-        # For debug:
-        # cp "/Users/daonb/src/webexec/dist/webexec_$LATEST_VERSION.dmg" .
-        # hdiutil attach -mountroot . -quiet -readonly -noautofsck "webexec.dmg"
-        # cp webexec/* .
-        # umount webexec
-        
-		;;
-	Linux)
-        BALL_NAME="webexec_${LATEST_VERSION}_$(uname -s | tr [:upper:] [:lower:])_$ARCH.tar.gz"
+        BALL_NAME="$BASE_NAME.zip"
         STATIC_RELEASE_URL="https://github.com/tuzig/webexec/releases/download/v$LATEST_VERSION/$BALL_NAME"
-        curl -sL "$STATIC_RELEASE_URL" -o $1/$BALL_NAME
-        tar zx --strip-components=1 -C $1 < $1/$BALL_NAME 
-        ./webexec init
+        curl -sL "$STATIC_RELEASE_URL" -o $BALL_NAME
+        unzip $BALL_NAME
+        ;;
+	Linux)
+        BALL_NAME="$BASE_NAME.tar.gz"
+        STATIC_RELEASE_URL="https://github.com/tuzig/webexec/releases/download/v$LATEST_VERSION/$BALL_NAME"
+        curl -sL "$STATIC_RELEASE_URL" | tar zx 
         ;;
 	esac
+    cd $BASE_NAME
+    ./webexec init
 }
 
 do_install() {
@@ -189,8 +167,6 @@ do_install() {
         cd $tmp
 	fi
     get_n_extract $tmp
-    if [ "$(uname)" = Linux ]; then
-		$sh_c "nohup bash ./replace_n_launch.sh $user ${HOME:-/root}"
-    fi
+    $sh_c "nohup bash ./replace_n_launch.sh $user ${HOME:-/root}"
 }
 do_install "$@"

@@ -42,17 +42,29 @@ builds:
         - "gon -log-level=debug 'dist/darwin_{{.Target}}/gon.hcl'"
 
 archives:
-  - format: zip
-    id: non-darwin
+  - id: non-darwin
     builds: [non-darwin]
       # name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
     wrap_in_directory: true
+    files:
+      - README.md
+      - LICENSE
+      - CHANGELOG.md
+      - webexecd.sh
+      - webexec.service.tmpl
+      - replace_n_launch.sh
   - id: darwin
-    builds:
-      - darwin
+    builds: [darwin]
     format: zip
-    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
-      # wrap_in_directory: true
+      # name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files:
+      - README.md
+      - LICENSE
+      - CHANGELOG.md
+      - webexecd.sh
+      - webexec.service.tmpl
+      - replace_n_launch.sh
+    wrap_in_directory: true
 
 signs:
   - id: darwin-notarized
@@ -84,3 +96,9 @@ changelog:
   skip: true
 release:
    ids: [non-darwin, darwin-notarized]
+   github:
+     owner: tuzig
+     name: webexec
+   draft: true
+   prerelease: auto
+
