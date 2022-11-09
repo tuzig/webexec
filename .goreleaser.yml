@@ -97,4 +97,4 @@ release:
      name: webexec
    draft: true
    prerelease: auto
-
+   footer: ...[Here](https://github.com/tuzig/webexec/blob/master/CHANGELOG.md) for the complete change log
