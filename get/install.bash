@@ -135,6 +135,15 @@ do_install() {
             webexec stop
         fi
         cp webexec /usr/local/bin
+        if [ $? -ne 0 ]
+        then
+            echo "Failed copying webexec to /usr/local/bin. Trying as root"
+            $sh_c cp webexec /usr/local/bin
+        fi
+        if [ $? -ne 0 ]
+        then
+            exit "Failed copying webexec to /usr/local/bin"
+        fi
         echo "Install finished, please exit and reconnect to enjoy version $LATEST_VERSION."
     fi
 
