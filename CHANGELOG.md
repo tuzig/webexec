@@ -9,11 +9,11 @@ his file's format is define in
 and the release workflow reads it to set github's release notes.
 
 
-## Unreleased
+## [0.17.13] 2022-11-27
 
 ### Fixed
 
-- Restore default ICE server configuration
+- Restore default ICE server configuration as EC2s don't know their address
 
 ## [0.17.12] 2022-11-08
 
