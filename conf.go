@@ -37,9 +37,7 @@ keep_alive = 500
 ice_gathering = 5000
 peerbook = 3000
 [[ice_servers]]
-# for dynamic address hosts use:
-# urls = [ "stun:stun.l.google.com:19302" ]
-urls = [  ]
+urls = [ "stun:stun.l.google.com:19302" ]
 [env]
 COLORTERM = "truecolor"
 TERM = "xterm"
