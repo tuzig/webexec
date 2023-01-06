@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -18,14 +19,36 @@ import (
 
 type LiveOffer struct {
 	// the http get request that's waiting for the next candidate
-	w  *http.ResponseWriter
-	m  sync.Mutex
+	w        *http.ResponseWriter
+	m        sync.Mutex
+	incoming chan webrtc.ICECandidateInit
+	//TODO: refactor and remove '*'
 	cs chan *webrtc.ICECandidate
 	p  *Peer
 	id string
 }
 
 var currentOffers map[string]*LiveOffer
+var coMutex sync.Mutex
+
+func (lo *LiveOffer) handleCandidatesIn(ctx context.Context) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case can := <-lo.incoming:
+			if lo.p.PC != nil {
+				Logger.Infof("Adding ICE candidate: %v", can)
+				err := lo.p.PC.AddICECandidate(can)
+				if err != nil {
+					Logger.Errorf("Failed to add ICE candidate: " + err.Error())
+				}
+			} else {
+				Logger.Warnf("Ignoring candidate: %v", can)
+			}
+		}
+	}
+}
 
 func (la *LiveOffer) OnCandidate(can *webrtc.ICECandidate) {
 	if can != nil {
@@ -143,15 +166,22 @@ func handleOffer(w http.ResponseWriter, r *http.Request) {
 		}
 		h := uniuri.New()
 		// TODO: move the 5 to conf, to refactored ice section
-		currentOffers[h] = &LiveOffer{p: peer, id: h,
-			cs: make(chan *webrtc.ICECandidate, 5)}
-		peer.PC.OnICECandidate(currentOffers[h].OnCandidate)
+		lo := &LiveOffer{p: peer, id: h,
+			cs:       make(chan *webrtc.ICECandidate, 5),
+			incoming: make(chan webrtc.ICECandidateInit, 5),
+		}
+		coMutex.Lock()
+		currentOffers[h] = lo
+		coMutex.Unlock()
+		peer.PC.OnICECandidate(lo.OnCandidate)
 		err = peer.PC.SetRemoteDescription(offer)
 		if err != nil {
 			msg := fmt.Sprintf("Peer failed to listen: %s", err)
 			http.Error(w, msg, http.StatusInternalServerError)
 			return
 		}
+		ctx, cancel := context.WithCancel(context.Background())
+		go lo.handleCandidatesIn(ctx)
 		answer, err := peer.PC.CreateAnswer(nil)
 		if err != nil {
 			http.Error(w, "Failed to create answer", http.StatusInternalServerError)
@@ -175,7 +205,11 @@ func handleOffer(w http.ResponseWriter, r *http.Request) {
 		}
 		// cleanup: 30 should be in the conf under the [ice] section
 		time.AfterFunc(30*time.Second, func() {
+			Logger.Info("After 30 secs")
+			cancel()
+			coMutex.Lock()
 			delete(currentOffers, h)
+			coMutex.Unlock()
 		})
 		return
 	} else if r.Method == "PUT" {
@@ -194,10 +228,6 @@ func handleOffer(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			http.Error(w, "Failed to read candidate from request body", http.StatusBadRequest)
 		}
-		Logger.Infof("Adding ICE candidate: %q", string(can))
-		err = a.p.PC.AddICECandidate(webrtc.ICECandidateInit{Candidate: string(can)})
-		if err != nil {
-			http.Error(w, "Failed to add ICE candidate: "+err.Error(), http.StatusBadRequest)
-		}
+		a.incoming <- webrtc.ICECandidateInit{Candidate: string(can)}
 	}
 }
