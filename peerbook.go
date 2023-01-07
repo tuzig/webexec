@@ -65,6 +65,8 @@ func verifyPeer(host string) (bool, error) {
 	return false, nil
 }
 func getICEServers(host string) ([]webrtc.ICEServer, error) {
+	return Conf.iceServers, nil
+	// TODO: fix this.. it's too slow
 	if host == "" {
 		return Conf.iceServers, nil
 	}
