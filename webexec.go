@@ -291,29 +291,28 @@ func start(c *cli.Context) error {
 				Conf.peerbookHost)
 		}
 		peerbookGo()
+		// to speed up first connection
+		getICEServers(Conf.peerbookHost)
 	}
 	sockServer, err := StartSock()
 	if err != nil {
 		Logger.Infof("failed to start llistening on unix socket: %s", err)
 		return err
 	}
-
-	// to speed up first connection
-	getICEServers(Conf.peerbookHost)
 	// signal handling
 	if debug {
 		signal.Notify(sigChan, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
 	} else {
 		signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP)
 	}
-forever:
+tillTerm:
 	for {
 		select {
 		case s := <-sigChan:
 			switch s {
 			case syscall.SIGINT, syscall.SIGTERM:
 				Logger.Info("Exiting on SIGINT/SIGTERM")
-				break forever
+				break tillTerm
 			case syscall.SIGHUP:
 				Logger.Info("reloading conf on SIGHUP")
 				err := LoadConf()

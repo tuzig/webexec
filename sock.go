@@ -31,7 +31,7 @@ type LiveOffer struct {
 var currentOffers map[string]*LiveOffer
 var coMutex sync.Mutex
 
-func (lo *LiveOffer) handleCandidatesIn(ctx context.Context) {
+func (lo *LiveOffer) handleIncoming(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
@@ -181,7 +181,7 @@ func handleOffer(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		ctx, cancel := context.WithCancel(context.Background())
-		go lo.handleCandidatesIn(ctx)
+		go lo.handleIncoming(ctx)
 		answer, err := peer.PC.CreateAnswer(nil)
 		if err != nil {
 			http.Error(w, "Failed to create answer", http.StatusInternalServerError)
