@@ -146,4 +146,6 @@ func TestOfferPutCandidates(t *testing.T) {
 		}
 	}
 	require.Greater(t, i, 0)
+	// For incoming handle to finish
+	time.Sleep(time.Millisecond * 100)
 }
