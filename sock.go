@@ -81,6 +81,7 @@ func StartSock() (*http.Server, error) {
 		}
 	}
 	m := http.ServeMux{}
+	m.Handle("/status", http.HandlerFunc(handleStatus))
 	m.Handle("/layout", http.HandlerFunc(handleLayout))
 	m.Handle("/offer/", http.HandlerFunc(handleOffer))
 	server := http.Server{Handler: &m}
@@ -97,6 +98,11 @@ func StartSock() (*http.Server, error) {
 	return &server, nil
 }
 
+func handleStatus(w http.ResponseWriter, r *http.Request) {
+	if r.Method == "GET" {
+		w.Write([]byte("READY"))
+	}
+}
 func handleLayout(w http.ResponseWriter, r *http.Request) {
 	if r.Method == "GET" {
 		w.Write(Payload)

@@ -382,8 +382,21 @@ func accept(c *cli.Context) error {
 			},
 		},
 	}
+	// First get the agent's status and print to the clist
+	r, err := httpc.Get("http://unix/status")
+	if err != nil {
+		return fmt.Errorf("Failed to get /status rom the unix socket: %s", err)
+	}
+	body, _ := ioutil.ReadAll(r.Body)
+	defer r.Body.Close()
+	if r.StatusCode == http.StatusNoContent {
+		return fmt.Errorf("didn't get a status from the agent")
+	} else if r.StatusCode != http.StatusOK {
+		return fmt.Errorf("agent's socket GET status return: %d", r.StatusCode)
+	}
+	fmt.Println(string(body))
+
 	can := []byte{}
-	fmt.Println("READY")
 	for {
 		line, err := terminal.ReadPassword(0)
 		if err != nil {

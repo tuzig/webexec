@@ -9,6 +9,13 @@ his file's format is define in
 and the release workflow reads it to set github's release notes.
 
 
+## Unreleased
+
+### Fixed
+
+- READY is sent only when agent is ready
+- A race condition on LAN
+
 ## [0.17.13] 2022-11-27
 
 ### Fixed
