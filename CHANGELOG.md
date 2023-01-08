@@ -9,12 +9,12 @@ his file's format is define in
 and the release workflow reads it to set github's release notes.
 
 
-## Unreleased
+## [0.17.14] 2022-1-8
 
 ### Fixed
 
 - READY is sent only when agent is ready
-- A race condition on LAN
+- A race condition on with `webexec accept` on a LAN
 
 ## [0.17.13] 2022-11-27
 

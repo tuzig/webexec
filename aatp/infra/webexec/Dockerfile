@@ -1,6 +1,5 @@
 FROM ubuntu:latest
-RUN apt update
-RUN apt install -y git bash openssh-server
+RUN apt-get update && apt-get install -y git bash openssh-server
 COPY ./aatp/infra/webexec/config/ssh_config /etc/ssh/
 COPY ./aatp/infra/webexec/docker_entry.sh /usr/local/bin
 RUN /etc/init.d/ssh start

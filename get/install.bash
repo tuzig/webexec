@@ -7,7 +7,7 @@
 #   $ ./get-webexec.sh
 #
 # The latest release is currently hard-coded.
-LATEST_VERSION="0.17.13"
+LATEST_VERSION="0.17.14"
 
 echo "webexec version $LATEST_VERSION installer"
          
