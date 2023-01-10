@@ -80,7 +80,7 @@ func NewPeer(fingerprint string) (*Peer, error) {
 	}
 	pc, err := WebRTCAPI.NewPeerConnection(config)
 	if err != nil {
-		return nil, fmt.Errorf("NewPeerConnection failed")
+		return nil, fmt.Errorf("NewPeerConnection failed: %s", err)
 	}
 	peer := Peer{
 		FP:                fingerprint,
@@ -178,14 +178,17 @@ func (peer *Peer) OnChannelReq(d *webrtc.DataChannel) {
 
 // GetOrCreatePane gets a data channel and creates an associated pane
 // The function parses the label to figure out what it needs to exec:
-//   the command to run and rows & cols of the pseudo tty.
+//
+//	the command to run and rows & cols of the pseudo tty.
+//
 // returns a nil when it fails to parse the channel name or when the name is
 // '%' used for command & control channel.
 //
 // label examples:
-//      simple form with no pty: `echo,Hello world`
-//		to start bash: `24x80,bash`
-//		to reconnect to pane id 123: `>123`
+//
+//	     simple form with no pty: `echo,Hello world`
+//			to start bash: `24x80,bash`
+//			to reconnect to pane id 123: `>123`
 func (peer *Peer) GetOrCreatePane(d *webrtc.DataChannel) (*Pane, error) {
 	var (
 		err      error

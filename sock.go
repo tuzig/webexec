@@ -167,7 +167,8 @@ func handleOffer(w http.ResponseWriter, r *http.Request) {
 		}
 		peer, err := NewPeer(fp)
 		if err != nil {
-			http.Error(w, "Failed to create a new peer", http.StatusInternalServerError)
+			http.Error(w, fmt.Sprintf("Failed to create a new peer: %s", err),
+				http.StatusInternalServerError)
 			return
 		}
 		h := uniuri.New()
