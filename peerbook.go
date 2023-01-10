@@ -19,12 +19,9 @@ import (
 
 const writeWait = time.Second * 10
 
-type TURNResponse struct {
-	TTL     int                 `json:"ttl"`
-	Servers []map[string]string `json:"ice_servers"`
-}
+type TURNResponse []map[string]string
 
-var PBICEServer *webrtc.ICEServer
+var PBICEServers []webrtc.ICEServer
 var wsWriteM sync.Mutex
 
 // outChan is used to send messages to peerbook
@@ -65,12 +62,11 @@ func verifyPeer(host string) (bool, error) {
 	return false, nil
 }
 func getICEServers(host string) ([]webrtc.ICEServer, error) {
-	return Conf.iceServers, nil
 	// TODO: fix this.. it's too slow
 	if host == "" {
 		return Conf.iceServers, nil
 	}
-	if PBICEServer == nil {
+	if len(PBICEServers) == 0 {
 		schema := "https"
 		if Conf.insecure {
 			schema = "http"
@@ -86,23 +82,25 @@ func getICEServers(host string) ([]webrtc.ICEServer, error) {
 			return nil, fmt.Errorf(string(b))
 		}
 		var d TURNResponse
+		Logger.Info("Decoding response")
 		err = json.NewDecoder(resp.Body).Decode(&d)
 		if err != nil {
 			return nil, err
 		}
-		if len(d.Servers) == 0 {
-			return nil, nil
+		for _, server := range d {
+			var urls []string
+			for _, u := range strings.Split(server["urls"], ",") {
+				urls = append(urls, strings.TrimSpace(u))
+			}
+			PBICEServers = append(PBICEServers, webrtc.ICEServer{
+				URLs:       urls,
+				Username:   server["username"],
+				Credential: server["credential"],
+			})
 		}
-		s := d.Servers[0]
-
-		PBICEServer = &webrtc.ICEServer{
-			URLs:       []string{s["urls"]},
-			Username:   s["username"],
-			Credential: s["credential"],
-		}
-
 	}
-	return append(Conf.iceServers, *PBICEServer), nil
+	Logger.Infof("Got %d ICE servers from peerbook", len(PBICEServers))
+	return append(Conf.iceServers, PBICEServers...), nil
 }
 
 func peerbookGo() {
