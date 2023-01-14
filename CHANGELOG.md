@@ -9,6 +9,14 @@ his file's format is define in
 and the release workflow reads it to set github's release notes.
 
 
+## [0.18.0] 2022-1-14
+
+### Added
+
+- Restored peerbook support. Now in beta, peerbook service includes
+behind-the-NAT connection and 2FA protected address book and a 
+websocket signaling server.
+
 ## [0.17.14] 2022-1-8
 
 ### Fixed
