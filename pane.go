@@ -16,7 +16,7 @@ import (
 	"github.com/shirou/gopsutil/v3/process"
 )
 
-const OutBufSize = 16384
+const OutBufSize = 4096
 
 // Panes is an array that hol;ds all the panes
 var Panes = NewPanesDB()
@@ -145,7 +145,7 @@ loop:
 			break loop
 		default:
 		}
-		b := make([]byte, 1024)
+		b := make([]byte, OutBufSize)
 		l, rerr := pane.TTY.Read(b)
 		if rerr == io.EOF {
 			Logger.Infof("@%d: got EOF in read loop", pane.ID)
