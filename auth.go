@@ -29,8 +29,7 @@ func NewFileAuth(filepath string) *FileAuth {
 	}
 	return &FileAuth{TokensFilePath: filepath}
 }
-func compressFP(fp string) string {
-	hex := strings.Split(fp, " ")[1]
+func compressFP(hex string) string {
 	s := strings.Replace(hex, ":", "", -1)
 	return strings.ToUpper(s)
 }

@@ -10,7 +10,6 @@ import (
 	"io/ioutil"
 	"net"
 	"os"
-	"strings"
 	"testing"
 	"time"
 
@@ -29,12 +28,12 @@ type MockAuthBackend struct {
 	authorized string
 }
 
-func (a *MockAuthBackend) IsAuthorized(fp string) bool {
-	return fp != "" && fp == a.authorized
-}
-
 func NewMockAuthBackend(authorized string) *MockAuthBackend {
 	return &MockAuthBackend{authorized}
+}
+
+func (a *MockAuthBackend) IsAuthorized(fp string) bool {
+	return fp != "" && fp == a.authorized
 }
 
 // GetMsgType is used get the type of a control message
@@ -99,8 +98,7 @@ func NewClient(known bool) (*webrtc.PeerConnection, string, error) {
 	if err != nil {
 		return nil, "", err
 	}
-	r := fmt.Sprintf("%s %s", fp[0].Algorithm, strings.ToUpper(fp[0].Value))
-	return client, r, nil
+	return client, compressFP(fp[0].Value), err
 }
 
 /*

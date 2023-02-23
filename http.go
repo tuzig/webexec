@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 
 	"github.com/pion/webrtc/v3"
 	"github.com/rs/cors"
@@ -67,7 +68,7 @@ func (h *ConnectHandler) HandleConnect(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		Logger.Warnf("Failed to get fingerprint from sdp: %w", err)
 	}
-	if !localhost && h.authBackend.IsAuthorized(fp) {
+	if !localhost && !h.authBackend.IsAuthorized(fp) {
 		// check for Bearer token
 		auth := r.Header.Get("Bearer")
 		if auth == "" || !h.authBackend.IsAuthorized(auth) {
@@ -139,5 +140,6 @@ func GetFingerprint(offer *webrtc.SessionDescription) (string, error) {
 	if f == "" {
 		return "", fmt.Errorf("Offer has no fingerprint: %v", offer)
 	}
-	return compressFP(f), nil
+	hex := strings.Split(f, " ")[1]
+	return compressFP(hex), nil
 }

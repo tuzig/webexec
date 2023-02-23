@@ -18,7 +18,7 @@ func TestConnect(t *testing.T) {
 	initTest(t)
 	done := make(chan bool)
 	// start the webrtc client
-	client, cert, err := NewClient(true)
+	client, fp, err := NewClient(true)
 	require.NoError(t, err, "Failed to create a client: %q", err)
 	cdc, err := client.CreateDataChannel("%", nil)
 	require.Nil(t, err, "Failed to create the control data channel: %q", err)
@@ -35,17 +35,17 @@ func TestConnect(t *testing.T) {
 		buf := make([]byte, 4096)
 		l, err := EncodeOffer(buf, *client.LocalDescription())
 		require.Nil(t, err, "Failed ending an offer: %v", clientOffer)
-		p := ConnectRequest{cert, 1, string(buf[:l])}
+		p := ConnectRequest{fp, 1, string(buf[:l])}
 		b, err := json.Marshal(p)
 		req := httptest.NewRequest(http.MethodPost, "/connect", bytes.NewBuffer(b))
 		req.RemoteAddr = "8.8.8.8"
 		w := httptest.NewRecorder()
-		a := NewMockAuthBackend(cert)
+		a := NewMockAuthBackend(fp)
 		h := NewConnectHandler(a)
 		h.HandleConnect(w, req)
-		require.Equal(t, http.StatusOK, r.StatusCode)
+		require.Equal(t, http.StatusOK, w.Code)
 		// read server offer
-		err = DecodeOffer(&sd, serverOffer[:l])
+		err = DecodeOffer(&sd, w.Body.Bytes())
 		require.Nil(t, err, "Failed decoding an offer: %v", clientOffer)
 		client.SetRemoteDescription(sd)
 		// count the incoming messages
@@ -93,7 +93,7 @@ func TestConnectBadFP(t *testing.T) {
 		req := httptest.NewRequest(http.MethodPost, "/connect", bytes.NewBuffer(b))
 		req.RemoteAddr = "8.8.8.8"
 		w := httptest.NewRecorder()
-		a := NewMockAuthBackend(cert)
+		a := NewMockAuthBackend("")
 		h := NewConnectHandler(a)
 		h.HandleConnect(w, req)
 		require.Equal(t, http.StatusUnauthorized, w.Code)
