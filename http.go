@@ -11,12 +11,6 @@ import (
 	"github.com/rs/cors"
 )
 
-// AuthBackend is the interface that wraps the basic authentication methods
-type AuthBackend interface {
-	// IsAthorized checks if the fingerprint is authorized to connect
-	IsAuthorized(token string) bool
-}
-
 type ConnectHandler struct {
 	authBackend AuthBackend
 }
@@ -68,14 +62,11 @@ func (h *ConnectHandler) HandleConnect(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		Logger.Warnf("Failed to get fingerprint from sdp: %w", err)
 	}
-	if !localhost && !h.authBackend.IsAuthorized(fp) {
-		// check for Bearer token
-		auth := r.Header.Get("Bearer")
-		if auth == "" || !h.authBackend.IsAuthorized(auth) {
-			Logger.Warnf("Unauthorized access from %s", a)
-			http.Error(w, "Unauthorized", http.StatusUnauthorized)
-			return
-		}
+	tokens := []string{fp, r.Header.Get("Bearer")}
+	if !localhost && !h.authBackend.IsAuthorized(tokens) {
+		Logger.Warnf("Unauthorized access from %s", a)
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
 	}
 	peer, err := NewPeer(req.Fingerprint)
 	if err != nil {

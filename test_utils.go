@@ -32,8 +32,16 @@ func NewMockAuthBackend(authorized string) *MockAuthBackend {
 	return &MockAuthBackend{authorized}
 }
 
-func (a *MockAuthBackend) IsAuthorized(fp string) bool {
-	return fp != "" && fp == a.authorized
+func (a *MockAuthBackend) IsAuthorized(tokens []string) bool {
+	if a.authorized == "" {
+		return false
+	}
+	for _, t := range tokens {
+		if t == a.authorized {
+			return true
+		}
+	}
+	return false
 }
 
 // GetMsgType is used get the type of a control message

@@ -39,7 +39,9 @@ func TestIsAuthorized(t *testing.T) {
 	file.WriteString("GOODTOKEN\nANOTHERGOODTOKEN\n")
 	file.Close()
 	a := NewFileAuth(file.Name())
-	require.True(t, a.IsAuthorized("GOODTOKEN"))
-	require.True(t, a.IsAuthorized("ANOTHERGOODTOKEN"))
-	require.False(t, a.IsAuthorized("BADTOKEN"))
+	require.True(t, a.IsAuthorized([]string{"GOODTOKEN"}))
+	require.False(t, a.IsAuthorized([]string{"BADTOKEN"}))
+	require.True(t, a.IsAuthorized([]string{"BADTOKEN", "GOODTOKEN"}))
+	require.True(t, a.IsAuthorized([]string{"GOODTOKEN", "BADTOKEN"}))
+	require.True(t, a.IsAuthorized([]string{"ANOTHERGOODTOKEN"}))
 }
