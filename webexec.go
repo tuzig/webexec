@@ -277,7 +277,7 @@ func start(c *cli.Context) error {
 	// the code below runs for both --debug and --agent
 	Logger.Infof("Serving http on %q", address)
 	sigChan := make(chan os.Signal, 1)
-	httpServer := HTTPGo(address)
+	httpServer := HTTPGo(address, NewFileAuth(ConfPath("authorized_fingerprints")))
 	if Conf.peerbookHost != "" {
 		verified, err := verifyPeer(Conf.peerbookHost)
 		if err != nil {

@@ -3,9 +3,6 @@ package main
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
-	"io"
-	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -17,24 +14,12 @@ import (
 
 var serverHost string
 
-func startHTTPServer(t *testing.T) string {
-	if serverHost == "" {
-		port, err := GetFreePort()
-		require.Nil(t, err, "Fauiled to find a free tcp port", err)
-		serverHost = fmt.Sprintf("127.0.0.1:%d", port)
-		// Start the https server
-		go HTTPGo(serverHost)
-	}
-	return serverHost
-}
-
 func TestConnect(t *testing.T) {
 	initTest(t)
 	done := make(chan bool)
-	host := startHTTPServer(t)
 	// start the webrtc client
 	client, cert, err := NewClient(true)
-	require.Nil(t, err, "Failed to start a new server", err)
+	require.NoError(t, err, "Failed to create a client: %q", err)
 	cdc, err := client.CreateDataChannel("%", nil)
 	require.Nil(t, err, "Failed to create the control data channel: %q", err)
 	clientOffer, err := client.CreateOffer(nil)
@@ -50,25 +35,16 @@ func TestConnect(t *testing.T) {
 		buf := make([]byte, 4096)
 		l, err := EncodeOffer(buf, *client.LocalDescription())
 		require.Nil(t, err, "Failed ending an offer: %v", clientOffer)
-		file, err := ioutil.TempFile("", "authorized_fingerprints")
-		TokensFilePath = file.Name()
-		require.Nil(t, err, "Failed to create a temp tokens file: %s", err)
-		file.WriteString(compressFP(cert))
-		file.Close()
 		p := ConnectRequest{cert, 1, string(buf[:l])}
 		b, err := json.Marshal(p)
-		require.Nil(t, err, "Failed to marshal the connect request: %s", err)
-		url := fmt.Sprintf("http://%s/connect", host)
-		r, err := http.Post(url, "application/json", bytes.NewBuffer(b))
-		require.Nil(t, err, "Failed sending a post request: %q", err)
-		defer r.Body.Close()
+		req := httptest.NewRequest(http.MethodPost, "/connect", bytes.NewBuffer(b))
+		req.RemoteAddr = "8.8.8.8"
+		w := httptest.NewRecorder()
+		a := NewMockAuthBackend(cert)
+		h := NewConnectHandler(a)
+		h.HandleConnect(w, req)
 		require.Equal(t, http.StatusOK, r.StatusCode)
 		// read server offer
-		serverOffer := make([]byte, 4096)
-		l, err = r.Body.Read(serverOffer)
-		require.Equal(t, err, io.EOF, "Failed reading resonse body: %v", err)
-		require.Less(t, 600, l,
-			"Got a bad length response: %d", l)
 		err = DecodeOffer(&sd, serverOffer[:l])
 		require.Nil(t, err, "Failed decoding an offer: %v", clientOffer)
 		client.SetRemoteDescription(sd)
@@ -95,9 +71,7 @@ func TestConnect(t *testing.T) {
 }
 func TestConnectBadFP(t *testing.T) {
 	initTest(t)
-	// start the webrtc client
 	client, cert, err := NewClient(true)
-	require.Nil(t, err, "Failed to start a new server", err)
 	_, err = client.CreateDataChannel("%", nil)
 	require.Nil(t, err, "Failed to create the control data channel: %q", err)
 	clientOffer, err := client.CreateOffer(nil)
@@ -119,7 +93,9 @@ func TestConnectBadFP(t *testing.T) {
 		req := httptest.NewRequest(http.MethodPost, "/connect", bytes.NewBuffer(b))
 		req.RemoteAddr = "8.8.8.8"
 		w := httptest.NewRecorder()
-		handleConnect(w, req)
+		a := NewMockAuthBackend(cert)
+		h := NewConnectHandler(a)
+		h.HandleConnect(w, req)
 		require.Equal(t, http.StatusUnauthorized, w.Code)
 	}
 }

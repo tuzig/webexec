@@ -10,6 +10,16 @@ import (
 	"github.com/rs/cors"
 )
 
+// AuthBackend is the interface that wraps the basic authentication methods
+type AuthBackend interface {
+	// IsAthorized checks if the fingerprint is authorized to connect
+	IsAuthorized(token string) bool
+}
+
+type ConnectHandler struct {
+	authBackend AuthBackend
+}
+
 // ConnectRequest is the schema for the connect POST request
 type ConnectRequest struct {
 	Fingerprint string `json:"fingerprint"`
@@ -17,19 +27,24 @@ type ConnectRequest struct {
 	Offer       string `json:"offer"`
 }
 
+func NewConnectHandler(backend AuthBackend) *ConnectHandler {
+	return &ConnectHandler{backend}
+}
+
 // HTTPGo starts to listen and serve http requests
-func HTTPGo(address string) *http.Server {
-	http.HandleFunc("/connect", handleConnect)
+func HTTPGo(address string, authBackend AuthBackend) *http.Server {
+	connectHandler := NewConnectHandler(authBackend)
+	http.HandleFunc("/connect", connectHandler.HandleConnect)
 	h := cors.Default().Handler(http.DefaultServeMux)
 	server := &http.Server{Addr: address, Handler: h}
 	go server.ListenAndServe()
 	return server
 }
 
-// handleConnect is called when a client requests the connect endpoint
+// HandleConnect is called when a client requests the connect endpoint
 // it should be a post and the body webrtc's client offer.
 // In reponse the handlers send the server's webrtc's offer.
-func handleConnect(w http.ResponseWriter, r *http.Request) {
+func (h *ConnectHandler) HandleConnect(w http.ResponseWriter, r *http.Request) {
 	var offer webrtc.SessionDescription
 	var req ConnectRequest
 
@@ -52,11 +67,14 @@ func handleConnect(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		Logger.Warnf("Failed to get fingerprint from sdp: %w", err)
 	}
-	if !localhost && !IsAuthorized(fp) {
-		msg := "Unknown client fingerprint"
-		Logger.Info(msg)
-		http.Error(w, msg, http.StatusUnauthorized)
-		return
+	if !localhost && h.authBackend.IsAuthorized(fp) {
+		// check for Bearer token
+		auth := r.Header.Get("Bearer")
+		if auth == "" || !h.authBackend.IsAuthorized(auth) {
+			Logger.Warnf("Unauthorized access from %s", a)
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
 	}
 	peer, err := NewPeer(req.Fingerprint)
 	if err != nil {
@@ -98,4 +116,28 @@ func parsePeerReq(message io.Reader, cr *ConnectRequest,
 	}
 	// ensure it's the same fingerprint as the one signalling got
 	return nil
+}
+
+// GetFingerprint extract the fingerprints from a client's offer and returns
+// a compressed fingerprint
+func GetFingerprint(offer *webrtc.SessionDescription) (string, error) {
+	s, err := offer.Unmarshal()
+	if err != nil {
+		return "", fmt.Errorf("Failed to unmarshal sdp: %w", err)
+	}
+	var f string
+	if fingerprint, haveFingerprint := s.Attribute("fingerprint"); haveFingerprint {
+		f = fingerprint
+	} else {
+		for _, m := range s.MediaDescriptions {
+			if fingerprint, found := m.Attribute("fingerprint"); found {
+				f = fingerprint
+				break
+			}
+		}
+	}
+	if f == "" {
+		return "", fmt.Errorf("Offer has no fingerprint: %v", offer)
+	}
+	return compressFP(f), nil
 }

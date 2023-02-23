@@ -5,13 +5,30 @@ import (
 	"fmt"
 	"os"
 	"strings"
-
-	"github.com/pion/webrtc/v3"
 )
 
-// TokensFilePath holds the path to a file where each authorized token has a line
-var TokensFilePath string
+// FileAuth is an authentication backend that checks tokens against a file of
+// authorized tokens
+type FileAuth struct {
+	TokensFilePath string
+}
 
+func NewFileAuth(filepath string) *FileAuth {
+	// creating the token file
+	if filepath == "" {
+		filepath = ConfPath("authorized_fingerprints")
+	}
+	_, err := os.Stat(filepath)
+	if os.IsNotExist(err) {
+		tokensFile, err := os.Create(filepath)
+		defer tokensFile.Close()
+		if err != nil {
+			Logger.Errorf("Failed to create authorized_fingerprints: %s", err)
+			return nil
+		}
+	}
+	return &FileAuth{TokensFilePath: filepath}
+}
 func compressFP(fp string) string {
 	hex := strings.Split(fp, " ")[1]
 	s := strings.Replace(hex, ":", "", -1)
@@ -19,12 +36,9 @@ func compressFP(fp string) string {
 }
 
 // ReadAuthorizedTokens reads the tokens file and returns all the tokens in it
-func ReadAuthorizedTokens() ([]string, error) {
+func (a *FileAuth) ReadAuthorizedTokens() ([]string, error) {
 	var tokens []string
-	if TokensFilePath == "" {
-		TokensFilePath = ConfPath("authorized_fingerprints")
-	}
-	file, err := os.Open(TokensFilePath)
+	file, err := os.Open(a.TokensFilePath)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to open authorized_fingerprints: %w", err)
 	}
@@ -41,8 +55,8 @@ func ReadAuthorizedTokens() ([]string, error) {
 }
 
 // IsAuthorized checks whether a client token is authorized
-func IsAuthorized(token string) bool {
-	tokens, err := ReadAuthorizedTokens()
+func (a *FileAuth) IsAuthorized(token string) bool {
+	tokens, err := a.ReadAuthorizedTokens()
 	if err != nil {
 		Logger.Error(err)
 		return false
@@ -53,28 +67,4 @@ func IsAuthorized(token string) bool {
 		}
 	}
 	return false
-}
-
-// GetFingerprint extract the fingerprints from a client's offer and returns
-// a compressed fingerprint
-func GetFingerprint(offer *webrtc.SessionDescription) (string, error) {
-	s, err := offer.Unmarshal()
-	if err != nil {
-		return "", fmt.Errorf("Failed to unmarshal sdp: %w", err)
-	}
-	var f string
-	if fingerprint, haveFingerprint := s.Attribute("fingerprint"); haveFingerprint {
-		f = fingerprint
-	} else {
-		for _, m := range s.MediaDescriptions {
-			if fingerprint, found := m.Attribute("fingerprint"); found {
-				f = fingerprint
-				break
-			}
-		}
-	}
-	if f == "" {
-		return "", fmt.Errorf("Offer has no fingerprint: %v", offer)
-	}
-	return compressFP(f), nil
 }

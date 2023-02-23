@@ -291,21 +291,7 @@ func createConf(silent bool) error {
 	if err != nil {
 		return fmt.Errorf("Failed to write to configuration file: %s", err)
 	}
-	// creating the token file
-	if TokensFilePath == "" {
-		TokensFilePath = ConfPath("authorized_fingerprints")
-	}
-	_, err = os.Stat(TokensFilePath)
-	if os.IsNotExist(err) {
-		tokensFile, err := os.Create(TokensFilePath)
-		defer tokensFile.Close()
-		if err != nil {
-			return fmt.Errorf("Failed to create the tokens file at %q: %w",
-				TokensFilePath, err)
-		}
-		fmt.Printf("Created:\n %s - conf file\n %s  - tokens file\n", confPath,
-			TokensFilePath)
-	}
+	fmt.Printf("Created:\n %s - conf file\n", confPath)
 	return nil
 }
 

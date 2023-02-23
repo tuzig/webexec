@@ -24,6 +24,19 @@ import (
 // used to keep track of sent control messages
 var lastRef int
 
+// MockAuthBackend is used to mock the auth backend
+type MockAuthBackend struct {
+	authorized string
+}
+
+func (a *MockAuthBackend) IsAuthorized(fp string) bool {
+	return fp != "" && fp == a.authorized
+}
+
+func NewMockAuthBackend(authorized string) *MockAuthBackend {
+	return &MockAuthBackend{authorized}
+}
+
 // GetMsgType is used get the type of a control message
 func GetMsgType(t *testing.T, msg webrtc.DataChannelMessage) string {
 	env := CTRLMessage{}
@@ -80,27 +93,33 @@ func NewClient(known bool) (*webrtc.PeerConnection, string, error) {
 	if err != nil {
 		return nil, "", err
 	}
-	fp, err := certificate.GetFingerprints()
-	if known {
-		f, err := os.OpenFile(
-			TokensFilePath, os.O_WRONLY|os.O_APPEND|os.O_CREATE, 0644)
-		if err != nil {
-			return nil, "", err
-		}
-		defer f.Close()
-		line := fmt.Sprintf(
-			"%s %s\r\n", fp[0].Algorithm, strings.ToUpper(fp[0].Value))
-		_, err = f.WriteString(line)
-		if err != nil {
-			return nil, "", err
-		}
-	}
-
 	client, err := webrtc.NewPeerConnection(webrtc.Configuration{
 		Certificates: []webrtc.Certificate{*certificate}})
+	fp, err := certificate.GetFingerprints()
+	if err != nil {
+		return nil, "", err
+	}
 	r := fmt.Sprintf("%s %s", fp[0].Algorithm, strings.ToUpper(fp[0].Value))
 	return client, r, nil
 }
+
+/*
+func NewServerClient(t *testing.T, known bool) (*webrtc.PeerConnection, string, string) {
+	client, fp, err := NewClient(known)
+	require.NoError(t, err, "failed to create client")
+	authorized := ""
+	if known {
+		authorized = fp
+	}
+	a := NewMockAuthBackend(authorized)
+	port, err := GetFreePort()
+	require.Nil(t, err, "Failed to find a free tcp port", err)
+	serverHost = fmt.Sprintf("127.0.0.1:%d", port)
+	// Start the https server
+	HTTPGo(serverHost, a)
+	return client, fp, serverHost
+}
+*/
 
 // SignalPair is used to start a connection between two peers
 func SignalPair(pcOffer *webrtc.PeerConnection, peer *Peer) error {
@@ -155,15 +174,11 @@ func initTest(t *testing.T) {
 		ptyMux = ptyMuxType{}
 	}
 	Logger = zaptest.NewLogger(t, zaptest.WrapOptions(zap.AddCaller())).Sugar()
-	f, err := ioutil.TempFile("", "authorized_fingerprints")
-	f.Close()
-	TokensFilePath = f.Name()
-	require.Nil(t, err, "Failed setting a temp tokens file: %s", err)
-	err = parseConf(defaultConf)
+	err := parseConf(defaultConf)
 	require.Nil(t, err, "NewPeer failed with: %s", err)
 	Conf.insecure = true
 	Conf.iceServers = nil
-	f, err = ioutil.TempFile("", "private.key")
+	f, err := ioutil.TempFile("", "private.key")
 	require.Nil(t, err)
 	f.Close()
 	key = &KeyType{Name: f.Name()}
@@ -208,9 +223,5 @@ func SendRestore(cdc *webrtc.DataChannel, ref int, marker int) error {
 // TestMain runs before every tesm
 func TestMain(m *testing.M) {
 	code := m.Run()
-	// If we've used a temporary file, remove it
-	if TokensFilePath != ConfPath("authorized_fingerprints") {
-		os.Remove(TokensFilePath)
-	}
 	os.Exit(code)
 }

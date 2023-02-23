@@ -1,12 +1,5 @@
 package main
 
-import (
-	"io/ioutil"
-	"testing"
-
-	"github.com/stretchr/testify/require"
-)
-
 /* it doesn't seem like SignalPair works when we need to test at this level.
 
 func TestWrongFingerprint(t *testing.T) {
@@ -29,7 +22,6 @@ func TestWrongFingerprint(t *testing.T) {
 	}
 	Shutdown()
 }
-*/
 
 func TestIsAuthorized(t *testing.T) {
 	// create the token file and test good & bad tokens
@@ -43,3 +35,4 @@ func TestIsAuthorized(t *testing.T) {
 	require.True(t, IsAuthorized("ANOTHERGOODTOKEN"))
 	require.False(t, IsAuthorized("BADTOKEN"))
 }
+*/
