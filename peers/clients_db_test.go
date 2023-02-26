@@ -1,8 +1,9 @@
-package main
+package peers
 
 import (
-	"github.com/stretchr/testify/require"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestClientsDB(t *testing.T) {

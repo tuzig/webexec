@@ -1,5 +1,5 @@
 // this file define the type and functions that serve as the clients data base
-package main
+package peers
 
 import (
 	"fmt"
@@ -34,7 +34,6 @@ func (db *ClientsDB) Add(dc *webrtc.DataChannel, pane *Pane, peer *Peer) *Client
 	defer db.m.Unlock()
 	id := db.lastID
 	db.lastID++
-	Logger.Infof("Adding data channel %d", id)
 	c := &Client{dc, pane, peer, id}
 	db.clients[id] = c
 	return c
@@ -80,7 +79,6 @@ func (db *ClientsDB) Delete(c *Client) error {
 
 	for k, v := range db.clients {
 		if v.dc.ID() == c.dc.ID() && v.pane.ID == c.pane.ID {
-			Logger.Infof("Deleting data channel %d", k)
 			delete(db.clients, k)
 			return nil
 		}

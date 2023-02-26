@@ -1,18 +1,29 @@
-package main
+package httpserver
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
-	"strings"
 
 	"github.com/pion/webrtc/v3"
 	"github.com/rs/cors"
+	"github.com/tuzig/webexec/peers"
+	"go.uber.org/fx"
+	"go.uber.org/zap"
 )
 
+type AddressType string
+
+type AuthBackend interface {
+	// IsAthorized checks if the fingerprint is authorized to connect
+	IsAuthorized(tokens []string) bool
+}
 type ConnectHandler struct {
 	authBackend AuthBackend
+	peerConf    *peers.Conf
+	logger      *zap.SugaredLogger
 }
 
 // ConnectRequest is the schema for the connect POST request
@@ -22,17 +33,35 @@ type ConnectRequest struct {
 	Offer       string `json:"offer"`
 }
 
-func NewConnectHandler(backend AuthBackend) *ConnectHandler {
-	return &ConnectHandler{backend}
+func NewConnectHandler(
+	backend AuthBackend, conf *peers.Conf, logger *zap.SugaredLogger) *ConnectHandler {
+
+	return &ConnectHandler{
+		authBackend: backend,
+		peerConf:    conf,
+		logger:      logger,
+	}
 }
 
-// HTTPGo starts to listen and serve http requests
-func HTTPGo(address string, authBackend AuthBackend) *http.Server {
-	connectHandler := NewConnectHandler(authBackend)
-	http.HandleFunc("/connect", connectHandler.HandleConnect)
+// StartHTTPServer starts a http server that listens to the given address
+// and serves the connect endpoint.
+func StartHTTPServer(lc fx.Lifecycle, address AddressType,
+	c *ConnectHandler, logger *zap.SugaredLogger) *http.Server {
+
+	http.HandleFunc("/connect", c.HandleConnect)
 	h := cors.Default().Handler(http.DefaultServeMux)
-	server := &http.Server{Addr: address, Handler: h}
-	go server.ListenAndServe()
+	server := &http.Server{Addr: string(address), Handler: h}
+	lc.Append(fx.Hook{
+		OnStart: func(context.Context) error {
+			logger.Info("Starting HTTP server")
+			go server.ListenAndServe()
+			return nil
+		},
+		OnStop: func(ctx context.Context) error {
+			logger.Info("Stopping HTTP server")
+			return server.Shutdown(ctx)
+		},
+	})
 	return server
 }
 
@@ -44,51 +73,45 @@ func (h *ConnectHandler) HandleConnect(w http.ResponseWriter, r *http.Request) {
 	var req ConnectRequest
 
 	if r.Method != "POST" {
-		Logger.Infof("Got an http request with bad method %q\n", r.Method)
 		http.Error(w, "This endpoint accepts only POST requests",
 			http.StatusMethodNotAllowed)
 		return
 	}
-	Logger.Info("Got a new post request")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	err := parsePeerReq(r.Body, &req, &offer)
 	if err != nil {
-		Logger.Errorf(err.Error())
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
 	}
 	a := r.RemoteAddr
 	localhost := (len(a) >= 9 && a[:9] == "127.0.0.1") ||
 		(len(a) >= 5 && a[:5] == "[::1]")
-	fp, err := GetFingerprint(&offer)
+	fp, err := peers.GetFingerprint(&offer)
 	if err != nil {
-		Logger.Warnf("Failed to get fingerprint from sdp: %w", err)
+		http.Error(w, fmt.Sprintf("Failed to get fingerprint from sdp: %w", err),
+			http.StatusBadRequest)
+		return
 	}
 	tokens := []string{fp, r.Header.Get("Bearer")}
 	if !localhost && !h.authBackend.IsAuthorized(tokens) {
-		Logger.Warnf("Unauthorized access from %s", a)
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
-	peer, err := NewPeer(req.Fingerprint)
+	peer, err := peers.NewPeer(req.Fingerprint, h.peerConf)
 	if err != nil {
-		msg := fmt.Sprintf("Failed to create a new peer: %s", err)
-		Logger.Error(msg)
-		http.Error(w, msg, http.StatusInternalServerError)
+		http.Error(w, fmt.Sprintf("Failed to create a new peer: %s", err), http.StatusInternalServerError)
 		return
 	}
 	answer, err := peer.Listen(offer)
 	if err != nil {
-		msg := fmt.Sprintf("Peer failed to listen : %s", err)
-		Logger.Error(msg)
-		http.Error(w, msg, http.StatusInternalServerError)
+		http.Error(w, fmt.Sprintf("Peer failed to listen : %s", err), http.StatusInternalServerError)
 		return
 	}
 	// reply with server's key
 	payload := make([]byte, 4096)
-	l, err := EncodeOffer(payload, answer)
+	l, err := peers.EncodeOffer(payload, answer)
 	if err != nil {
-		msg := fmt.Sprintf("Failed to encode offer : %s", err)
-		Logger.Error(msg)
-		http.Error(w, msg, http.StatusBadRequest)
+		http.Error(w, fmt.Sprintf("Failed to encode offer : %s", err), http.StatusBadRequest)
 		return
 	}
 	w.Write(payload[:l])
@@ -102,35 +125,10 @@ func parsePeerReq(message io.Reader, cr *ConnectRequest,
 	if err != nil {
 		return fmt.Errorf("Failed to read connection request: %w", err)
 	}
-	err = DecodeOffer(offer, []byte(cr.Offer))
+	err = peers.DecodeOffer(offer, []byte(cr.Offer))
 	if err != nil {
 		return fmt.Errorf("Failed to decode client's offer: %w", err)
 	}
 	// ensure it's the same fingerprint as the one signalling got
 	return nil
-}
-
-// GetFingerprint extract the fingerprints from a client's offer and returns
-// a compressed fingerprint
-func GetFingerprint(offer *webrtc.SessionDescription) (string, error) {
-	s, err := offer.Unmarshal()
-	if err != nil {
-		return "", fmt.Errorf("Failed to unmarshal sdp: %w", err)
-	}
-	var f string
-	if fingerprint, haveFingerprint := s.Attribute("fingerprint"); haveFingerprint {
-		f = fingerprint
-	} else {
-		for _, m := range s.MediaDescriptions {
-			if fingerprint, found := m.Attribute("fingerprint"); found {
-				f = fingerprint
-				break
-			}
-		}
-	}
-	if f == "" {
-		return "", fmt.Errorf("Offer has no fingerprint: %v", offer)
-	}
-	hex := strings.Split(f, " ")[1]
-	return compressFP(hex), nil
 }

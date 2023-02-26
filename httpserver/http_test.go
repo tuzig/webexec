@@ -1,4 +1,4 @@
-package main
+package httpserver
 
 import (
 	"bytes"
@@ -59,15 +59,15 @@ func TestConnect(t *testing.T) {
 	case <-done:
 	}
 	/*
-		// There's t.Cleanup in go 1.15+
-		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-		defer cancel()
-		err := Shutdown(ctx)
-		require.Nil(t, err, "Failed shutting the http server: %v", err)
+			// There's t.Cleanup in go 1.15+
+			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+			defer cancel()
+			err := Shutdown(ctx)
+			require.Nil(t, err, "Failed shutting the http server: %v", err)
+		Shutdown()
+		// TODO: be smarter, this is just a hack to get github action to pass
+		time.Sleep(500 * time.Millisecond)
 	*/
-	Shutdown()
-	// TODO: be smarter, this is just a hack to get github action to pass
-	time.Sleep(500 * time.Millisecond)
 }
 func TestConnectBadFP(t *testing.T) {
 	initTest(t)
@@ -98,4 +98,18 @@ func TestConnectBadFP(t *testing.T) {
 		h.HandleConnect(w, req)
 		require.Equal(t, http.StatusUnauthorized, w.Code)
 	}
+}
+
+func TestEncodeDecodeStringArray(t *testing.T) {
+	initTest(t)
+	a := []string{"Hello", "World"}
+	b := make([]byte, 4096)
+	l, err := EncodeOffer(b, a)
+	require.Nil(t, err, "Failed to encode offer: %s", err)
+	Logger.Infof("encode offer to: %q", b[:l])
+
+	c := make([]string, 2)
+	err = DecodeOffer(&c, b[:l])
+	require.Nil(t, err, "Failed to decode offer: %s", err)
+	require.Equal(t, a, c)
 }

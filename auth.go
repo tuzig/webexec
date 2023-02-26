@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"fmt"
 	"os"
-	"strings"
 )
 
 // AuthBackend is the interface that wraps the basic authentication methods
@@ -19,25 +18,18 @@ type FileAuth struct {
 	TokensFilePath string
 }
 
-func NewFileAuth(filepath string) *FileAuth {
+func NewFileAuth() *FileAuth {
 	// creating the token file
-	if filepath == "" {
-		filepath = ConfPath("authorized_fingerprints")
-	}
+	filepath := ConfPath("authorized_fingerprints")
 	_, err := os.Stat(filepath)
 	if os.IsNotExist(err) {
 		tokensFile, err := os.Create(filepath)
 		defer tokensFile.Close()
 		if err != nil {
-			Logger.Errorf("Failed to create authorized_fingerprints: %s", err)
 			return nil
 		}
 	}
 	return &FileAuth{TokensFilePath: filepath}
-}
-func compressFP(hex string) string {
-	s := strings.Replace(hex, ":", "", -1)
-	return strings.ToUpper(s)
 }
 
 // ReadAuthorizedTokens reads the tokens file and returns all the tokens in it
@@ -63,7 +55,6 @@ func (a *FileAuth) ReadAuthorizedTokens() ([]string, error) {
 func (a *FileAuth) IsAuthorized(clientTokens []string) bool {
 	tokens, err := a.ReadAuthorizedTokens()
 	if err != nil {
-		Logger.Error(err)
 		return false
 	}
 	for _, ct := range clientTokens {

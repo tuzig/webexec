@@ -1,5 +1,5 @@
 // This files contains testing suites that test the conf
-package main
+package peers
 
 import (
 	"testing"

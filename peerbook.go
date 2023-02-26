@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -15,6 +16,8 @@ import (
 
 	"github.com/gorilla/websocket"
 	"github.com/pion/webrtc/v3"
+	"github.com/tuzig/webexec/peers"
+	"go.uber.org/fx"
 )
 
 const writeWait = time.Second * 10
@@ -25,8 +28,44 @@ var PBICEServers []webrtc.ICEServer
 var wsWriteM sync.Mutex
 
 // outChan is used to send messages to peerbook
-var outChan chan []byte
+type PeerbookClient struct {
+	outChan  chan []byte
+	ws       *websocket.Conn
+	peerConf *peers.Conf
+	host     string
+}
 
+func NewPeerbookClient(peerConf *peers.Conf) *PeerbookClient {
+	return &PeerbookClient{
+		outChan:  make(chan []byte),
+		peerConf: peerConf,
+	}
+}
+func StartPeerbookClient(lc fx.Lifecycle, client *PeerbookClient) {
+	verified, err := verifyPeer(Conf.peerbookHost)
+	if err != nil {
+		Logger.Errorf("Got an error verifying peer: %s", err)
+		return
+	}
+	if verified {
+		Logger.Infof("** verified ** by peerbook at %s", Conf.peerbookHost)
+	} else {
+		Logger.Infof("** unverified ** peerbook sent you a verification email.")
+		fmt.Printf("                 If you don't get it please visit %s",
+			Conf.peerbookHost)
+	}
+	lc.Append(fx.Hook{
+		OnStart: func(context.Context) error {
+			go client.Go()
+			Logger.Info("Started peerbook client")
+			return nil
+		},
+		OnStop: func(ctx context.Context) error {
+			Logger.Info("TODO: stop peerbook client")
+			return nil
+		},
+	})
+}
 func verifyPeer(host string) (bool, error) {
 	fp := getFP()
 	msg := map[string]string{"fp": fp, "email": Conf.email,
@@ -103,37 +142,33 @@ func getICEServers(host string) ([]webrtc.ICEServer, error) {
 	return append(Conf.iceServers, PBICEServers...), nil
 }
 
-func peerbookGo() {
-	var c *websocket.Conn
-	outChan = make(chan []byte)
+func (pb *PeerbookClient) Go() error {
 	done := make(chan struct{})
 	// reader
 	go func() {
-		var err error
 		defer close(done)
 		for {
-			if c == nil {
+			if pb.ws == nil {
 				Logger.Infof("Dialing PeerBook in %s", time.Now())
-				c, err = dialWS()
+				err := pb.Dial()
 				if err != nil {
 					Logger.Errorf("Failed to dial the peerbook server: %q", err)
-					c = nil
+					pb.ws = nil
 					time.Sleep(Conf.peerbookTimeout)
 					continue
 				}
-				Logger.Infof("Connected to peerbook")
 			}
 
-			mType, m, err := c.ReadMessage()
+			mType, m, err := pb.ws.ReadMessage()
 			if err != nil {
 				Logger.Warnf("Signaling read error: %w", err)
 				time.Sleep(Conf.peerbookTimeout)
-				c = nil
+				pb.ws = nil
 				continue
 			}
 			if mType == websocket.TextMessage {
 				Logger.Infof("Received text message %s", string(m))
-				err = handleMessage(c, m)
+				err = pb.handleMessage(m)
 				if err != nil {
 					Logger.Errorf("Failed to handle message: %w", err)
 				}
@@ -151,14 +186,14 @@ func peerbookGo() {
 			select {
 			case <-done:
 				return
-			case msg, ok := <-outChan:
+			case msg, ok := <-pb.outChan:
 				if !ok {
 					Logger.Errorf("Got a bad message to send")
 					continue
 				}
 				Logger.Infof("sending to pb: %s", msg)
-				c.SetWriteDeadline(time.Now().Add(writeWait))
-				err := c.WriteMessage(websocket.TextMessage, msg)
+				pb.ws.SetWriteDeadline(time.Now().Add(writeWait))
+				err := pb.ws.WriteMessage(websocket.TextMessage, msg)
 				if err != nil {
 					if websocket.IsUnexpectedCloseError(err,
 						websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
@@ -171,7 +206,7 @@ func peerbookGo() {
 				// Cleanly close the connection by sending a close message and then
 				// waiting (with timeout) for the server to close the connection.
 				Logger.Info("Closing peerbook connection")
-				err := c.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
+				err := pb.ws.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
 				if err != nil {
 					Logger.Errorf("Failed to close websocket", err)
 					return
@@ -184,6 +219,7 @@ func peerbookGo() {
 			}
 		}
 	}()
+	return nil
 }
 func getFP() string {
 	certs, err := GetCerts()
@@ -199,7 +235,7 @@ func getFP() string {
 	return strings.ToUpper(s)
 }
 
-func dialWS() (*websocket.Conn, error) {
+func (pb *PeerbookClient) Dial() error {
 	var cstDialer = websocket.Dialer{
 		ReadBufferSize:  4096,
 		WriteBufferSize: 4096,
@@ -220,19 +256,20 @@ func dialWS() (*websocket.Conn, error) {
 		RawQuery: params.Encode()}
 	conn, resp, err := cstDialer.Dial(url.String(), nil)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode == 400 {
 		bodyBytes, _ := ioutil.ReadAll(resp.Body)
-		return nil, fmt.Errorf(string(bodyBytes))
+		return fmt.Errorf(string(bodyBytes))
 	}
 	if resp.StatusCode == 401 {
-		return nil, &errUnauthorized{}
+		return &errUnauthorized{}
 	}
-	return conn, err
+	pb.ws = conn
+	return nil
 }
-func handleMessage(c *websocket.Conn, message []byte) error {
+func (pb *PeerbookClient) handleMessage(message []byte) error {
 	var m map[string]interface{}
 	r := bytes.NewReader(message)
 	dec := json.NewDecoder(r)
@@ -256,7 +293,7 @@ func handleMessage(c *websocket.Conn, message []byte) error {
 	v, found := m["peer_update"]
 	if found {
 		pu := v.(map[string]interface{})
-		peer, found := Peers[fp]
+		peer, found := peers.Peers[fp]
 		if found && peer.PC != nil && !pu["verified"].(bool) {
 			peer.PC.Close()
 			peer.PC = nil
@@ -265,23 +302,23 @@ func handleMessage(c *websocket.Conn, message []byte) error {
 	o, found := m["offer"].(string)
 	if found {
 		var offer webrtc.SessionDescription
-		err = DecodeOffer(&offer, []byte(o))
+		err = peers.DecodeOffer(&offer, []byte(o))
 		if err != nil {
 			return fmt.Errorf("Failed to get fingerprint from offer: %w", err)
 		}
 
-		offerFP, err := GetFingerprint(&offer)
+		offerFP, err := peers.GetFingerprint(&offer)
 		if err != nil {
 			return fmt.Errorf("Failed to get offer's fingerprint: %w", err)
 		}
 		if offerFP != fp {
-			Peers[fp].PC.Close()
-			Peers[fp].PC = nil
+			peers.Peers[fp].PC.Close()
+			peers.Peers[fp].PC = nil
 			Logger.Warnf("Refusing connection because fp mismatch: %s", fp)
 			return fmt.Errorf("Mismatched fingerprint: %s", fp)
 		}
 		Logger.Info("Authenticated!")
-		peer, err := NewPeer(fp)
+		peer, err := peers.NewPeer(fp, pb.peerConf)
 		if err != nil {
 			return fmt.Errorf("Failed to create a new peer: %w", err)
 		}
@@ -295,7 +332,7 @@ func handleMessage(c *websocket.Conn, message []byte) error {
 					Logger.Errorf("Failed to encode offer : %w", err)
 					return
 				}
-				outChan <- j
+				pb.outChan <- j
 			}
 		})
 		err = peer.PC.SetRemoteDescription(offer)
@@ -308,7 +345,7 @@ func handleMessage(c *websocket.Conn, message []byte) error {
 		}
 		err = peer.PC.SetLocalDescription(answer)
 		payload := make([]byte, 4096)
-		l, err := EncodeOffer(payload, answer)
+		l, err := peers.EncodeOffer(payload, answer)
 		if err != nil {
 			return fmt.Errorf("Failed to encode offer : %w", err)
 		}
@@ -318,7 +355,7 @@ func handleMessage(c *websocket.Conn, message []byte) error {
 		if err != nil {
 			return fmt.Errorf("Failed to encode offer : %w", err)
 		}
-		outChan <- j
+		pb.outChan <- j
 		return nil
 	}
 	_, found = m["candidate"]
@@ -330,15 +367,9 @@ func handleMessage(c *websocket.Conn, message []byte) error {
 		}
 		r.Seek(0, 0)
 		err = dec.Decode(&can)
-		peer, found := Peers[fp]
+		peer, found := peers.Peers[fp]
 		if found {
-			if peer.PC == nil {
-				Logger.Infof("ICE Candidate pending: %v", can.Candidate)
-				peer.pendingCandidates <- &can.Candidate
-				return nil
-			}
-			Logger.Infof("Adding an ICE Candidate: %v", can.Candidate)
-			err := peer.PC.AddICECandidate(can.Candidate)
+			err := peer.AddCandidate(can.Candidate)
 			if err != nil {
 				return fmt.Errorf("Failed to add ice candidate: %w", err)
 			}

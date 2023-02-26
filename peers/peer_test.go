@@ -1,6 +1,6 @@
 // This files contains testing suites that test webexec as a compoennt and
 // using a test client
-package main
+package peers
 
 import (
 	"encoding/json"

@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
-	"net"
 	"net/http"
 	"os"
 	"strings"
@@ -15,7 +14,15 @@ import (
 
 	"github.com/dchest/uniuri"
 	"github.com/pion/webrtc/v3"
+	"github.com/tuzig/webexec/peers"
+	"go.uber.org/fx"
 )
+
+type sockServer struct {
+	currentOffers map[string]*LiveOffer
+	coMutex       sync.Mutex
+	conf          *peers.Conf
+}
 
 type LiveOffer struct {
 	// the http get request that's waiting for the next candidate
@@ -24,12 +31,9 @@ type LiveOffer struct {
 	incoming chan webrtc.ICECandidateInit
 	//TODO: refactor and remove '*'
 	cs chan *webrtc.ICECandidate
-	p  *Peer
+	p  *peers.Peer
 	id string
 }
-
-var currentOffers map[string]*LiveOffer
-var coMutex sync.Mutex
 
 func (lo *LiveOffer) handleIncoming(ctx context.Context) {
 	for {
@@ -56,11 +60,19 @@ func (la *LiveOffer) OnCandidate(can *webrtc.ICECandidate) {
 		la.cs <- can
 	}
 }
+func NewSockServer(conf *peers.Conf) *sockServer {
+	return &sockServer{
+		currentOffers: make(map[string]*LiveOffer),
+		conf:          conf,
+	}
+}
+
+// TODO: refactor to a method on sockServer
 func GetSockFP() string {
 	return RunPath("webexec.sock")
 }
-func StartSock() (*http.Server, error) {
-	currentOffers = make(map[string]*LiveOffer)
+
+func StartSocketServer(lc fx.Lifecycle, s *sockServer) (*http.Server, error) {
 	fp := GetSockFP()
 	_, err := os.Stat(fp)
 	if err == nil {
@@ -81,38 +93,42 @@ func StartSock() (*http.Server, error) {
 		}
 	}
 	m := http.ServeMux{}
-	m.Handle("/status", http.HandlerFunc(handleStatus))
-	m.Handle("/layout", http.HandlerFunc(handleLayout))
-	m.Handle("/offer/", http.HandlerFunc(handleOffer))
+	m.Handle("/status", http.HandlerFunc(s.handleStatus))
+	m.Handle("/layout", http.HandlerFunc(s.handleLayout))
+	m.Handle("/offer/", http.HandlerFunc(s.handleOffer))
 	server := http.Server{Handler: &m}
-	l, err := net.Listen("unix", fp)
-	if err != nil {
-		return nil, fmt.Errorf("Failed to listen to unix socket: %s", err)
-	}
-	go func() {
-		server.Serve(l)
-		// this happens after main calles server.Shutdown()
-		os.Remove(fp)
-	}()
-	Logger.Infof("Listening for requests on %q", fp)
+	lc.Append(fx.Hook{
+		OnStart: func(context.Context) error {
+			go server.ListenAndServe()
+			Logger.Infof("Listening for requests on %q", fp)
+			return nil
+		},
+		OnStop: func(ctx context.Context) error {
+			Logger.Info("Stopping socket server")
+			err := server.Shutdown(ctx)
+			os.Remove(fp)
+			Logger.Info("Socket server down")
+			return err
+		},
+	})
 	return &server, nil
 }
 
-func handleStatus(w http.ResponseWriter, r *http.Request) {
+func (s *sockServer) handleStatus(w http.ResponseWriter, r *http.Request) {
 	if r.Method == "GET" {
 		w.Write([]byte("READY"))
 	}
 }
-func handleLayout(w http.ResponseWriter, r *http.Request) {
+func (s *sockServer) handleLayout(w http.ResponseWriter, r *http.Request) {
 	if r.Method == "GET" {
-		w.Write(Payload)
+		w.Write(peers.Payload)
 	} else if r.Method == "POST" {
 		b, _ := ioutil.ReadAll(r.Body)
-		Payload = b
+		peers.Payload = b
 	}
 }
 
-func handleOffer(w http.ResponseWriter, r *http.Request) {
+func (s *sockServer) handleOffer(w http.ResponseWriter, r *http.Request) {
 	cs := strings.Split(r.URL.Path[1:], "/")
 	if r.Method == "GET" {
 		// store the w and use it to reply with new candidates when they're available
@@ -122,7 +138,7 @@ func handleOffer(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		h := cs[1]
-		a := currentOffers[h]
+		a := s.currentOffers[h]
 		if a == nil {
 			http.Error(w, "request hash is unknown",
 				http.StatusBadRequest)
@@ -159,13 +175,13 @@ func handleOffer(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		fp, err := GetFingerprint(&offer)
+		fp, err := peers.GetFingerprint(&offer)
 		if err != nil {
 			msg := fmt.Sprintf("Failed to get fingerprint from offer: %s", err)
 			http.Error(w, msg, http.StatusBadRequest)
 			return
 		}
-		peer, err := NewPeer(fp)
+		peer, err := peers.NewPeer(fp, s.conf)
 		if err != nil {
 			http.Error(w, fmt.Sprintf("Failed to create a new peer: %s", err),
 				http.StatusInternalServerError)
@@ -177,9 +193,9 @@ func handleOffer(w http.ResponseWriter, r *http.Request) {
 			cs:       make(chan *webrtc.ICECandidate, 5),
 			incoming: make(chan webrtc.ICECandidateInit, 5),
 		}
-		coMutex.Lock()
-		currentOffers[h] = lo
-		coMutex.Unlock()
+		s.coMutex.Lock()
+		s.currentOffers[h] = lo
+		s.coMutex.Unlock()
 		peer.PC.OnICECandidate(lo.OnCandidate)
 		err = peer.PC.SetRemoteDescription(offer)
 		if err != nil {
@@ -214,9 +230,9 @@ func handleOffer(w http.ResponseWriter, r *http.Request) {
 		time.AfterFunc(30*time.Second, func() {
 			Logger.Info("After 30 secs")
 			cancel()
-			coMutex.Lock()
-			delete(currentOffers, h)
-			coMutex.Unlock()
+			s.coMutex.Lock()
+			delete(s.currentOffers, h)
+			s.coMutex.Unlock()
 		})
 		return
 	} else if r.Method == "PUT" {
@@ -226,7 +242,7 @@ func handleOffer(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		h := cs[1]
-		a := currentOffers[h]
+		a := s.currentOffers[h]
 		if a == nil {
 			http.Error(w, "PUT hash is unknown", http.StatusBadRequest)
 			return

@@ -14,14 +14,15 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
-	"strings"
 	"syscall"
 	"time"
 
 	"github.com/kardianos/osext"
-	"github.com/pion/logging"
+	"github.com/tuzig/webexec/httpserver"
+	"github.com/tuzig/webexec/peers"
 	"github.com/tuzig/webexec/pidfile"
 	"github.com/urfave/cli/v2"
+	"go.uber.org/fx"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"golang.org/x/crypto/ssh/terminal"
@@ -35,12 +36,10 @@ var (
 	commit  = "0000000"
 	version = "UNRELEASED"
 	date    = "0000-00-00T00:00:00+0000"
-	cdb     = NewClientsDB()
 	// ErrAgentNotRunning is returned by commands that require a running agent
 	ErrAgentNotRunning = errors.New("agent is not running")
 	gotExitSignal      chan bool
 	logWriter          io.Writer
-	pionLoggerFactory  *logging.DefaultLoggerFactory
 	key                *KeyType
 )
 
@@ -49,46 +48,8 @@ func PIDFilePath() string {
 	return RunPath("webexec.pid")
 }
 
-func newPionLoggerFactory() *logging.DefaultLoggerFactory {
-	factory := logging.DefaultLoggerFactory{}
-	factory.DefaultLogLevel = logging.LogLevelError
-	factory.ScopeLevels = make(map[string]logging.LogLevel)
-	factory.Writer = logWriter
-
-	logLevels := map[string]logging.LogLevel{
-		"disable": logging.LogLevelDisabled,
-		"error":   logging.LogLevelError,
-		"warn":    logging.LogLevelWarn,
-		"info":    logging.LogLevelInfo,
-		"debug":   logging.LogLevelDebug,
-		"trace":   logging.LogLevelTrace,
-	}
-
-	for name, level := range logLevels {
-		v := Conf.pionLevels.Get(name)
-		if v == nil {
-			continue
-		}
-		env := v.(string)
-		if env == "" {
-			continue
-		}
-
-		if strings.ToLower(env) == "all" {
-			factory.DefaultLogLevel = level
-			continue
-		}
-
-		scopes := strings.Split(strings.ToLower(env), ",")
-		for _, scope := range scopes {
-			factory.ScopeLevels[scope] = level
-		}
-	}
-	return &factory
-}
-
-// InitAgentLogger intializes the global `Logger` with agent's settings
-func InitAgentLogger() {
+// InitAgentLogger intializes an agent logger and sets the global Logger
+func InitAgentLogger() *zap.SugaredLogger {
 	// rotate the log file
 	logWriter = &lumberjack.Logger{
 		Filename:   Conf.logFilePath,
@@ -117,10 +78,11 @@ func InitAgentLogger() {
 	e, _ := os.OpenFile(
 		Conf.errFilePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	Dup2(int(e.Fd()), 2)
+	return Logger
 }
 
 // InitDevLogger starts a logger for development
-func InitDevLogger() {
+func InitDevLogger() *zap.SugaredLogger {
 	zapConf := []byte(`{
 		  "level": "debug",
 		  "encoding": "console",
@@ -143,12 +105,13 @@ func InitDevLogger() {
 		panic(err)
 	}
 	defer Logger.Sync()
+	return Logger
 }
 
 // Shutdown is called when it's time to go.Sweet dreams.
 func Shutdown() {
 	var err error
-	for _, peer := range Peers {
+	for _, peer := range peers.Peers {
 		if peer.PC != nil {
 			err = peer.PC.Close()
 			if err != nil {
@@ -156,7 +119,7 @@ func Shutdown() {
 			}
 		}
 	}
-	for _, p := range Panes.All() {
+	for _, p := range peers.Panes.All() {
 		err = p.C.Process.Kill()
 		if err != nil {
 			Logger.Error("Failed closing a process: %w", err)
@@ -174,7 +137,11 @@ func versionCMD(c *cli.Context) error {
 
 // stop - stops the agent
 func stop(c *cli.Context) error {
-	err := LoadConf()
+	certs, err := GetCerts()
+	if err != nil {
+		return fmt.Errorf("Failed to load certificates: %s", err)
+	}
+	_, _, err = LoadConf(certs)
 	if err != nil {
 		return err
 	}
@@ -213,7 +180,7 @@ func createPIDFile() error {
 	return nil
 }
 
-func forkAgent(address string) (int, error) {
+func forkAgent(address httpserver.AddressType) (int, error) {
 	pidf, err := pidfile.Open(PIDFilePath())
 	if pidf != nil && !os.IsNotExist(err) && pidf.Running() {
 		fmt.Println("agent is already running, doing nothing")
@@ -226,7 +193,7 @@ func forkAgent(address string) (int, error) {
 	}
 	cmd := exec.Command("bash", "-c",
 		fmt.Sprintf("%s start --agent --address %s >> %s",
-			execPath, address, Conf.logFilePath))
+			execPath, string(address), Conf.logFilePath))
 	cmd.Env = nil
 	err = cmd.Start()
 	if err != nil {
@@ -238,93 +205,66 @@ func forkAgent(address string) (int, error) {
 
 // start - start the user's agent
 func start(c *cli.Context) error {
-	err := LoadConf()
+	certs, err := GetCerts()
+	if err != nil {
+		return fmt.Errorf("Failed to get the certificates: %s", err)
+	}
+	_, address, err := LoadConf(certs)
 	if err != nil {
 		return err
 	}
-	var address string
 	if c.IsSet("address") {
-		address = c.String("address")
-	} else {
-		address = Conf.httpServer
+		address = httpserver.AddressType(c.String("address"))
 	}
 	// TODO: do we need this?
-	ptyMux = ptyMuxType{}
+	peers.PtyMux = peers.PtyMuxType{}
 	debug := c.Bool("debug")
+	var loggerOption fx.Option
 	if debug {
-		InitDevLogger()
+		loggerOption = fx.Provide(InitDevLogger)
 		err := createPIDFile()
 		if err != nil {
 			return err
 		}
 	} else {
-		if c.Bool("agent") {
-			InitAgentLogger()
-			pionLoggerFactory = newPionLoggerFactory()
-			err := createPIDFile()
-			if err != nil {
-				return err
-			}
-		} else {
+		if !c.Bool("agent") {
 			pid, err := forkAgent(address)
 			if err != nil {
 				return err
 			}
 			fmt.Printf("agent started as process #%d\n", pid)
 			return nil
-		}
-	}
-	// the code below runs for both --debug and --agent
-	Logger.Infof("Serving http on %q", address)
-	sigChan := make(chan os.Signal, 1)
-	httpServer := HTTPGo(address, NewFileAuth(ConfPath("authorized_fingerprints")))
-	if Conf.peerbookHost != "" {
-		verified, err := verifyPeer(Conf.peerbookHost)
-		if err != nil {
-			return fmt.Errorf("Got an error verifying peer: %s", err)
-		}
-		if verified {
-			Logger.Infof("** verified ** by peerbook at %s", Conf.peerbookHost)
 		} else {
-			Logger.Infof("** unverified ** peerbook sent you a verification email.")
-			fmt.Printf("                 If you don't get it please visit %s",
-				Conf.peerbookHost)
-		}
-		peerbookGo()
-		// to speed up first connection
-		getICEServers(Conf.peerbookHost)
-	}
-	sockServer, err := StartSock()
-	if err != nil {
-		Logger.Infof("failed to start llistening on unix socket: %s", err)
-		return err
-	}
-	// signal handling
-	if debug {
-		signal.Notify(sigChan, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
-	} else {
-		signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP)
-	}
-tillTerm:
-	for {
-		select {
-		case s := <-sigChan:
-			switch s {
-			case syscall.SIGINT, syscall.SIGTERM:
-				Logger.Info("Exiting on SIGINT/SIGTERM")
-				break tillTerm
-			case syscall.SIGHUP:
-				Logger.Info("reloading conf on SIGHUP")
-				err := LoadConf()
-				if err != nil {
-					Logger.Errorf("Failed to reload conf: %s", err)
-				}
+			loggerOption = fx.Provide(InitAgentLogger)
+			err := createPIDFile()
+			if err != nil {
+				return err
 			}
 		}
 	}
-	ctx, _ := context.WithTimeout(context.Background(), 3*time.Second)
-	httpServer.Shutdown(ctx)
-	sockServer.Shutdown(ctx)
+	// the code below runs for both --debug and --agent
+	sigChan := make(chan os.Signal, 1)
+	app := fx.New(
+		fx.Provide(
+			loggerOption,
+			LoadConf,
+			NewFileAuth,
+			NewSockServer,
+			NewPeerbookClient,
+			GetCerts,
+		),
+		fx.Invoke(httpserver.StartHTTPServer, StartSocketServer, StartPeerbookClient),
+	)
+	if debug {
+		app.Run()
+		return nil
+	} else {
+		err = app.Start(context.Background())
+	}
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+	<-sigChan
+	Logger.Infof("Shutting down")
+	app.Stop(context.Background())
 	os.Remove(PIDFilePath())
 	return nil
 }
@@ -360,15 +300,11 @@ func accept(c *cli.Context) error {
 	}
 	if pid == 0 {
 		// start the agent
-		var address string
+		var address httpserver.AddressType
 		if c.IsSet("address") {
-			address = c.String("address")
+			address = httpserver.AddressType(c.String("address"))
 		} else {
-			err := LoadConf()
-			if err != nil {
-				return err
-			}
-			address = Conf.httpServer
+			address = defaultHTTPServer
 		}
 		_, err = forkAgent(address)
 		if err != nil {
@@ -531,7 +467,11 @@ func initCMD(c *cli.Context) error {
 	if err != nil {
 		return err
 	}
-	err = LoadConf()
+	certs, err := GetCerts()
+	if err != nil {
+		return fmt.Errorf("Failed to get certificates: %s", err)
+	}
+	_, _, err = LoadConf(certs)
 	if err != nil {
 		return cli.Exit(fmt.Sprintf("Failed to parse default conf: %s", err), 1)
 	}

@@ -15,8 +15,7 @@ import (
 
 	"github.com/pion/webrtc/v3"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zaptest"
+	"github.com/tuzig/webexec/peers"
 	"golang.org/x/sys/unix"
 )
 
@@ -46,17 +45,17 @@ func (a *MockAuthBackend) IsAuthorized(tokens []string) bool {
 
 // GetMsgType is used get the type of a control message
 func GetMsgType(t *testing.T, msg webrtc.DataChannelMessage) string {
-	env := CTRLMessage{}
+	env := peers.CTRLMessage{}
 	err := json.Unmarshal(msg.Data, &env)
 	require.Nil(t, err, "failed to unmarshal cdc message: %q", err)
 	return env.Type
 }
 
 // ParseAck parses and ack message and returns its args
-func ParseAck(t *testing.T, msg webrtc.DataChannelMessage) AckArgs {
+func ParseAck(t *testing.T, msg webrtc.DataChannelMessage) peers.AckArgs {
 	var args json.RawMessage
-	var ackArgs AckArgs
-	env := CTRLMessage{
+	var ackArgs peers.AckArgs
+	env := peers.CTRLMessage{
 		Args: &args,
 	}
 	err := json.Unmarshal(msg.Data, &env)
@@ -74,7 +73,7 @@ func getMarker(cdc *webrtc.DataChannel) int {
 	// sleep to simulate latency
 	time.Sleep(10 * time.Millisecond)
 	//TODO we need something like peer.LastMsgId++ below
-	msg := CTRLMessage{
+	msg := peers.CTRLMessage{
 		Time: time.Now().UnixNano(),
 		Type: "mark",
 		Ref:  ref,
@@ -106,7 +105,7 @@ func NewClient(known bool) (*webrtc.PeerConnection, string, error) {
 	if err != nil {
 		return nil, "", err
 	}
-	return client, compressFP(fp[0].Value), err
+	return client, peers.CompressFP(fp[0].Value), err
 }
 
 /*
@@ -128,7 +127,7 @@ func NewServerClient(t *testing.T, known bool) (*webrtc.PeerConnection, string, 
 */
 
 // SignalPair is used to start a connection between two peers
-func SignalPair(pcOffer *webrtc.PeerConnection, peer *Peer) error {
+func SignalPair(pcOffer *webrtc.PeerConnection, peer *peers.Peer) error {
 	// Note(albrow): We need to create a data channel in order to trigger ICE
 	// candidate gathering in the background for the JavaScript/Wasm bindings. If
 	// we don't do this, the complete offer including ICE candidates will never be
@@ -176,12 +175,13 @@ func waitForChild(pid int, timeout time.Duration) error {
 	return fmt.Errorf("process %d still alive (timeout=%v)", pid, timeout)
 }
 func initTest(t *testing.T) {
-	if ptyMux == nil {
-		ptyMux = ptyMuxType{}
+	if peers.PtyMux == nil {
+		peers.PtyMux = peers.PtyMuxType{}
 	}
-	Logger = zaptest.NewLogger(t, zaptest.WrapOptions(zap.AddCaller())).Sugar()
-	err := parseConf(defaultConf)
+	conf, addr, err := parseConf(defaultConf)
 	require.Nil(t, err, "NewPeer failed with: %s", err)
+	require.NotNil(t, conf)
+	require.Equal(t, addr, "http://localhost:7777")
 	Conf.insecure = true
 	Conf.iceServers = nil
 	f, err := ioutil.TempFile("", "private.key")
@@ -212,11 +212,11 @@ func GetFreePort() (int, error) {
 // SendRestore sends an restore message
 func SendRestore(cdc *webrtc.DataChannel, ref int, marker int) error {
 	time.Sleep(10 * time.Millisecond)
-	msg := CTRLMessage{
+	msg := peers.CTRLMessage{
 		Time: time.Now().UnixNano(),
 		Type: "restore",
 		Ref:  ref,
-		Args: RestoreArgs{marker},
+		Args: peers.RestoreArgs{marker},
 	}
 	restoreMsg, err := json.Marshal(msg)
 	if err != nil {

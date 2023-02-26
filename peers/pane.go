@@ -1,5 +1,5 @@
 // This file contains the Pane type and all associated functions
-package main
+package peers
 
 import (
 	"bytes"
@@ -14,6 +14,7 @@ import (
 	"github.com/hinshun/vt10x"
 	"github.com/pion/webrtc/v3"
 	"github.com/shirou/gopsutil/v3/process"
+	"go.uber.org/zap"
 )
 
 const OutBufSize = 4096
@@ -34,10 +35,12 @@ type Pane struct {
 	outbuf       chan []byte
 	cancelRWLoop context.CancelFunc
 	ctx          context.Context
+	logger       *zap.SugaredLogger
 }
 
 // execCommand in ahelper function for executing a command
-func execCommand(command []string, ws *pty.Winsize, pID int) (*exec.Cmd, *os.File, error) {
+func execCommand(command []string, env map[string]string, ws *pty.Winsize, pID int) (*exec.Cmd, *os.File, error) {
+
 	var (
 		tty *os.File
 		dir string
@@ -61,18 +64,18 @@ func execCommand(command []string, ws *pty.Winsize, pID int) (*exec.Cmd, *os.Fil
 			return nil, nil, err
 		}
 	}
-	Logger.Infof("Starting command %v in dir %s", command, dir)
+	// Logger.Infof("Starting command %v in dir %s", command, dir)
 	cmd.Dir = dir
-	if Conf.env != nil {
-		for k, v := range Conf.env {
+	if env != nil {
+		for k, v := range env {
 			cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", k, v))
 		}
 	}
 	if ws != nil {
-		tty, err = ptyMux.StartWithSize(cmd, ws)
+		tty, err = PtyMux.StartWithSize(cmd, ws)
 	} else {
 		// TODO: remove the pty
-		tty, err = ptyMux.Start(cmd)
+		tty, err = PtyMux.Start(cmd)
 	}
 	if err != nil {
 		return nil, nil, fmt.Errorf("Failed launching %q: %q", command, err)
@@ -92,7 +95,7 @@ func NewPane(command []string, peer *Peer, ws *pty.Winsize, parent int) (*Pane, 
 		}
 		parent = parentPane.C.Process.Pid
 	}
-	cmd, tty, err := execCommand(command, ws, parent)
+	cmd, tty, err := execCommand(command, peer.Conf.Env, ws, parent)
 	if err != nil {
 		return nil, err
 	}
@@ -111,6 +114,7 @@ func NewPane(command []string, peer *Peer, ws *pty.Winsize, parent int) (*Pane, 
 		outbuf:       make(chan []byte, OutBufSize),
 		ctx:          ctx,
 		cancelRWLoop: cancel,
+		logger:       peer.logger,
 	}
 	Panes.Add(pane) // This will set pane.ID
 	errbuf := new(bytes.Buffer)
@@ -137,7 +141,7 @@ func (pane *Pane) ReadLoop() {
 	id := pane.ID
 	sctx, cancel := context.WithCancel(context.Background())
 	go pane.sender(sctx)
-	Logger.Infof("readding from tty: %v", pane.TTY)
+	pane.logger.Infof("readding from tty: %v", pane.TTY)
 loop:
 	for {
 		select {
@@ -148,21 +152,21 @@ loop:
 		b := make([]byte, OutBufSize)
 		l, rerr := pane.TTY.Read(b)
 		if rerr == io.EOF {
-			Logger.Infof("@%d: got EOF in read loop", pane.ID)
+			pane.logger.Infof("@%d: got EOF in read loop", pane.ID)
 			break loop
 		}
 		if rerr != nil {
-			Logger.Errorf("Got an error reqading from pty#%d: %s", id, rerr)
+			pane.logger.Errorf("Got an error reqading from pty#%d: %s", id, rerr)
 			break loop
 		}
 		if l == 0 {
 			// 't kill the pane only on the third consequtive empty message
 			conNull++
-			Logger.Infof("got lenght - rerr - %s", rerr)
+			pane.logger.Infof("got lenght - rerr - %s", rerr)
 			if conNull <= 3 {
 				continue
 			} else {
-				Logger.Infof("3rd connsecutive empty message, killin")
+				pane.logger.Infof("3rd connsecutive empty message, killin")
 				break loop
 			}
 		}
@@ -187,16 +191,16 @@ loop:
 			}
 			// We need to get the dcs from Panes for an updated version
 			cs := cdb.All4Pane(pane)
-			Logger.Infof("@%d: Sending %d bytes to %d dcs", pane.ID, len(m), len(cs))
+			pane.logger.Infof("@%d: Sending %d bytes to %d dcs", pane.ID, len(m), len(cs))
 			for _, d := range cs {
 				s := d.dc.ReadyState()
 				if s == webrtc.DataChannelStateOpen {
 					err := d.dc.Send(m)
 					if err != nil {
-						Logger.Errorf("got an error when sending message: %v", err)
+						pane.logger.Errorf("got an error when sending message: %v", err)
 					}
 				} else {
-					Logger.Infof("closing & removing dc because state: %q", s)
+					pane.logger.Infof("closing & removing dc because state: %q", s)
 					cdb.Delete(d)
 					d.dc.Close()
 				}
@@ -207,12 +211,12 @@ loop:
 			pane.Buffer.Add(m)
 		}
 	}
-	Logger.Infof("Exiting the sender loop for pane %d ", pane.ID)
+	pane.logger.Infof("Exiting the sender loop for pane %d ", pane.ID)
 }
 
 // Kill takes a pane to the sands of Rishon and buries it
 func (pane *Pane) Kill() {
-	Logger.Infof("Killing a pane")
+	pane.logger.Infof("Killing a pane")
 	for _, d := range cdb.All4Pane(pane) {
 		if d.dc.ReadyState() == webrtc.DataChannelStateOpen {
 			d.dc.Close()
@@ -224,7 +228,7 @@ func (pane *Pane) Kill() {
 		pane.TTY.Close()
 		err := pane.C.Process.Kill()
 		if err != nil {
-			Logger.Errorf("Failed to kill process: %v %v",
+			pane.logger.Errorf("Failed to kill process: %v %v",
 				err, pane.C.ProcessState.String())
 		}
 		pane.IsRunning = false
@@ -236,16 +240,16 @@ func (pane *Pane) OnMessage(msg webrtc.DataChannelMessage) {
 	p := msg.Data
 	l, err := pane.TTY.Write(p)
 	if err == os.ErrClosed {
-		Logger.Infof("got an os.ErrClosed")
+		pane.logger.Infof("got an os.ErrClosed")
 		pane.Kill()
 		return
 	}
 	if err != nil {
-		Logger.Warnf("pty of %d write failed: %v",
+		pane.logger.Warnf("pty of %d write failed: %v",
 			pane.ID, err)
 	}
 	if l != len(p) {
-		Logger.Warnf("pty of %d wrote %d instead of %d bytes",
+		pane.logger.Warnf("pty of %d wrote %d instead of %d bytes",
 			pane.ID, l, len(p))
 	}
 }
@@ -254,7 +258,7 @@ func (pane *Pane) OnMessage(msg webrtc.DataChannelMessage) {
 // the function does nothing if it's given a nil size or the current size
 func (pane *Pane) Resize(ws *pty.Winsize) {
 	if ws != nil && (ws.Rows != pane.Ws.Rows || ws.Cols != pane.Ws.Cols) {
-		Logger.Infof("Changing pty size for pane %d: %v", pane.ID, ws)
+		pane.logger.Infof("Changing pty size for pane %d: %v", pane.ID, ws)
 		pane.Ws = ws
 		pty.Setsize(pane.TTY, ws)
 		if pane.vt != nil {
@@ -272,7 +276,7 @@ func (pane *Pane) dumpVT() {
 	t.Lock()
 	defer t.Unlock()
 	rows, cols := t.Size()
-	Logger.Infof("dumping scree size %dx%d", rows, cols)
+	pane.logger.Infof("dumping scree size %dx%d", rows, cols)
 	for y := 0; y < rows; y++ {
 		for x := 0; x < cols; x++ {
 			c, _, _ = t.Cell(x, y)
@@ -287,7 +291,7 @@ func (pane *Pane) dumpVT() {
 	}
 	// position the cursor
 	x, y := t.Cursor()
-	Logger.Infof("Got cursor at: %d, %d", x, y)
+	pane.logger.Infof("Got cursor at: %d, %d", x, y)
 	ps := fmt.Sprintf("\x1b[%d;%dH", y+1, x+1)
 	pane.outbuf <- []byte(ps)
 }
@@ -301,20 +305,20 @@ func (pane *Pane) Restore(d *webrtc.DataChannel, marker int) {
 		if pane.vt != nil {
 			id := d.ID()
 			if id == nil {
-				Logger.Error(
+				pane.logger.Error(
 					"Failed restoring to a data channel that has no id")
 			}
-			Logger.Infof(
+			pane.logger.Infof(
 				"Sending scrren dump to pane: %d, dc: %d", pane.ID, *id)
 			//TODO: this and the next afterfunc is silly
 			time.AfterFunc(time.Second/10, func() {
 				pane.dumpVT()
 			})
 		} else {
-			Logger.Warn("not restoring as st is null")
+			pane.logger.Warn("not restoring as st is null")
 		}
 	} else {
-		Logger.Infof("Sending history buffer since marker: %d", marker)
+		pane.logger.Infof("Sending history buffer since marker: %d", marker)
 		time.AfterFunc(time.Second/10, func() {
 			pane.outbuf <- pane.Buffer.GetSinceMarker(marker)
 		})
@@ -330,12 +334,12 @@ loop:
 		}
 		line, err := errors.ReadString('\n')
 		if err == io.EOF {
-			Logger.Infof("@%d: got EOF in stderr loop", pane.ID)
+			pane.logger.Infof("@%d: got EOF in stderr loop", pane.ID)
 			break loop
 		}
 		if err != nil {
-			Logger.Errorf("@%d: got an error reading stderr: %s", pane.ID, err)
+			pane.logger.Errorf("@%d: got an error reading stderr: %s", pane.ID, err)
 		}
-		Logger.Errorf("@%d: stderr: %s", line)
+		pane.logger.Errorf("@%d: stderr: %s", line)
 	}
 }
