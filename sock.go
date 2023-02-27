@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"net"
 	"net/http"
 	"os"
 	"strings"
@@ -76,6 +77,7 @@ func StartSocketServer(lc fx.Lifecycle, s *sockServer) (*http.Server, error) {
 	fp := GetSockFP()
 	_, err := os.Stat(fp)
 	if err == nil {
+		Logger.Infof("Removing stale socket file %q", fp)
 		os.Remove(fp)
 	} else if errors.Is(err, os.ErrNotExist) {
 		// file does not exist, let's make sure the dir does
@@ -99,7 +101,11 @@ func StartSocketServer(lc fx.Lifecycle, s *sockServer) (*http.Server, error) {
 	server := http.Server{Handler: &m}
 	lc.Append(fx.Hook{
 		OnStart: func(context.Context) error {
-			go server.ListenAndServe()
+			l, err := net.Listen("unix", fp)
+			if err != nil {
+				return fmt.Errorf("Failed to listen to unix socket: %s", err)
+			}
+			go server.Serve(l)
 			Logger.Infof("Listening for requests on %q", fp)
 			return nil
 		},
@@ -175,13 +181,7 @@ func (s *sockServer) handleOffer(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		fp, err := peers.GetFingerprint(&offer)
-		if err != nil {
-			msg := fmt.Sprintf("Failed to get fingerprint from offer: %s", err)
-			http.Error(w, msg, http.StatusBadRequest)
-			return
-		}
-		peer, err := peers.NewPeer(fp, s.conf)
+		peer, err := peers.NewPeer(s.conf)
 		if err != nil {
 			http.Error(w, fmt.Sprintf("Failed to create a new peer: %s", err),
 				http.StatusInternalServerError)

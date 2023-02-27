@@ -48,6 +48,7 @@ func NewConnectHandler(
 func StartHTTPServer(lc fx.Lifecycle, address AddressType,
 	c *ConnectHandler, logger *zap.SugaredLogger) *http.Server {
 
+	c.peerConf.Logger = logger
 	http.HandleFunc("/connect", c.HandleConnect)
 	h := cors.Default().Handler(http.DefaultServeMux)
 	server := &http.Server{Addr: string(address), Handler: h}
@@ -88,7 +89,7 @@ func (h *ConnectHandler) HandleConnect(w http.ResponseWriter, r *http.Request) {
 		(len(a) >= 5 && a[:5] == "[::1]")
 	fp, err := peers.GetFingerprint(&offer)
 	if err != nil {
-		http.Error(w, fmt.Sprintf("Failed to get fingerprint from sdp: %w", err),
+		http.Error(w, fmt.Sprintf("Failed to get fingerprint from sdp: %s", err),
 			http.StatusBadRequest)
 		return
 	}
@@ -97,7 +98,7 @@ func (h *ConnectHandler) HandleConnect(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
-	peer, err := peers.NewPeer(req.Fingerprint, h.peerConf)
+	peer, err := peers.NewPeer(h.peerConf)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Failed to create a new peer: %s", err), http.StatusInternalServerError)
 		return

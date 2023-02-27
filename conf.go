@@ -151,7 +151,7 @@ func parseConf(s string) (*peers.Conf, httpserver.AddressType, error) {
 	var addr httpserver.AddressType
 	v = t.Get("net.http_server")
 	if v != nil {
-		addr = v.(httpserver.AddressType)
+		addr = httpserver.AddressType(v.(string))
 	} else {
 		// when no address is given, this is the default address
 		addr = defaultHTTPServer
@@ -219,6 +219,7 @@ func logFilePath(path string, def string) string {
 }
 
 // loadConf load the conf file
+// TODO: refactor to accept a single certificate
 func LoadConf(certs []webrtc.Certificate) (*peers.Conf, httpserver.AddressType, error) {
 	confPath := ConfPath("webexec.conf")
 	_, err := os.Stat(confPath)
@@ -231,7 +232,8 @@ func LoadConf(certs []webrtc.Certificate) (*peers.Conf, httpserver.AddressType, 
 			err)
 	}
 	conf, addr, err := parseConf(string(b))
-	conf.Certs = certs
+	conf.Certificate = &certs[0]
+	conf.Logger = Logger
 	return conf, addr, err
 }
 

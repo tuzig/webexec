@@ -245,10 +245,13 @@ func start(c *cli.Context) error {
 	// the code below runs for both --debug and --agent
 	sigChan := make(chan os.Signal, 1)
 	app := fx.New(
+		loggerOption,
+		fx.Supply(""),
 		fx.Provide(
-			loggerOption,
 			LoadConf,
-			NewFileAuth,
+			httpserver.NewConnectHandler,
+			// TODO: find a way to pass the filepath
+			fx.Annotate(NewFileAuth, fx.As(new(httpserver.AuthBackend))),
 			NewSockServer,
 			NewPeerbookClient,
 			GetCerts,

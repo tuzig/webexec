@@ -18,9 +18,11 @@ type FileAuth struct {
 	TokensFilePath string
 }
 
-func NewFileAuth() *FileAuth {
+func NewFileAuth(filepath string) *FileAuth {
 	// creating the token file
-	filepath := ConfPath("authorized_fingerprints")
+	if filepath == "" {
+		filepath = ConfPath("authorized_fingerprints")
+	}
 	_, err := os.Stat(filepath)
 	if os.IsNotExist(err) {
 		tokensFile, err := os.Create(filepath)

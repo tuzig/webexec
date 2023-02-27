@@ -38,8 +38,8 @@ type Pane struct {
 	logger       *zap.SugaredLogger
 }
 
-// execCommand in ahelper function for executing a command
-func execCommand(command []string, env map[string]string, ws *pty.Winsize, pID int) (*exec.Cmd, *os.File, error) {
+// ExecCommand in ahelper function for executing a command
+func ExecCommand(command []string, env map[string]string, ws *pty.Winsize, pID int) (*exec.Cmd, *os.File, error) {
 
 	var (
 		tty *os.File
@@ -95,7 +95,7 @@ func NewPane(command []string, peer *Peer, ws *pty.Winsize, parent int) (*Pane, 
 		}
 		parent = parentPane.C.Process.Pid
 	}
-	cmd, tty, err := execCommand(command, peer.Conf.Env, ws, parent)
+	cmd, tty, err := ExecCommand(command, peer.Conf.Env, ws, parent)
 	if err != nil {
 		return nil, err
 	}

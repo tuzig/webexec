@@ -46,7 +46,7 @@ type Conf struct {
 	PortMin           uint16
 	PortMax           uint16
 	Logger            *zap.SugaredLogger
-	Certs             []webrtc.Certificate
+	Certificate       *webrtc.Certificate
 }
 
 // Peer is a type used to remember a client.
@@ -66,7 +66,7 @@ type Peer struct {
 }
 
 // NewPeer funcions starts listening to incoming peer connection from a remote
-func NewPeer(fingerprint string, conf *Conf) (*Peer, error) {
+func NewPeer(conf *Conf) (*Peer, error) {
 	webrtcAPIM.Lock()
 	if WebRTCAPI == nil {
 		s := webrtc.SettingEngine{}
@@ -81,14 +81,18 @@ func NewPeer(fingerprint string, conf *Conf) (*Peer, error) {
 	config := webrtc.Configuration{
 		PeerIdentity: "webexec",
 		ICEServers:   conf.IceServers,
-		Certificates: conf.Certs,
+		Certificates: []webrtc.Certificate{*conf.Certificate},
 	}
 	pc, err := WebRTCAPI.NewPeerConnection(config)
 	if err != nil {
 		return nil, fmt.Errorf("NewPeerConnection failed: %s", err)
 	}
+	fp, err := ExtractFP(conf.Certificate)
+	if err != nil {
+		return nil, fmt.Errorf("Failed to extract fingerprint: %s", err)
+	}
 	peer := Peer{
-		FP:                fingerprint,
+		FP:                fp,
 		Token:             "",
 		LastContact:       nil,
 		LastRef:           0,
@@ -102,7 +106,7 @@ func NewPeer(fingerprint string, conf *Conf) (*Peer, error) {
 	if Peers == nil {
 		Peers = make(map[string]*Peer)
 	}
-	Peers[fingerprint] = &peer
+	Peers[fp] = &peer
 	peersM.Unlock()
 	// Status changes happend when the peer has connected/disconnected
 	pc.OnConnectionStateChange(func(state webrtc.PeerConnectionState) {
@@ -504,4 +508,11 @@ func DecodeOffer(dst interface{}, src []byte) error {
 		return err
 	}
 	return nil
+}
+func ExtractFP(certificate *webrtc.Certificate) (string, error) {
+	fp, err := certificate.GetFingerprints()
+	if err != nil {
+		return "", err
+	}
+	return CompressFP(fp[0].Value), nil
 }

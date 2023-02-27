@@ -18,9 +18,11 @@ require (
 	github.com/riywo/loginshell v0.0.0-20200815045211-7d26008be1ab
 	github.com/rs/cors v1.7.0
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
+	github.com/shirou/gopsutil v3.21.11+incompatible // indirect
 	github.com/shirou/gopsutil/v3 v3.21.10
 	github.com/stretchr/testify v1.8.0
 	github.com/urfave/cli/v2 v2.3.0
+	github.com/yusufpapurcu/wmi v1.2.2 // indirect
 	go.uber.org/fx v1.19.2
 	go.uber.org/zap v1.23.0
 	golang.org/x/crypto v0.0.0-20221010152910-d6f0a8c073c2
