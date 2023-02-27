@@ -108,25 +108,6 @@ func InitDevLogger() *zap.SugaredLogger {
 	return Logger
 }
 
-// Shutdown is called when it's time to go.Sweet dreams.
-func Shutdown() {
-	var err error
-	for _, peer := range peers.Peers {
-		if peer.PC != nil {
-			err = peer.PC.Close()
-			if err != nil {
-				Logger.Error("Failed closing peer connection: %w", err)
-			}
-		}
-	}
-	for _, p := range peers.Panes.All() {
-		err = p.C.Process.Kill()
-		if err != nil {
-			Logger.Error("Failed closing a process: %w", err)
-		}
-	}
-}
-
 // versionCMD prints version information
 func versionCMD(c *cli.Context) error {
 	fmt.Printf("Version: %s\n", version)

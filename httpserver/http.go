@@ -59,6 +59,7 @@ func StartHTTPServer(lc fx.Lifecycle, address AddressType,
 			return nil
 		},
 		OnStop: func(ctx context.Context) error {
+			// peers.Shutdown()
 			logger.Info("Stopping HTTP server")
 			return server.Shutdown(ctx)
 		},

@@ -516,3 +516,26 @@ func ExtractFP(certificate *webrtc.Certificate) (string, error) {
 	}
 	return CompressFP(fp[0].Value), nil
 }
+
+// Shutdown is called when it's time to go.Sweet dreams.
+func Shutdown() {
+	var logger *zap.SugaredLogger
+	var err error
+	for _, peer := range Peers {
+		if logger == nil {
+			logger = peer.logger
+		}
+		if peer.PC != nil {
+			err = peer.PC.Close()
+			if err != nil {
+				logger.Error("Failed closing peer connection: %w", err)
+			}
+		}
+	}
+	for _, p := range Panes.All() {
+		err = p.C.Process.Kill()
+		if err != nil {
+			logger.Error("Failed closing a process: %w", err)
+		}
+	}
+}

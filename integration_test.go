@@ -94,7 +94,6 @@ func getMarker(cdc *webrtc.DataChannel) int {
 	}
 	markMsg, err := json.Marshal(msg)
 	if err != nil {
-		fmt.Printf("Failed to marshal the makr message: %v", err)
 		return -1
 	}
 	cdc.Send(markMsg)
@@ -122,7 +121,6 @@ func TestSimpleEcho(t *testing.T) {
 	Logger.Infof("TestSimpleEcho")
 	closed := make(chan bool)
 	client, certs, err := NewClient(true)
-	fmt.Printf("client: %v certs: %v err: %v", client, certs, err)
 	peer := newPeer(t, certs)
 	// count the incoming messages
 	count := 0

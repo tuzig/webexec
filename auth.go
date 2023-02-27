@@ -19,10 +19,10 @@ type FileAuth struct {
 }
 
 func NewFileAuth(filepath string) *FileAuth {
-	// creating the token file
 	if filepath == "" {
 		filepath = ConfPath("authorized_fingerprints")
 	}
+	// creating the token file
 	_, err := os.Stat(filepath)
 	if os.IsNotExist(err) {
 		tokensFile, err := os.Create(filepath)

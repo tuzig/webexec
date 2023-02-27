@@ -64,7 +64,6 @@ func ExecCommand(command []string, env map[string]string, ws *pty.Winsize, pID i
 			return nil, nil, err
 		}
 	}
-	// Logger.Infof("Starting command %v in dir %s", command, dir)
 	cmd.Dir = dir
 	if env != nil {
 		for k, v := range env {
@@ -95,6 +94,7 @@ func NewPane(command []string, peer *Peer, ws *pty.Winsize, parent int) (*Pane, 
 		}
 		parent = parentPane.C.Process.Pid
 	}
+	peer.logger.Infof("Starting command: %v", command)
 	cmd, tty, err := ExecCommand(command, peer.Conf.Env, ws, parent)
 	if err != nil {
 		return nil, err

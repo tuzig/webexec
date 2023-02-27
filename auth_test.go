@@ -10,12 +10,13 @@ import (
 // it doesn't seem like SignalPair works when we need to test at this level.
 /*
 func TestWrongFingerprint(t *testing.T) {
-	initTest(t)
+	// initTest(t)
 	failed := make(chan bool)
 	// create an unknown client
-	client, _, err := NewClient(false)
+	client, certificate, err := NewClient(false)
 	require.Nil(t, err, "Failed to create a new client %v", err)
-	peer, err := peers.NewPeer(&peers.Conf{Logger: Logger})
+	peer, err := peers.NewPeer(&peers.Conf{Logger: Logger,
+		Certificate: certificate})
 	require.NoError(t, err, "NewPeer failed with: %s", err)
 	require.NotNil(t, peer, "NewPeer returned nil")
 	dc, err := client.CreateDataChannel("echo,Failed", nil)
@@ -27,7 +28,7 @@ func TestWrongFingerprint(t *testing.T) {
 	case <-failed:
 		t.Error("Data channel is opened even though no authentication")
 	}
-	Shutdown()
+	// peers.Shutdown()
 }
 */
 
