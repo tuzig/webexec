@@ -4,27 +4,40 @@ import (
 	"bufio"
 	"fmt"
 	"os"
-	"strings"
-
-	"github.com/pion/webrtc/v3"
 )
 
-// TokensFilePath holds the path to a file where each authorized token has a line
-var TokensFilePath string
+// AuthBackend is the interface that wraps the basic authentication methods
+type AuthBackend interface {
+	// IsAthorized checks if the fingerprint is authorized to connect
+	IsAuthorized(tokens []string) bool
+}
 
-func compressFP(fp string) string {
-	hex := strings.Split(fp, " ")[1]
-	s := strings.Replace(hex, ":", "", -1)
-	return strings.ToUpper(s)
+// FileAuth is an authentication backend that checks tokens against a file of
+// authorized tokens
+type FileAuth struct {
+	TokensFilePath string
+}
+
+func NewFileAuth(filepath string) *FileAuth {
+	if filepath == "" {
+		filepath = ConfPath("authorized_fingerprints")
+	}
+	// creating the token file
+	_, err := os.Stat(filepath)
+	if os.IsNotExist(err) {
+		tokensFile, err := os.Create(filepath)
+		defer tokensFile.Close()
+		if err != nil {
+			return nil
+		}
+	}
+	return &FileAuth{TokensFilePath: filepath}
 }
 
 // ReadAuthorizedTokens reads the tokens file and returns all the tokens in it
-func ReadAuthorizedTokens() ([]string, error) {
+func (a *FileAuth) ReadAuthorizedTokens() ([]string, error) {
 	var tokens []string
-	if TokensFilePath == "" {
-		TokensFilePath = ConfPath("authorized_fingerprints")
-	}
-	file, err := os.Open(TokensFilePath)
+	file, err := os.Open(a.TokensFilePath)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to open authorized_fingerprints: %w", err)
 	}
@@ -41,40 +54,17 @@ func ReadAuthorizedTokens() ([]string, error) {
 }
 
 // IsAuthorized checks whether a client token is authorized
-func IsAuthorized(token string) bool {
-	tokens, err := ReadAuthorizedTokens()
+func (a *FileAuth) IsAuthorized(clientTokens []string) bool {
+	tokens, err := a.ReadAuthorizedTokens()
 	if err != nil {
-		Logger.Error(err)
 		return false
 	}
-	for _, at := range tokens {
-		if token == at {
-			return true
-		}
-	}
-	return false
-}
-
-// GetFingerprint extract the fingerprints from a client's offer and returns
-// a compressed fingerprint
-func GetFingerprint(offer *webrtc.SessionDescription) (string, error) {
-	s, err := offer.Unmarshal()
-	if err != nil {
-		return "", fmt.Errorf("Failed to unmarshal sdp: %w", err)
-	}
-	var f string
-	if fingerprint, haveFingerprint := s.Attribute("fingerprint"); haveFingerprint {
-		f = fingerprint
-	} else {
-		for _, m := range s.MediaDescriptions {
-			if fingerprint, found := m.Attribute("fingerprint"); found {
-				f = fingerprint
-				break
+	for _, ct := range clientTokens {
+		for _, token := range tokens {
+			if token == ct {
+				return true
 			}
 		}
 	}
-	if f == "" {
-		return "", fmt.Errorf("Offer has no fingerprint: %v", offer)
-	}
-	return compressFP(f), nil
+	return false
 }

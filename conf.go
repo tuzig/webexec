@@ -12,10 +12,13 @@ import (
 
 	"github.com/pelletier/go-toml"
 	"github.com/pion/webrtc/v3"
+	"github.com/tuzig/webexec/httpserver"
+	"github.com/tuzig/webexec/peers"
 	"go.uber.org/zap/zapcore"
 )
 
-const defaultHTTPServer = "0.0.0.0:7777"
+const defaultHTTPServer = httpserver.AddressType("127.0.0.1:7777")
+
 const defaultConf = `# webexec's configuration. in toml.
 # to learn more: https://github.com/tuzig/webexec/blob/master/docs/conf.md
 [log]
@@ -54,25 +57,17 @@ type ICEServer struct {
 
 // Conf hold the configuration variables
 var Conf struct {
-	T                 *toml.Tree
-	disconnectTimeout time.Duration
-	failedTimeout     time.Duration
-	keepAliveInterval time.Duration
-	gatheringTimeout  time.Duration
-	peerbookTimeout   time.Duration
-	iceServers        []webrtc.ICEServer
-	httpServer        string
-	logFilePath       string
-	logLevel          zapcore.Level
-	errFilePath       string
-	pionLevels        *toml.Tree
-	env               map[string]string
-	portMin           uint16
-	portMax           uint16
-	peerbookHost      string
-	email             string
-	name              string
-	insecure          bool
+	logFilePath     string
+	logLevel        zapcore.Level
+	errFilePath     string
+	peerbookTimeout time.Duration
+	iceServers      []webrtc.ICEServer
+	peerbookHost    string
+	insecure        bool
+	email           string
+	name            string
+	peerConf        *peers.Conf
+	T               *toml.Tree
 }
 
 var emailRegex = regexp.MustCompile("^[a-zA-Z0-9.!#$%&'*+\\/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$")
@@ -80,10 +75,10 @@ var emailRegex = regexp.MustCompile("^[a-zA-Z0-9.!#$%&'*+\\/=?^_`{|}~-]+@[a-zA-Z
 // parseConf loads a configuration from a toml string and fills all Conf value.
 //
 //	If a key is missing LoadConf will load the default value
-func parseConf(s string) error {
+func parseConf(s string) (*peers.Conf, httpserver.AddressType, error) {
 	t, err := toml.Load(s)
 	if err != nil {
-		return fmt.Errorf("toml parsing failed: %s", err)
+		return nil, "", fmt.Errorf("toml parsing failed: %s", err)
 	}
 	Conf.T = t
 	Conf.logFilePath = logFilePath("log.file", "webexec.log")
@@ -102,35 +97,37 @@ func parseConf(s string) error {
 	} else {
 		Conf.logLevel = zapcore.WarnLevel
 	}
-	v = t.Get("timeouts.disconnect")
-	if v != nil {
-		Conf.disconnectTimeout = time.Duration(v.(int64)) * time.Millisecond
-	} else {
-		Conf.disconnectTimeout = 3 * time.Second
-	}
-	v = t.Get("timeouts.failed")
-	if v != nil {
-		Conf.failedTimeout = time.Duration(v.(int64)) * time.Millisecond
-	} else {
-		Conf.failedTimeout = 6 * time.Second
-	}
-	v = t.Get("timeouts.keep_alive")
-	if v != nil {
-		Conf.keepAliveInterval = time.Duration(v.(int64)) * time.Millisecond
-	} else {
-		Conf.keepAliveInterval = 1 * time.Second
-	}
-	v = t.Get("timeouts.ice_gathering")
-	if v != nil {
-		Conf.gatheringTimeout = time.Duration(v.(int64)) * time.Millisecond
-	} else {
-		Conf.gatheringTimeout = 3 * time.Second
-	}
 	v = t.Get("timeouts.peerbook")
 	if v != nil {
 		Conf.peerbookTimeout = time.Duration(v.(int64)) * time.Millisecond
 	} else {
 		Conf.peerbookTimeout = 3 * time.Second
+	}
+	// start of peers configuration
+	peersConf := &peers.Conf{}
+	v = t.Get("timeouts.disconnect")
+	if v != nil {
+		peersConf.DisconnectTimeout = time.Duration(v.(int64)) * time.Millisecond
+	} else {
+		peersConf.DisconnectTimeout = 3 * time.Second
+	}
+	v = t.Get("timeouts.failed")
+	if v != nil {
+		peersConf.FailedTimeout = time.Duration(v.(int64)) * time.Millisecond
+	} else {
+		peersConf.FailedTimeout = 6 * time.Second
+	}
+	v = t.Get("timeouts.keep_alive")
+	if v != nil {
+		peersConf.KeepAliveInterval = time.Duration(v.(int64)) * time.Millisecond
+	} else {
+		peersConf.KeepAliveInterval = 1 * time.Second
+	}
+	v = t.Get("timeouts.ice_gathering")
+	if v != nil {
+		peersConf.GatheringTimeout = time.Duration(v.(int64)) * time.Millisecond
+	} else {
+		peersConf.GatheringTimeout = 3 * time.Second
 	}
 	v = t.Get("ice_servers")
 	if v != nil {
@@ -139,7 +136,7 @@ func parseConf(s string) error {
 			var u ICEServer
 			err := u2.Unmarshal(&u)
 			if err != nil {
-				return fmt.Errorf("failed to parse ice server configuration: %s", err)
+				return nil, "", fmt.Errorf("failed to parse ice server configuration: %s", err)
 			}
 			s := webrtc.ICEServer{
 				URLs:           u.URLs,
@@ -147,49 +144,42 @@ func parseConf(s string) error {
 				Credential:     u.Password,
 				CredentialType: webrtc.ICECredentialTypePassword,
 			}
-
 			Conf.iceServers = append(Conf.iceServers, s)
 		}
 	}
 	// no address is set, let's see if the conf file has it
+	var addr httpserver.AddressType
 	v = t.Get("net.http_server")
 	if v != nil {
-		Conf.httpServer = v.(string)
+		addr = httpserver.AddressType(v.(string))
 	} else {
 		// when no address is given, this is the default address
-		Conf.httpServer = defaultHTTPServer
+		addr = defaultHTTPServer
 	}
 	// get the udp ports
 	v = t.Get("net.udp_port_min")
 	if v != nil {
-		Conf.portMin = uint16(v.(int64))
+		peersConf.PortMin = uint16(v.(int64))
 	} else {
-		Conf.portMin = 60000
+		peersConf.PortMin = 60000
 	}
 	v = t.Get("net.udp_port_max")
 	if v != nil {
-		Conf.portMax = uint16(v.(int64))
+		peersConf.PortMax = uint16(v.(int64))
 	} else {
-		Conf.portMax = 61000
+		peersConf.PortMax = 61000
 	}
 	// unsecured cotrol which shema to use
 	v = t.Get("peerbook.insecure")
 	if v != nil {
 		Conf.insecure = v.(bool)
 	}
-	// get pion's conf
-	v = t.Get("log.pion_levels")
-	if v != nil {
-		Conf.pionLevels = v.(*toml.Tree)
-	} else {
-		Conf.pionLevels = &toml.Tree{}
-	}
 	// get env vars
 	m := t.Get("env")
 	if m != nil {
-		Conf.env = make(map[string]string)
+		peersConf.Env = make(map[string]string)
 		for k, v := range m.(*toml.Tree).ToMap() {
-			Conf.env[k] = v.(string)
+			peersConf.Env[k] = v.(string)
 		}
 	}
 	v = t.Get("peerbook.email")
@@ -212,8 +202,8 @@ func parseConf(s string) error {
 			}
 		}
 	}
-	return nil
-
+	Conf.peerConf = peersConf
+	return peersConf, addr, nil
 }
 
 func logFilePath(path string, def string) string {
@@ -229,24 +219,22 @@ func logFilePath(path string, def string) string {
 }
 
 // loadConf load the conf file
-func LoadConf() error {
+// TODO: refactor to accept a single certificate
+func LoadConf(certs []webrtc.Certificate) (*peers.Conf, httpserver.AddressType, error) {
 	confPath := ConfPath("webexec.conf")
 	_, err := os.Stat(confPath)
 	if os.IsNotExist(err) {
-		return fmt.Errorf("Missing conf file, run `webexec init` to create")
-	} else {
-		b, err := ioutil.ReadFile(confPath)
-		if err != nil {
-			return fmt.Errorf("Failed to read conf file %q: %s", confPath,
-				err)
-		}
-		err = parseConf(string(b))
+		return nil, "", fmt.Errorf("Missing conf file, run `webexec init` to create")
 	}
+	b, err := ioutil.ReadFile(confPath)
 	if err != nil {
-		return fmt.Errorf("Failed to parse conf file %q: %s", confPath,
+		return nil, "", fmt.Errorf("Failed to read conf file %q: %s", confPath,
 			err)
 	}
-	return nil
+	conf, addr, err := parseConf(string(b))
+	conf.Certificate = &certs[0]
+	conf.Logger = Logger
+	return conf, addr, err
 }
 
 func isValidEmail(email string) bool {
@@ -291,21 +279,7 @@ func createConf(silent bool) error {
 	if err != nil {
 		return fmt.Errorf("Failed to write to configuration file: %s", err)
 	}
-	// creating the token file
-	if TokensFilePath == "" {
-		TokensFilePath = ConfPath("authorized_fingerprints")
-	}
-	_, err = os.Stat(TokensFilePath)
-	if os.IsNotExist(err) {
-		tokensFile, err := os.Create(TokensFilePath)
-		defer tokensFile.Close()
-		if err != nil {
-			return fmt.Errorf("Failed to create the tokens file at %q: %w",
-				TokensFilePath, err)
-		}
-		fmt.Printf("Created:\n %s - conf file\n %s  - tokens file\n", confPath,
-			TokensFilePath)
-	}
+	fmt.Printf("Created:\n %s - conf file\n", confPath)
 	return nil
 }
 

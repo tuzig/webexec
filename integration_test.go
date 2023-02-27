@@ -14,14 +14,114 @@ import (
 
 	"github.com/pion/webrtc/v3"
 	"github.com/stretchr/testify/require"
+	"github.com/tuzig/webexec/peers"
 )
+
+// SendRestore sends an restore message
+func SendRestore(cdc *webrtc.DataChannel, ref int, marker int) error {
+	time.Sleep(10 * time.Millisecond)
+	msg := peers.CTRLMessage{
+		Time: time.Now().UnixNano(),
+		Type: "restore",
+		Ref:  ref,
+		Args: peers.RestoreArgs{marker},
+	}
+	restoreMsg, err := json.Marshal(msg)
+	if err != nil {
+		return fmt.Errorf("Failed to marshal the auth args: %v", err)
+	}
+	cdc.Send(restoreMsg)
+	return nil
+}
+
+// waitForChild waits for a give timeout for for a process to die
+func waitForChild(pid int, timeout time.Duration) error {
+	start := time.Now()
+	for time.Since(start) <= timeout {
+		if !isAlive(pid) {
+			return nil
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	return fmt.Errorf("process %d still alive (timeout=%v)", pid, timeout)
+}
+
+// SignalPair is used to start a connection between a peer and a client
+func SignalPair(client *webrtc.PeerConnection, peer *peers.Peer) error {
+	// Note(albrow): We need to create a data channel in order to trigger ICE
+	// candidate gathering in the background for the JavaScript/Wasm bindings. If
+	// we don't do this, the complete offer including ICE candidates will never be
+	// generated.
+	if _, err := client.CreateDataChannel("signaling", nil); err != nil {
+		return err
+	}
+
+	offer, err := client.CreateOffer(nil)
+	if err != nil {
+		return err
+	}
+	gatherComplete := webrtc.GatheringCompletePromise(client)
+	if err := client.SetLocalDescription(offer); err != nil {
+		return err
+	}
+	select {
+	case <-time.After(5 * time.Second):
+		return fmt.Errorf("timed mockedMsgs waiting to finish gathering ICE candidates")
+	case <-gatherComplete:
+		answer, err := peer.Listen(*client.LocalDescription())
+		if err != nil {
+			return err
+		}
+		err = client.SetRemoteDescription(*answer)
+		if err != nil {
+			return err
+		}
+		return nil
+	}
+}
+
+func getMarker(cdc *webrtc.DataChannel) int {
+	lastRef++
+	ref := lastRef
+	// sleep to simulate latency
+	time.Sleep(10 * time.Millisecond)
+	//TODO we need something like peer.LastMsgId++ below
+	msg := peers.CTRLMessage{
+		Time: time.Now().UnixNano(),
+		Type: "mark",
+		Ref:  ref,
+		Args: nil,
+	}
+	markMsg, err := json.Marshal(msg)
+	if err != nil {
+		return -1
+	}
+	cdc.Send(markMsg)
+	return ref
+}
+
+// ParseAck parses and ack message and returns its args
+func ParseAck(t *testing.T, msg webrtc.DataChannelMessage) peers.AckArgs {
+	var args json.RawMessage
+	var ackArgs peers.AckArgs
+	env := peers.CTRLMessage{
+		Args: &args,
+	}
+	err := json.Unmarshal(msg.Data, &env)
+	require.Nil(t, err, "failed to unmarshal cdc message: %q", err)
+	require.Equal(t, env.Type, "ack",
+		"Expected an ack message and got %q", env.Type)
+	err = json.Unmarshal(args, &ackArgs)
+	require.Nil(t, err, "failed to unmarshal ack args: %q", err)
+	return ackArgs
+}
 
 func TestSimpleEcho(t *testing.T) {
 	initTest(t)
+	Logger.Infof("TestSimpleEcho")
 	closed := make(chan bool)
-	client, cert, err := NewClient(true)
-	peer, err := NewPeer(cert)
-	require.Nil(t, err, "NewPeer failed with: %s", err)
+	client, certs, err := NewClient(true)
+	peer := newPeer(t, certs)
 	// count the incoming messages
 	count := 0
 	dc, err := client.CreateDataChannel("echo,hello world", nil)
@@ -45,10 +145,13 @@ func TestSimpleEcho(t *testing.T) {
 		Logger.Info("Client Data channel closed")
 		closed <- true
 	})
-	SignalPair(client, peer)
+	err = SignalPair(client, peer)
+	require.NoError(t, err, "Signaling failed: %v", err)
 	// TODO: add timeout
+	Logger.Infof("Waiting for the channel to close")
 	<-closed
-	panes := Panes.All()
+	Logger.Infof("TestSimpleEcho done")
+	panes := peers.Panes.All()
 	lp := panes[len(panes)-1]
 
 	waitForChild(lp.C.Process.Pid, time.Second)
@@ -60,10 +163,9 @@ func TestSimpleEcho(t *testing.T) {
 func TestResizeCommand(t *testing.T) {
 	initTest(t)
 	done := make(chan bool)
-	client, cert, err := NewClient(true)
+	client, certs, err := NewClient(true)
 	require.Nil(t, err, "Failed to create a new client %v", err)
-	peer, err := NewPeer(cert)
-	require.Nil(t, err, "NewPeer failed with: %s", err)
+	peer := newPeer(t, certs)
 	cdc, err := client.CreateDataChannel("%", nil)
 	require.Nil(t, err, "failed to create the control data channel: %v", err)
 	cdc.OnOpen(func() {
@@ -94,8 +196,8 @@ func TestResizeCommand(t *testing.T) {
 						"Failed to parse first message: %q", string(msg.Data))
 					require.Equal(t, 12, rows, "Got aa bad number of rows")
 					require.Equal(t, 34, cols, "Got aa bad number of cols")
-					resizeArgs := ResizeArgs{paneID, 80, 24}
-					m := CTRLMessage{time.Now().UnixNano(), 456, "resize",
+					resizeArgs := peers.ResizeArgs{paneID, 80, 24}
+					m := peers.CTRLMessage{time.Now().UnixNano(), 456, "resize",
 						&resizeArgs}
 					resizeMsg, err := json.Marshal(m)
 					require.Nil(t, err, "failed marshilng ctrl msg: %v", msg)
@@ -117,17 +219,16 @@ func TestResizeCommand(t *testing.T) {
 func TestPayloadOperations(t *testing.T) {
 	initTest(t)
 	done := make(chan bool)
-	client, cert, err := NewClient(true)
+	client, certs, err := NewClient(true)
 	require.Nil(t, err, "Failed to create a new client %v", err)
-	peer, err := NewPeer(cert)
-	require.Nil(t, err, "NewPeer failed with: %s", err)
+	peer := newPeer(t, certs)
 	cdc, err := client.CreateDataChannel("%", nil)
 	require.Nil(t, err, "Failed to create the control data channel: %v", err)
 	payload := []byte("[\"Better payload\"]")
 	cdc.OnOpen(func() {
 		time.Sleep(10 * time.Millisecond)
-		args := SetPayloadArgs{payload}
-		setPayload := CTRLMessage{time.Now().UnixNano(), 777,
+		args := peers.SetPayloadArgs{payload}
+		setPayload := peers.CTRLMessage{time.Now().UnixNano(), 777,
 			"set_payload", &args}
 		setMsg, err := json.Marshal(setPayload)
 		require.Nil(t, err, "Failed to marshal the auth args: %v", err)
@@ -165,11 +266,10 @@ func TestMarkerRestore(t *testing.T) {
 	gotFirst := make(chan bool)
 	gotSecondAgain := make(chan bool)
 	gotAck := make(chan bool)
-	client, cert, err := NewClient(true)
+	client, certs, err := NewClient(true)
 	require.Nil(t, err, "Failed to create a new client %v", err)
 	// start the server
-	peer, err := NewPeer(cert)
-	require.Nil(t, err, "NewPeer failed with: %s", err)
+	peer := newPeer(t, certs)
 	require.Nil(t, err, "Failed to start a new server %v", err)
 	// create the command & control data channel
 	cdc, err := client.CreateDataChannel("%", nil)
@@ -180,7 +280,7 @@ func TestMarkerRestore(t *testing.T) {
 		Logger.Info("cdc is opened")
 		cdc.OnMessage(func(msg webrtc.DataChannelMessage) {
 			// we should get an ack for the auth message
-			var cm CTRLMessage
+			var cm peers.CTRLMessage
 			Logger.Infof("Got a ctrl msg: %s", msg.Data)
 			err := json.Unmarshal(msg.Data, &cm)
 			require.Nil(t, err, "Failed to marshal the server msg: %v", err)
@@ -226,10 +326,9 @@ func TestMarkerRestore(t *testing.T) {
 		t.Error("Timeout waiting for marker ack")
 	case <-gotSetMarkerAck:
 	}
-	client2, cert, err := NewClient(true)
+	client2, certs, err := NewClient(true)
 	require.Nil(t, err, "Failed to create the second client %v", err)
-	peer2, err := NewPeer(cert)
-	require.Nil(t, err, "NewPeer2 failed with: %s", err)
+	peer2 := newPeer(t, certs)
 	require.Nil(t, err, "Failed to start a new server %v", err)
 	// create the command & control data channel
 	SignalPair(client2, peer2)
@@ -241,7 +340,7 @@ func TestMarkerRestore(t *testing.T) {
 		go SendRestore(cdc2, 345, marker)
 		cdc2.OnMessage(func(msg webrtc.DataChannelMessage) {
 			// we should get an ack for the auth message
-			var cm CTRLMessage
+			var cm peers.CTRLMessage
 			err := json.Unmarshal(msg.Data, &cm)
 			require.Nil(t, err, "Failed to marshal the server msg: %v", err)
 			Logger.Info("client2 got msg: %v", cm)
@@ -272,14 +371,13 @@ func TestMarkerRestore(t *testing.T) {
 	}
 }
 func TestAddPaneMessage(t *testing.T) {
-	var wg sync.WaitGroup
 	initTest(t)
+	var wg sync.WaitGroup
 	// the trinity: a new datachannel, an ack and BADWOLF (aka command output)
 	wg.Add(3)
-	client, cert, err := NewClient(true)
+	client, certs, err := NewClient(true)
 	require.Nil(t, err, "Failed to create a new client %v", err)
-	peer, err := NewPeer(cert)
-	require.Nil(t, err)
+	peer := newPeer(t, certs)
 	done := make(chan bool)
 	client.OnDataChannel(func(d *webrtc.DataChannel) {
 		d.OnMessage(func(msg webrtc.DataChannelMessage) {
@@ -304,9 +402,9 @@ func TestAddPaneMessage(t *testing.T) {
 				wg.Done()
 			}
 		})
-		addPaneArgs := AddPaneArgs{Rows: 12, Cols: 34,
+		addPaneArgs := peers.AddPaneArgs{Rows: 12, Cols: 34,
 			Command: []string{"echo", "BADWOLF"}} //, "&&", "sleep", "5"}}
-		m := CTRLMessage{time.Now().UnixNano(), 456, "add_pane",
+		m := peers.CTRLMessage{time.Now().UnixNano(), 456, "add_pane",
 			&addPaneArgs}
 		msg, err := json.Marshal(m)
 		require.Nil(t, err, "failed marshilng ctrl msg: %v", msg)
@@ -325,14 +423,15 @@ func TestAddPaneMessage(t *testing.T) {
 	}
 }
 func TestReconnectPane(t *testing.T) {
-	var wg sync.WaitGroup
-	var gotMsg sync.WaitGroup
-	var ci int
 	initTest(t)
-	client, cert, err := NewClient(true)
+	var (
+		wg     sync.WaitGroup
+		gotMsg sync.WaitGroup
+		ci     int
+	)
+	client, certs, err := NewClient(true)
 	require.Nil(t, err, "Failed to create a new client %v", err)
-	peer, err := NewPeer(cert)
-	require.Nil(t, err)
+	peer := newPeer(t, certs)
 	client.OnDataChannel(func(d *webrtc.DataChannel) {
 		l := d.Label()
 		//fs := strings.Split(d.Label(), ",")
@@ -362,9 +461,9 @@ func TestReconnectPane(t *testing.T) {
 			}
 		})
 		time.Sleep(time.Second / 100)
-		addPaneArgs := AddPaneArgs{Rows: 12, Cols: 34,
+		addPaneArgs := peers.AddPaneArgs{Rows: 12, Cols: 34,
 			Command: []string{"bash", "-c", "sleep 1; echo BADWOLF"}}
-		m := CTRLMessage{time.Now().UnixNano(), 456, "add_pane",
+		m := peers.CTRLMessage{time.Now().UnixNano(), 456, "add_pane",
 			&addPaneArgs}
 		msg, err := json.Marshal(m)
 		require.Nil(t, err, "failed marshilng ctrl msg: %v", msg)
@@ -376,11 +475,39 @@ func TestReconnectPane(t *testing.T) {
 	wg.Wait()
 	Logger.Infof("After first wait")
 	wg.Add(1)
-	a := ReconnectPaneArgs{ID: ci}
-	m := CTRLMessage{time.Now().UnixNano(), 457, "reconnect_pane",
+	a := peers.ReconnectPaneArgs{ID: ci}
+	m := peers.CTRLMessage{time.Now().UnixNano(), 457, "reconnect_pane",
 		&a}
 	msg, err := json.Marshal(m)
 	require.Nil(t, err, "failed marshilng ctrl msg: %v", msg)
 	cdc.Send(msg)
 	gotMsg.Wait()
+}
+func TestExecCommand(t *testing.T) {
+	initTest(t)
+	c := []string{"bash", "-c", "echo hello"}
+	_, tty, err := peers.ExecCommand(c, nil, nil, 0)
+	b := make([]byte, 64)
+	l, err := tty.Read(b)
+	require.Nil(t, err)
+	require.Less(t, 5, l)
+	require.Equal(t, "hello", string(b[:5]))
+}
+func TestExecCommandWithParent(t *testing.T) {
+	initTest(t)
+	c := []string{"sh"}
+	cmd, tty, err := peers.ExecCommand(c, nil, nil, 0)
+	time.Sleep(time.Second / 100)
+	_, err = tty.Write([]byte("cd /tmp\n"))
+	require.Nil(t, err)
+	_, err = tty.Write([]byte("pwd\n"))
+	require.Nil(t, err)
+	time.Sleep(time.Second / 10)
+	_, tty2, err := peers.ExecCommand([]string{"pwd"}, nil, nil, cmd.Process.Pid)
+	require.Nil(t, err)
+	b := make([]byte, 64)
+	l, err := tty2.Read(b)
+	require.Nil(t, err)
+	require.Less(t, 4, l)
+	require.Equal(t, "/tmp", string(b[l-6:l-2]))
 }

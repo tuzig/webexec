@@ -1,7 +1,7 @@
 // This files holds the structure and utility functions used by the
 // Command & Control data channel (aka cdc
 
-package main
+package peers
 
 import (
 	"encoding/json"
@@ -82,14 +82,13 @@ func SendCTRLMsg(peer *Peer, typ string, args interface{}) error {
 	if err != nil {
 		return fmt.Errorf("Failed to marshal the ack msg: %e\n   msg == %q", err, msg)
 	}
-	Logger.Infof("Sending ctrl message: %s", msgJ)
+	peer.logger.Infof("Sending ctrl message: %s", msgJ)
 	return peer.cdc.Send(msgJ)
 }
 
 // ParseWinsize gets a string in the format of "24x80" and returns a Winsize
 func ParseWinsize(s string) (*pty.Winsize, error) {
 	var sx, sy uint16
-	Logger.Infof("Parsing window size: %q", s)
 	if _, err := fmt.Sscanf(s, "%dx%d", &sy, &sx); err != nil {
 		return nil, fmt.Errorf("Failed to parse terminal dimensions: %s", err)
 	}

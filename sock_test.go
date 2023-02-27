@@ -13,12 +13,31 @@ import (
 
 	"github.com/pion/webrtc/v3"
 	"github.com/stretchr/testify/require"
+	"github.com/tuzig/webexec/peers"
+	"go.uber.org/fx/fxtest"
 )
 
 func TestOfferGetCandidate(t *testing.T) {
 	var id string
 	initTest(t)
-	StartSock()
+	lifecycle := fxtest.NewLifecycle(t)
+	k := KeyType{}
+	certificate, err := k.generate()
+	require.NoError(t, err, "Failed to generate a certificate", err)
+	conf := peers.Conf{
+		Certificate:       certificate,
+		Logger:            Logger,
+		DisconnectTimeout: time.Second,
+		FailedTimeout:     time.Second,
+		KeepAliveInterval: time.Second,
+		GatheringTimeout:  time.Second,
+	}
+	sockServer := NewSockServer(&conf)
+	require.NotNil(t, sockServer, "Failed to create a new server")
+	server, err := StartSocketServer(lifecycle, sockServer)
+	require.NoError(t, err, "Failed to start a new server")
+	require.NotNil(t, server, "Failed to start a new server")
+	lifecycle.RequireStart()
 	fp := GetSockFP()
 	httpc := http.Client{
 		Transport: &http.Transport{
@@ -49,7 +68,7 @@ func TestOfferGetCandidate(t *testing.T) {
 	require.Nil(t, err, "Failed decoding an offer: %v", offer)
 	Logger.Info("Sendiong post")
 	resp, err := httpc.Post("http://unix/offer/", "application/json", bytes.NewBuffer(buf))
-	require.Nil(t, err, "Failed sending a post request: %q", err)
+	require.NoError(t, err, "Failed sending a post request: %q", err)
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 	require.Nil(t, err, "Failed to close post request body: %q", err)
 	// read server answer
@@ -72,11 +91,28 @@ func TestOfferGetCandidate(t *testing.T) {
 		}
 		require.Equal(t, http.StatusOK, r.StatusCode, string(msg))
 	}
+	lifecycle.RequireStop()
 }
 func TestOfferPutCandidates(t *testing.T) {
 	var id string
 	initTest(t)
-	StartSock()
+	lifecycle := fxtest.NewLifecycle(t)
+	k := KeyType{}
+	certificate, err := k.generate()
+	require.NoError(t, err, "Failed to generate a certificate", err)
+	conf := peers.Conf{
+		Certificate:       certificate,
+		Logger:            Logger,
+		DisconnectTimeout: time.Second,
+		FailedTimeout:     time.Second,
+		KeepAliveInterval: time.Second,
+		GatheringTimeout:  time.Second,
+	}
+	sockServer := NewSockServer(&conf)
+	server, err := StartSocketServer(lifecycle, sockServer)
+	lifecycle.RequireStart()
+	require.NoError(t, err, "Failed to start a new server")
+	require.NotNil(t, server, "Failed to start a new server")
 	fp := RunPath("webexec.sock")
 	httpc := http.Client{
 		Transport: &http.Transport{
@@ -112,7 +148,7 @@ func TestOfferPutCandidates(t *testing.T) {
 	require.Nil(t, err, "Failed decoding an offer: %v", offer)
 	Logger.Info("Sendiong post")
 	resp, err := httpc.Post("http://unix/offer/", "application/json", bytes.NewBuffer(buf))
-	require.Nil(t, err, "Failed sending a post request: %q", err)
+	require.NoError(t, err, "Failed sending a post request: %q", err)
 	require.Equal(t, http.StatusOK, resp.StatusCode)
 	require.Nil(t, err, "Failed to close post request body: %q", err)
 	// read server answer
@@ -123,7 +159,7 @@ func TestOfferPutCandidates(t *testing.T) {
 	require.NotNil(t, body["answer"], "Servers response didn't include 'answer': %v", body)
 	err = resp.Body.Close()
 	require.Nil(t, err, "Failed to parse offer+id url: %q", err)
-	a := currentOffers[id]
+	a := sockServer.currentOffers[id]
 	var i int
 	for i = 0; i < 3; i++ {
 		select {
@@ -147,5 +183,5 @@ func TestOfferPutCandidates(t *testing.T) {
 	}
 	require.Greater(t, i, 0)
 	// For incoming handle to finish
-	time.Sleep(time.Millisecond * 100)
+	lifecycle.RequireStop()
 }
