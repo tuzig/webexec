@@ -22,6 +22,9 @@ import (
 
 const keepAliveInterval = 2 * time.Second
 
+// RunCommandInterface is an interface for a function that runs a command
+type RunCommandInterface func([]string, map[string]string, *pty.Winsize, int, string) (*exec.Cmd, *os.File, error)
+
 var (
 	// Peers holds all the peers (connected and disconnected)
 	Peers map[string]*Peer
@@ -48,7 +51,7 @@ type Conf struct {
 	PortMax           uint16
 	Logger            *zap.SugaredLogger
 	Certificate       *webrtc.Certificate
-	RunCommand        func([]string, map[string]string, *pty.Winsize, int, string) (*exec.Cmd, *os.File, error)
+	RunCommand        RunCommandInterface
 }
 
 // Peer is a type used to remember a client.
