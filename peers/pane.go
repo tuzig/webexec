@@ -39,7 +39,7 @@ type Pane struct {
 }
 
 // ExecCommand in ahelper function for executing a command
-func ExecCommand(command []string, env map[string]string, ws *pty.Winsize, pID int) (*exec.Cmd, *os.File, error) {
+func ExecCommand(command []string, env map[string]string, ws *pty.Winsize, pID int, fp string) (*exec.Cmd, *os.File, error) {
 
 	var (
 		tty *os.File
@@ -51,11 +51,11 @@ func ExecCommand(command []string, env map[string]string, ws *pty.Winsize, pID i
 	if pID != 0 {
 		p, err := process.NewProcess(int32(pID))
 		if err != nil {
-			return nil, nil, fmt.Errorf("Failed to find parent pane's process: %s", err)
+			return nil, nil, fmt.Errorf("Failed to find parent pane's process: %s %s", err, fp)
 		}
 		pwd, err = p.Cwd()
 		if err != nil {
-			return nil, nil, fmt.Errorf("Failed getting parent pane's cwd: %s", err)
+			return nil, nil, fmt.Errorf("Failed getting parent pane's cwd: %s %s", err, fp)
 		}
 		dir = pwd
 	} else {
@@ -77,7 +77,7 @@ func ExecCommand(command []string, env map[string]string, ws *pty.Winsize, pID i
 		tty, err = PtyMux.Start(cmd)
 	}
 	if err != nil {
-		return nil, nil, fmt.Errorf("Failed launching %q: %q", command, err)
+		return nil, nil, fmt.Errorf("Failed launching %q: %q %s", command, err, fp)
 	}
 	return cmd, tty, nil
 }
@@ -94,8 +94,14 @@ func NewPane(command []string, peer *Peer, ws *pty.Winsize, parent int) (*Pane, 
 		}
 		parent = parentPane.C.Process.Pid
 	}
+	var run func([]string, map[string]string, *pty.Winsize, int, string) (*exec.Cmd, *os.File, error)
+	if peer.Conf.RunCommand != nil {
+		run = peer.Conf.RunCommand
+	} else {
+		run = ExecCommand
+	}
 	peer.logger.Infof("Starting command: %v", command)
-	cmd, tty, err := ExecCommand(command, peer.Conf.Env, ws, parent)
+	cmd, tty, err := run(command, peer.Conf.Env, ws, parent, peer.FP)
 	if err != nil {
 		return nil, err
 	}

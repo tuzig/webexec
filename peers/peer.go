@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
 	"strconv"
 	"strings"
 	"sync"
@@ -47,6 +48,7 @@ type Conf struct {
 	PortMax           uint16
 	Logger            *zap.SugaredLogger
 	Certificate       *webrtc.Certificate
+	RunCommand        func([]string, map[string]string, *pty.Winsize, int, string) (*exec.Cmd, *os.File, error)
 }
 
 // Peer is a type used to remember a client.
