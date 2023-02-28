@@ -486,7 +486,7 @@ func TestReconnectPane(t *testing.T) {
 func TestExecCommand(t *testing.T) {
 	initTest(t)
 	c := []string{"bash", "-c", "echo hello"}
-	_, tty, err := peers.ExecCommand(c, nil, nil, 0)
+	_, tty, err := peers.ExecCommand(c, nil, nil, 0, "")
 	b := make([]byte, 64)
 	l, err := tty.Read(b)
 	require.Nil(t, err)
@@ -496,14 +496,14 @@ func TestExecCommand(t *testing.T) {
 func TestExecCommandWithParent(t *testing.T) {
 	initTest(t)
 	c := []string{"sh"}
-	cmd, tty, err := peers.ExecCommand(c, nil, nil, 0)
+	cmd, tty, err := peers.ExecCommand(c, nil, nil, 0, "")
 	time.Sleep(time.Second / 100)
 	_, err = tty.Write([]byte("cd /tmp\n"))
 	require.Nil(t, err)
 	_, err = tty.Write([]byte("pwd\n"))
 	require.Nil(t, err)
 	time.Sleep(time.Second / 10)
-	_, tty2, err := peers.ExecCommand([]string{"pwd"}, nil, nil, cmd.Process.Pid)
+	_, tty2, err := peers.ExecCommand([]string{"pwd"}, nil, nil, cmd.Process.Pid, "")
 	require.Nil(t, err)
 	b := make([]byte, 64)
 	l, err := tty2.Read(b)

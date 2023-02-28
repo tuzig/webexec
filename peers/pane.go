@@ -124,7 +124,9 @@ func NewPane(command []string, peer *Peer, ws *pty.Winsize, parent int) (*Pane, 
 	}
 	Panes.Add(pane) // This will set pane.ID
 	errbuf := new(bytes.Buffer)
-	cmd.Stderr = errbuf
+	if cmd != nil {
+		cmd.Stderr = errbuf
+	}
 	go pane.stderrLoop(errbuf)
 	go pane.ReadLoop()
 	return pane, nil
