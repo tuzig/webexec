@@ -73,7 +73,6 @@ func ExecCommand(command []string, env map[string]string, ws *pty.Winsize, pID i
 	if ws != nil {
 		tty, err = PtyMux.StartWithSize(cmd, ws)
 	} else {
-		// TODO: remove the pty
 		tty, err = PtyMux.Start(cmd)
 	}
 	if err != nil {

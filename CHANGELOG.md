@@ -9,6 +9,12 @@ his file's format is define in
 and the release workflow reads it to set github's release notes.
 
 
+## [0.19.0] 2022-3-1
+
+### Added 
+
+- split to two subpackages: httpserver & peers
+
 ## [0.18.0] 2022-1-14
 
 ### Added
