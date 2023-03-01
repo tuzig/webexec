@@ -5,7 +5,12 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
+	"crypto/x509"
+	"crypto/x509/pkix"
+	"encoding/hex"
 	"encoding/json"
+	"fmt"
+	"math/big"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -28,6 +33,42 @@ func NewMockAuthBackend(authorized string) *MockAuthBackend {
 	return &MockAuthBackend{authorized}
 }
 
+func generateCert() (*webrtc.Certificate, error) {
+	secretKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		return nil, fmt.Errorf("Failed to generate key: %w", err)
+	}
+	origin := make([]byte, 16)
+	/* #nosec */
+	if _, err := rand.Read(origin); err != nil {
+		return nil, err
+	}
+
+	// Max random value, a 130-bits integer, i.e 2^130 - 1
+	maxBigInt := new(big.Int)
+	/* #nosec */
+	maxBigInt.Exp(big.NewInt(2), big.NewInt(130), nil).Sub(maxBigInt, big.NewInt(1))
+	/* #nosec */
+	serialNumber, err := rand.Int(rand.Reader, maxBigInt)
+	if err != nil {
+		return nil, err
+	}
+
+	return webrtc.NewCertificate(secretKey, x509.Certificate{
+		ExtKeyUsage: []x509.ExtKeyUsage{
+			x509.ExtKeyUsageClientAuth,
+			x509.ExtKeyUsageServerAuth,
+		},
+		BasicConstraintsValid: true,
+		NotBefore:             time.Now(),
+		KeyUsage:              x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
+		NotAfter:              time.Now().AddDate(10, 0, 0),
+		SerialNumber:          serialNumber,
+		Version:               2,
+		Subject:               pkix.Name{CommonName: hex.EncodeToString(origin)},
+		IsCA:                  true,
+	})
+}
 func (a *MockAuthBackend) IsAuthorized(tokens []string) bool {
 	if a.authorized == "" {
 		return false
@@ -163,6 +204,96 @@ func TestConnectBadFP(t *testing.T) {
 			FailedTimeout:     time.Second,
 			KeepAliveInterval: time.Second,
 			GatheringTimeout:  time.Second,
+		}
+		h := NewConnectHandler(a, conf, logger)
+		h.HandleConnect(w, req)
+		require.Equal(t, http.StatusUnauthorized, w.Code)
+	}
+}
+func TestConnectWithBearer(t *testing.T) {
+	client, cert, err := newClient(t)
+	_, err = client.CreateDataChannel("%", nil)
+	require.Nil(t, err, "Failed to create the control data channel: %q", err)
+	clientOffer, err := client.CreateOffer(nil)
+	require.Nil(t, err, "Failed to create client offer: %q", err)
+	gatherComplete := webrtc.GatheringCompletePromise(client)
+	err = client.SetLocalDescription(clientOffer)
+	require.Nil(t, err, "Failed to set client's local Description client offer: %q", err)
+	select {
+	case <-time.After(3 * time.Second):
+		t.Errorf("timed out waiting to ice gathering to complete")
+	case <-gatherComplete:
+		buf := make([]byte, 4096)
+		l, err := peers.EncodeOffer(buf, *client.LocalDescription())
+		require.Nil(t, err, "Failed ending an offer: %v", clientOffer)
+		fp, err := peers.ExtractFP(cert)
+		require.NoError(t, err, "Failed to extract the fingerprint: %q", err)
+		p := ConnectRequest{fp, 1, string(buf[:l])}
+		b, err := json.Marshal(p)
+		require.Nil(t, err, "Failed to marshal the connect request: %s", err)
+
+		req := httptest.NewRequest(http.MethodPost, "/connect", bytes.NewBuffer(b))
+		req.RemoteAddr = "8.8.8.8"
+		req.Header.Set("content-type", "application/json")
+		req.Header.Set("Bearer", "LetMePass")
+		w := httptest.NewRecorder()
+		a := NewMockAuthBackend("LetMePass")
+		logger := zaptest.NewLogger(t).Sugar()
+		certificate, err := generateCert()
+		require.NoError(t, err, "Failed to generate a certificate", err)
+		conf := &peers.Conf{
+			// Certificate:       certificate,
+			Logger:            logger,
+			DisconnectTimeout: time.Second,
+			FailedTimeout:     time.Second,
+			KeepAliveInterval: time.Second,
+			GatheringTimeout:  time.Second,
+			Certificate:       certificate,
+		}
+		h := NewConnectHandler(a, conf, logger)
+		h.HandleConnect(w, req)
+		require.Equal(t, http.StatusOK, w.Code)
+	}
+}
+func TestConnectWithBadBearer(t *testing.T) {
+	client, cert, err := newClient(t)
+	_, err = client.CreateDataChannel("%", nil)
+	require.Nil(t, err, "Failed to create the control data channel: %q", err)
+	clientOffer, err := client.CreateOffer(nil)
+	require.Nil(t, err, "Failed to create client offer: %q", err)
+	gatherComplete := webrtc.GatheringCompletePromise(client)
+	err = client.SetLocalDescription(clientOffer)
+	require.Nil(t, err, "Failed to set client's local Description client offer: %q", err)
+	select {
+	case <-time.After(3 * time.Second):
+		t.Errorf("timed out waiting to ice gathering to complete")
+	case <-gatherComplete:
+		buf := make([]byte, 4096)
+		l, err := peers.EncodeOffer(buf, *client.LocalDescription())
+		require.Nil(t, err, "Failed ending an offer: %v", clientOffer)
+		fp, err := peers.ExtractFP(cert)
+		require.NoError(t, err, "Failed to extract the fingerprint: %q", err)
+		p := ConnectRequest{fp, 1, string(buf[:l])}
+		b, err := json.Marshal(p)
+		require.Nil(t, err, "Failed to marshal the connect request: %s", err)
+
+		req := httptest.NewRequest(http.MethodPost, "/connect", bytes.NewBuffer(b))
+		req.RemoteAddr = "8.8.8.8"
+		req.Header.Set("content-type", "application/json")
+		req.Header.Set("Bearer", "LetMePass")
+		w := httptest.NewRecorder()
+		a := NewMockAuthBackend("")
+		logger := zaptest.NewLogger(t).Sugar()
+		certificate, err := generateCert()
+		require.NoError(t, err, "Failed to generate a certificate", err)
+		conf := &peers.Conf{
+			// Certificate:       certificate,
+			Logger:            logger,
+			DisconnectTimeout: time.Second,
+			FailedTimeout:     time.Second,
+			KeepAliveInterval: time.Second,
+			GatheringTimeout:  time.Second,
+			Certificate:       certificate,
 		}
 		h := NewConnectHandler(a, conf, logger)
 		h.HandleConnect(w, req)
