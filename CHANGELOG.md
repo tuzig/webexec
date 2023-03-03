@@ -9,6 +9,12 @@ his file's format is define in
 and the release workflow reads it to set github's release notes.
 
 
+## [0.19.1] 2022-3-3
+
+## Changed
+
+- Auth backend IsAuthorized method is now using ellipses
+
 ## [0.19.0] 2022-3-1
 
 ### Added 

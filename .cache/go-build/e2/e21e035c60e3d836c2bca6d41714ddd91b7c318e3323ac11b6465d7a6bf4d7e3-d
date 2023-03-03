@@ -1,0 +1,9 @@
+./color.go
+./csi.go
+./doc.go
+./ioctl_posix.go
+./parse.go
+./state.go
+./str.go
+./vt.go
+./vt_posix.go
