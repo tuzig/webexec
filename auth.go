@@ -6,12 +6,6 @@ import (
 	"os"
 )
 
-// AuthBackend is the interface that wraps the basic authentication methods
-type AuthBackend interface {
-	// IsAthorized checks if the fingerprint is authorized to connect
-	IsAuthorized(tokens ...string) bool
-}
-
 // FileAuth is an authentication backend that checks tokens against a file of
 // authorized tokens
 type FileAuth struct {
