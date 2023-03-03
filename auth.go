@@ -9,7 +9,7 @@ import (
 // AuthBackend is the interface that wraps the basic authentication methods
 type AuthBackend interface {
 	// IsAthorized checks if the fingerprint is authorized to connect
-	IsAuthorized(tokens []string) bool
+	IsAuthorized(tokens ...string) bool
 }
 
 // FileAuth is an authentication backend that checks tokens against a file of
@@ -54,7 +54,7 @@ func (a *FileAuth) ReadAuthorizedTokens() ([]string, error) {
 }
 
 // IsAuthorized checks whether a client token is authorized
-func (a *FileAuth) IsAuthorized(clientTokens []string) bool {
+func (a *FileAuth) IsAuthorized(clientTokens ...string) bool {
 	tokens, err := a.ReadAuthorizedTokens()
 	if err != nil {
 		return false

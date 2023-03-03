@@ -18,7 +18,7 @@ type AddressType string
 
 type AuthBackend interface {
 	// IsAthorized checks if the fingerprint is authorized to connect
-	IsAuthorized(tokens []string) bool
+	IsAuthorized(tokens ...string) bool
 }
 type ConnectHandler struct {
 	authBackend AuthBackend
@@ -94,8 +94,10 @@ func (h *ConnectHandler) HandleConnect(w http.ResponseWriter, r *http.Request) {
 			http.StatusBadRequest)
 		return
 	}
-	tokens := []string{fp, r.Header.Get("Bearer")}
-	if !localhost && !h.authBackend.IsAuthorized(tokens) {
+	bearer := r.Header.Get("Bearer")
+	authorized := localhost || h.authBackend.IsAuthorized(fp, bearer)
+	h.logger.Debugf("Client %s is %b authorized", fp, authorized)
+	if !authorized {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}

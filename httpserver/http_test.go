@@ -69,7 +69,7 @@ func generateCert() (*webrtc.Certificate, error) {
 		IsCA:                  true,
 	})
 }
-func (a *MockAuthBackend) IsAuthorized(tokens []string) bool {
+func (a *MockAuthBackend) IsAuthorized(tokens ...string) bool {
 	if a.authorized == "" {
 		return false
 	}
