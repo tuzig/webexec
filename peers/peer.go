@@ -45,7 +45,7 @@ type Conf struct {
 	FailedTimeout     time.Duration
 	KeepAliveInterval time.Duration
 	GatheringTimeout  time.Duration
-	IceServers        []webrtc.ICEServer
+	GetICEServers     func() ([]webrtc.ICEServer, error)
 	Env               map[string]string
 	PortMin           uint16
 	PortMax           uint16
@@ -66,7 +66,6 @@ type Peer struct {
 	Marker            int
 	pendingCandidates chan *webrtc.ICECandidateInit
 	logger            *zap.SugaredLogger
-	iceServers        []webrtc.ICEServer
 	Conf              *Conf
 }
 
@@ -83,9 +82,13 @@ func NewPeer(conf *Conf) (*Peer, error) {
 		WebRTCAPI = webrtc.NewAPI(webrtc.WithSettingEngine(s))
 	}
 	webrtcAPIM.Unlock()
+	iceservers, err := conf.GetICEServers()
+	if err != nil {
+		return nil, fmt.Errorf("Failed to get ice servers: %s", err)
+	}
 	config := webrtc.Configuration{
 		PeerIdentity: "webexec",
-		ICEServers:   conf.IceServers,
+		ICEServers:   iceservers,
 		Certificates: []webrtc.Certificate{*conf.Certificate},
 	}
 	pc, err := WebRTCAPI.NewPeerConnection(config)

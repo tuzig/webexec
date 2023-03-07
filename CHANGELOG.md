@@ -9,9 +9,15 @@ his file's format is define in
 and the release workflow reads it to set github's release notes.
 
 
+## Unrelease
+
+### Changed
+
+- Ice servers list is now passed using a getter function
+
 ## [0.19.1] 2022-3-3
 
-## Changed
+### Changed
 
 - Auth backend IsAuthorized method is now using ellipses
 

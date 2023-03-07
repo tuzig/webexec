@@ -219,7 +219,6 @@ func logFilePath(path string, def string) string {
 }
 
 // loadConf load the conf file
-// TODO: refactor to accept a single certificate
 func LoadConf(certs []webrtc.Certificate) (*peers.Conf, httpserver.AddressType, error) {
 	confPath := ConfPath("webexec.conf")
 	_, err := os.Stat(confPath)
@@ -234,6 +233,8 @@ func LoadConf(certs []webrtc.Certificate) (*peers.Conf, httpserver.AddressType, 
 	conf, addr, err := parseConf(string(b))
 	conf.Certificate = &certs[0]
 	conf.Logger = Logger
+	conf.GetICEServers = GetICEServers
+
 	return conf, addr, err
 }
 

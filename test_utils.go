@@ -68,6 +68,9 @@ func newPeer(t *testing.T, certificate *webrtc.Certificate) *peers.Peer {
 		FailedTimeout:     time.Second,
 		KeepAliveInterval: time.Second,
 		GatheringTimeout:  time.Second,
+		GetICEServers: func() ([]webrtc.ICEServer, error) {
+			return []webrtc.ICEServer{}, nil
+		},
 	}
 	peer, err := peers.NewPeer(&conf)
 	require.NoError(t, err)

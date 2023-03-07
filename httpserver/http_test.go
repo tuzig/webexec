@@ -141,6 +141,9 @@ func TestConnect(t *testing.T) {
 			FailedTimeout:     time.Second,
 			KeepAliveInterval: time.Second,
 			GatheringTimeout:  time.Second,
+			GetICEServers: func() ([]webrtc.ICEServer, error) {
+				return nil, nil
+			},
 		}
 		h := NewConnectHandler(a, conf, logger)
 		h.HandleConnect(w, req)
@@ -204,6 +207,9 @@ func TestConnectBadFP(t *testing.T) {
 			FailedTimeout:     time.Second,
 			KeepAliveInterval: time.Second,
 			GatheringTimeout:  time.Second,
+			GetICEServers: func() ([]webrtc.ICEServer, error) {
+				return nil, nil
+			},
 		}
 		h := NewConnectHandler(a, conf, logger)
 		h.HandleConnect(w, req)
@@ -249,6 +255,9 @@ func TestConnectWithBearer(t *testing.T) {
 			KeepAliveInterval: time.Second,
 			GatheringTimeout:  time.Second,
 			Certificate:       certificate,
+			GetICEServers: func() ([]webrtc.ICEServer, error) {
+				return nil, nil
+			},
 		}
 		h := NewConnectHandler(a, conf, logger)
 		h.HandleConnect(w, req)
@@ -294,6 +303,9 @@ func TestConnectWithBadBearer(t *testing.T) {
 			KeepAliveInterval: time.Second,
 			GatheringTimeout:  time.Second,
 			Certificate:       certificate,
+			GetICEServers: func() ([]webrtc.ICEServer, error) {
+				return nil, nil
+			},
 		}
 		h := NewConnectHandler(a, conf, logger)
 		h.HandleConnect(w, req)

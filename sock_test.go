@@ -31,6 +31,9 @@ func TestOfferGetCandidate(t *testing.T) {
 		FailedTimeout:     time.Second,
 		KeepAliveInterval: time.Second,
 		GatheringTimeout:  time.Second,
+		GetICEServers: func() ([]webrtc.ICEServer, error) {
+			return nil, nil
+		},
 	}
 	sockServer := NewSockServer(&conf)
 	require.NotNil(t, sockServer, "Failed to create a new server")
@@ -107,6 +110,9 @@ func TestOfferPutCandidates(t *testing.T) {
 		FailedTimeout:     time.Second,
 		KeepAliveInterval: time.Second,
 		GatheringTimeout:  time.Second,
+		GetICEServers: func() ([]webrtc.ICEServer, error) {
+			return nil, nil
+		},
 	}
 	sockServer := NewSockServer(&conf)
 	server, err := StartSocketServer(lifecycle, sockServer)

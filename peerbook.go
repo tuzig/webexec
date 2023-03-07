@@ -100,8 +100,8 @@ func verifyPeer(host string) (bool, error) {
 	}
 	return false, nil
 }
-func getICEServers(host string) ([]webrtc.ICEServer, error) {
-	// TODO: fix this.. it's too slow
+func GetICEServers() ([]webrtc.ICEServer, error) {
+	host := Conf.peerbookHost
 	if host == "" {
 		return Conf.iceServers, nil
 	}
