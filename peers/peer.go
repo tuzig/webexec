@@ -426,12 +426,15 @@ func (peer *Peer) OnCTRLMsg(msg webrtc.DataChannelMessage) {
 				a.Command[0] = shell
 			}
 		}
+		/* TODO: delete
 		dirname, err := os.UserHomeDir()
 		if err != nil {
 			peer.logger.Warnf("Failed to determine user's home directory: %v", err)
 			dirname = "/"
 		}
 		cmd := append([]string{"env", fmt.Sprintf("HOME=%s", dirname)}, a.Command...)
+		*/
+		cmd := a.Command
 		pane, err := NewPane(cmd, peer, ws, a.Parent)
 		if err != nil {
 			peer.logger.Warnf("Failed to add a new pane: %v", err)
