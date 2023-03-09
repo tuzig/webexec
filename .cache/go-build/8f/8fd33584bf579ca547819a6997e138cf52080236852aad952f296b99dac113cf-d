@@ -1,6 +1,0 @@
-./doc.go
-./ioctl.go
-./pty_linux.go
-./run.go
-./util.go
-./ztypes_arm64.go

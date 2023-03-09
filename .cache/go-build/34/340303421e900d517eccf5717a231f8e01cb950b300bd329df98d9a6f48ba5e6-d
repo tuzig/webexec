@@ -1,7 +1,0 @@
-./binding.go
-./conn.go
-./errors.go
-./periodic_timer.go
-./permission.go
-./transaction.go
-./trylock.go

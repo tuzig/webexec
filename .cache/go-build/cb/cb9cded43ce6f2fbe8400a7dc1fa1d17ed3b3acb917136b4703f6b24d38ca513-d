@@ -1,5 +1,0 @@
-./fe.go
-./fe_amd64_noasm.go
-./fe_arm64.go
-./fe_generic.go
-./fe_arm64.s

@@ -6,3 +6,4 @@ dist
 .netlify
 node_modules
 ./aatp/assets
+.cache/**
