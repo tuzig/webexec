@@ -318,7 +318,7 @@ func (pb *PeerbookClient) handleMessage(message []byte) error {
 			return fmt.Errorf("Mismatched fingerprint: %s", fp)
 		}
 		Logger.Info("Authenticated!")
-		peer, err := peers.NewPeer(pb.peerConf)
+		peer, err := peers.NewPeer(offerFP, pb.peerConf)
 		if err != nil {
 			return fmt.Errorf("Failed to create a new peer: %w", err)
 		}

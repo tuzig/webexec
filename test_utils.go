@@ -60,7 +60,7 @@ func initTest(t *testing.T) {
 	require.Nil(t, err)
 	key.save(cert)
 }
-func newPeer(t *testing.T, certificate *webrtc.Certificate) *peers.Peer {
+func newPeer(t *testing.T, fp string, certificate *webrtc.Certificate) *peers.Peer {
 	conf := peers.Conf{
 		Certificate:       certificate,
 		Logger:            Logger,
@@ -72,7 +72,7 @@ func newPeer(t *testing.T, certificate *webrtc.Certificate) *peers.Peer {
 			return []webrtc.ICEServer{}, nil
 		},
 	}
-	peer, err := peers.NewPeer(&conf)
+	peer, err := peers.NewPeer(fp, &conf)
 	require.NoError(t, err)
 	require.NotNil(t, peer)
 	return peer

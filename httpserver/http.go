@@ -101,7 +101,7 @@ func (h *ConnectHandler) HandleConnect(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
-	peer, err := peers.NewPeer(h.peerConf)
+	peer, err := peers.NewPeer(fp, h.peerConf)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Failed to create a new peer: %s", err), http.StatusInternalServerError)
 		return

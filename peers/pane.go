@@ -181,9 +181,12 @@ loop:
 		pane.outbuf <- b[:l]
 	}
 
-	cancel()
-	pane = Panes.Get(id)
-	pane.Kill()
+	// TODO: find a better way to wait for all the messages to be sent
+	time.AfterFunc(100*time.Second, func() {
+		cancel()
+		pane = Panes.Get(id)
+		pane.Kill()
+	})
 }
 
 func (pane *Pane) sender(ctx context.Context) {

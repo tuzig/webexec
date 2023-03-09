@@ -180,8 +180,14 @@ func (s *sockServer) handleOffer(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Failed to decode offer", http.StatusBadRequest)
 			return
 		}
+		fp, err := peers.GetFingerprint(&offer)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("Failed to get fingerprint from sdp: %s", err),
+				http.StatusBadRequest)
+			return
+		}
 
-		peer, err := peers.NewPeer(s.conf)
+		peer, err := peers.NewPeer(fp, s.conf)
 		if err != nil {
 			http.Error(w, fmt.Sprintf("Failed to create a new peer: %s", err),
 				http.StatusInternalServerError)

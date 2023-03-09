@@ -70,7 +70,7 @@ type Peer struct {
 }
 
 // NewPeer funcions starts listening to incoming peer connection from a remote
-func NewPeer(conf *Conf) (*Peer, error) {
+func NewPeer(fp string, conf *Conf) (*Peer, error) {
 	webrtcAPIM.Lock()
 	if WebRTCAPI == nil {
 		s := webrtc.SettingEngine{}
@@ -94,10 +94,6 @@ func NewPeer(conf *Conf) (*Peer, error) {
 	pc, err := WebRTCAPI.NewPeerConnection(config)
 	if err != nil {
 		return nil, fmt.Errorf("NewPeerConnection failed: %s", err)
-	}
-	fp, err := ExtractFP(conf.Certificate)
-	if err != nil {
-		return nil, fmt.Errorf("Failed to extract fingerprint: %s", err)
 	}
 	peer := Peer{
 		FP:                fp,
