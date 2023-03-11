@@ -182,7 +182,7 @@ loop:
 	}
 
 	// TODO: find a better way to wait for all the messages to be sent
-	time.AfterFunc(100*time.Second, func() {
+	time.AfterFunc(100*time.Millisecond, func() {
 		cancel()
 		pane = Panes.Get(id)
 		pane.Kill()
