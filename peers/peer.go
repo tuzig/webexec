@@ -84,7 +84,7 @@ func NewPeer(fp string, conf *Conf) (*Peer, error) {
 	webrtcAPIM.Unlock()
 	iceservers, err := conf.GetICEServers()
 	if err != nil {
-		return nil, fmt.Errorf("Failed to get ice servers: %s", err)
+		conf.Logger.Errorf("Failed to get ICE servers: %s", err)
 	}
 	config := webrtc.Configuration{
 		PeerIdentity: "webexec",
