@@ -28,7 +28,7 @@ type Pane struct {
 	// C holds the exectuted command
 	C            *exec.Cmd
 	IsRunning    bool
-	TTY          *os.File
+	TTY          io.ReadWriteCloser
 	Buffer       *Buffer
 	Ws           *pty.Winsize
 	vt           vt10x.VT
@@ -39,7 +39,7 @@ type Pane struct {
 }
 
 // ExecCommand in ahelper function for executing a command
-func ExecCommand(command []string, env map[string]string, ws *pty.Winsize, pID int, fp string) (*exec.Cmd, *os.File, error) {
+func ExecCommand(command []string, env map[string]string, ws *pty.Winsize, pID int, fp string) (*exec.Cmd, io.ReadWriteCloser, error) {
 
 	var (
 		tty *os.File
@@ -93,7 +93,7 @@ func NewPane(command []string, peer *Peer, ws *pty.Winsize, parent int) (*Pane, 
 		}
 		parent = parentPane.C.Process.Pid
 	}
-	var run func([]string, map[string]string, *pty.Winsize, int, string) (*exec.Cmd, *os.File, error)
+	var run func([]string, map[string]string, *pty.Winsize, int, string) (*exec.Cmd, io.ReadWriteCloser, error)
 	if peer.Conf.RunCommand != nil {
 		run = peer.Conf.RunCommand
 	} else {
@@ -236,10 +236,12 @@ func (pane *Pane) Kill() {
 	if pane.IsRunning {
 		pane.cancelRWLoop()
 		pane.TTY.Close()
-		err := pane.C.Process.Kill()
-		if err != nil {
-			pane.logger.Errorf("Failed to kill process: %v %v",
-				err, pane.C.ProcessState.String())
+		if pane.C != nil {
+			err := pane.C.Process.Kill()
+			if err != nil {
+				pane.logger.Errorf("Failed to kill process: %v %v",
+					err, pane.C.ProcessState.String())
+			}
 		}
 		pane.IsRunning = false
 	}
@@ -270,7 +272,7 @@ func (pane *Pane) Resize(ws *pty.Winsize) {
 	if ws != nil && (ws.Rows != pane.Ws.Rows || ws.Cols != pane.Ws.Cols) {
 		pane.logger.Infof("Changing pty size for pane %d: %v", pane.ID, ws)
 		pane.Ws = ws
-		pty.Setsize(pane.TTY, ws)
+		pty.Setsize(pane.TTY.(*os.File), ws)
 		if pane.vt != nil {
 			pane.vt.Resize(int(ws.Cols), int(ws.Rows))
 		}

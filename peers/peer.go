@@ -6,7 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"os"
+	"io"
 	"os/exec"
 	"strconv"
 	"strings"
@@ -23,7 +23,7 @@ import (
 const keepAliveInterval = 2 * time.Second
 
 // RunCommandInterface is an interface for a function that runs a command
-type RunCommandInterface func([]string, map[string]string, *pty.Winsize, int, string) (*exec.Cmd, *os.File, error)
+type RunCommandInterface func([]string, map[string]string, *pty.Winsize, int, string) (*exec.Cmd, io.ReadWriteCloser, error)
 
 var (
 	// Peers holds all the peers (connected and disconnected)
