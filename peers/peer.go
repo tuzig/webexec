@@ -188,6 +188,7 @@ func (peer *Peer) OnChannelReq(d *webrtc.DataChannel) {
 				cdb.Delete(c)
 			})
 		}
+		peer.logger.Infof("Ignoring a strange channel label %q", label)
 	})
 }
 
@@ -250,12 +251,16 @@ func (peer *Peer) GetOrCreatePane(d *webrtc.DataChannel) (*Pane, error) {
 		peer.logger.Infof("Got a reconnect request to pane %d", id)
 		return peer.Reconnect(d, id)
 	}
-	pane, err = NewPane(fields[cmdIndex:], peer, ws, 0)
+	pane, err = NewPane(peer, ws, 0)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to create new pane: %q", err)
 	}
 	if pane != nil {
 		pane.sendFirstMessage(d)
+		err = pane.run(fields[cmdIndex:])
+		if err != nil {
+			return nil, fmt.Errorf("Failed to run command: %q", err)
+		}
 		go pane.ReadLoop()
 		return pane, nil
 	}
@@ -333,6 +338,11 @@ func (peer *Peer) OnCTRLMsg(msg webrtc.DataChannelMessage) {
 		pane := Panes.Get(cID)
 		if pane == nil {
 			peer.logger.Error("Failed to parse resize message pane_id out of range")
+			return
+		}
+		if pane.TTY == nil {
+			pane.logger.Warnf("Tried to resize a pane with no tty")
+			peer.SendNack(m, "Tried to resize a pane with no tty")
 			return
 		}
 		var ws pty.Winsize
@@ -431,7 +441,7 @@ func (peer *Peer) OnCTRLMsg(msg webrtc.DataChannelMessage) {
 		cmd := append([]string{"env", fmt.Sprintf("HOME=%s", dirname)}, a.Command...)
 		*/
 		cmd := a.Command
-		pane, err := NewPane(cmd, peer, ws, a.Parent)
+		pane, err := NewPane(peer, ws, a.Parent)
 		if err != nil {
 			peer.logger.Warnf("Failed to add a new pane: %v", err)
 			return
@@ -445,6 +455,7 @@ func (peer *Peer) OnCTRLMsg(msg webrtc.DataChannelMessage) {
 			return
 		}
 		d.OnOpen(func() {
+			pane.run(cmd)
 			c := cdb.Add(d, pane, peer)
 			peer.logger.Infof("opened data channel for pane %d", pane.ID)
 			peer.SendAck(m, []byte(fmt.Sprintf("%d", pane.ID)))

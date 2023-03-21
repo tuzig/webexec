@@ -24,7 +24,8 @@ var Panes = NewPanesDB()
 
 // Pane type hold a command, a pseudo tty and the connected data channels
 type Pane struct {
-	ID int
+	ID     int
+	parent int
 	// C holds the exectuted command
 	C            *exec.Cmd
 	IsRunning    bool
@@ -36,6 +37,7 @@ type Pane struct {
 	cancelRWLoop context.CancelFunc
 	ctx          context.Context
 	logger       *zap.SugaredLogger
+	peer         *Peer
 }
 
 // ExecCommand in ahelper function for executing a command
@@ -81,8 +83,8 @@ func ExecCommand(command []string, env map[string]string, ws *pty.Winsize, pID i
 	return cmd, tty, nil
 }
 
-// NewPane opens a new pane and start its command and pty
-func NewPane(command []string, peer *Peer, ws *pty.Winsize, parent int) (*Pane, error) {
+// NewPane opens a new pane
+func NewPane(peer *Peer, ws *pty.Winsize, parent int) (*Pane, error) {
 
 	var vt vt10x.VT
 	if parent != 0 {
@@ -93,26 +95,14 @@ func NewPane(command []string, peer *Peer, ws *pty.Winsize, parent int) (*Pane, 
 		}
 		parent = parentPane.C.Process.Pid
 	}
-	var run func([]string, map[string]string, *pty.Winsize, int, string) (*exec.Cmd, io.ReadWriteCloser, error)
-	if peer.Conf.RunCommand != nil {
-		run = peer.Conf.RunCommand
-	} else {
-		run = ExecCommand
-	}
-	peer.logger.Infof("Starting command: %v", command)
-	cmd, tty, err := run(command, peer.Conf.Env, ws, parent, peer.FP)
-	if err != nil {
-		return nil, err
-	}
 	if ws != nil {
 		vt = vt10x.New()
 		vt.Resize(int(ws.Cols), int(ws.Rows))
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	pane := &Pane{
-		C:            cmd,
-		IsRunning:    true,
-		TTY:          tty,
+		parent:       parent,
+		IsRunning:    false,
 		Buffer:       NewBuffer(100000), //TODO: get the number from conf
 		Ws:           ws,
 		vt:           vt,
@@ -120,15 +110,34 @@ func NewPane(command []string, peer *Peer, ws *pty.Winsize, parent int) (*Pane, 
 		ctx:          ctx,
 		cancelRWLoop: cancel,
 		logger:       peer.logger,
+		peer:         peer,
 	}
 	Panes.Add(pane) // This will set pane.ID
+	return pane, nil
+}
+
+// start starts the command and pty
+func (pane *Pane) run(command []string) error {
+	run := pane.peer.Conf.RunCommand
+	if run == nil {
+		run = ExecCommand
+	}
+	pane.logger.Infof("Starting command: %v", command)
+	cmd, tty, err := run(
+		command, pane.peer.Conf.Env, pane.Ws, pane.parent, pane.peer.FP)
+	if err != nil {
+		return err
+	}
+	pane.C = cmd
+	pane.IsRunning = true
+	pane.TTY = tty
 	errbuf := new(bytes.Buffer)
 	if cmd != nil {
 		cmd.Stderr = errbuf
 	}
 	go pane.stderrLoop(errbuf)
 	go pane.ReadLoop()
-	return pane, nil
+	return nil
 }
 
 // sendFirstMessage sends the pane id and dimensions

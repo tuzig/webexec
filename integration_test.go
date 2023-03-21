@@ -161,6 +161,7 @@ func TestSimpleEcho(t *testing.T) {
 }
 
 func TestResizeCommand(t *testing.T) {
+	paneID := 0
 	initTest(t)
 	done := make(chan bool)
 	client, certs, err := NewClient(true)
@@ -168,46 +169,64 @@ func TestResizeCommand(t *testing.T) {
 	peer := newPeer(t, "A", certs)
 	cdc, err := client.CreateDataChannel("%", nil)
 	require.Nil(t, err, "failed to create the control data channel: %v", err)
-	cdc.OnOpen(func() {
-		cdc.OnMessage(func(msg webrtc.DataChannelMessage) {
-			ack := ParseAck(t, msg)
-			if ack.Ref == 456 {
-				done <- true
+	client.OnDataChannel(func(d *webrtc.DataChannel) {
+		msgNum := 0
+		d.OnMessage(func(msg webrtc.DataChannelMessage) {
+			var rows int
+			var cols int
+			Logger.Infof("Got data channel message: %q", string(msg.Data))
+			if msgNum == 0 {
+				_, err := fmt.Sscanf(
+					string(msg.Data), "%d,%dx%d", &paneID, &rows, &cols)
+				require.NoError(t, err,
+					"Failed to parse first message: %q", string(msg.Data))
+				require.Equal(t, 12, rows, "Got aa bad number of rows")
+				require.Equal(t, 34, cols, "Got aa bad number of cols")
+				// send a resize message
+				resizeArgs := peers.ResizeArgs{paneID, 80, 24}
+				m := peers.CTRLMessage{time.Now().UnixNano(), 456, "resize",
+					&resizeArgs}
+				resizeMsg, err := json.Marshal(m)
+				require.Nil(t, err, "failed marshilng ctrl msg: %v", msg)
+				Logger.Info("Sending the resize message")
+				cdc.Send(resizeMsg)
 			}
+			msgNum++
 		})
+
+	})
+	cdc.OnOpen(func() {
 		// control channel is open let's open another one, so we'll have
 		// what to resize
-		dc, err := client.CreateDataChannel("12x34,bash", nil)
-		require.Nil(t, err, "failed to create the a channel: %v", err)
-		// paneID hold the ID of the channel as recieved from the server
-		paneID := -1
-		dc.OnOpen(func() {
-			Logger.Info("Data channel is open")
-			// send something to get the channel going
-			// dc.Send([]byte{'#'})
-			dc.OnMessage(func(msg webrtc.DataChannelMessage) {
-				var rows int
-				var cols int
-				Logger.Infof("Got data channel message: %q", string(msg.Data))
-				if paneID == -1 {
-					_, err := fmt.Sscanf(
-						string(msg.Data), "%d,%dx%d", &paneID, &rows, &cols)
-					require.Nil(t, err,
-						"Failed to parse first message: %q", string(msg.Data))
-					require.Equal(t, 12, rows, "Got aa bad number of rows")
-					require.Equal(t, 34, cols, "Got aa bad number of cols")
-					resizeArgs := peers.ResizeArgs{paneID, 80, 24}
-					m := peers.CTRLMessage{time.Now().UnixNano(), 456, "resize",
-						&resizeArgs}
-					resizeMsg, err := json.Marshal(m)
-					require.Nil(t, err, "failed marshilng ctrl msg: %v", msg)
-					Logger.Info("Sending the resize message")
-					cdc.Send(resizeMsg)
-				}
-
-			})
-		})
+		// dc, err := client.CreateDataChannel("12x34,bash", nil)
+		// require.Nil(t, err, "failed to create the a channel: %v", err)
+		addPaneArgs := peers.AddPaneArgs{Rows: 12, Cols: 34,
+			Command: []string{"bash"}}
+		m := peers.CTRLMessage{time.Now().UnixNano(), 123, "add_pane",
+			&addPaneArgs}
+		addPaneMsg, err := json.Marshal(m)
+		require.NoError(t, err, "failed marshilng ctrl msg: %s", err)
+		Logger.Info("Sending the addPane message")
+		cdc.Send(addPaneMsg)
 	})
+	cdc.OnMessage(func(msg webrtc.DataChannelMessage) {
+		ack := ParseAck(t, msg)
+		if ack.Ref == 123 {
+			// parse add_pane ack
+			var resizeArgs ResizeArgs
+			err = json.Unmarshal(msg.Data, &resizeArgs)
+			if err != nil {
+				peer.logger.Infof("Failed to parse incoming control message: %v", err)
+				return
+			}
+			paneID = resizeArgs.PaneID
+			require.NotEqual(t, -1, id, "Got a bad pane id: %d", paneID)
+
+		} else if ack.Ref == 456 {
+			done <- true
+		}
+	})
+	// all set, let's start the signaling
 	SignalPair(client, peer)
 	select {
 	case <-time.After(3 * time.Second):
