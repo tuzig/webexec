@@ -57,7 +57,6 @@ type Conf struct {
 // Peer is a type used to remember a client.
 type Peer struct {
 	FP                string
-	Remote            string
 	Token             string
 	LastContact       *time.Time
 	LastRef           int
