@@ -124,6 +124,16 @@ func (s *sockServer) handleStatus(w http.ResponseWriter, r *http.Request) {
 	if r.Method == "GET" {
 		w.Write([]byte("READY"))
 	}
+	/* TODO: return status of all connected peers
+	if len(peers.Peers) == 0 {
+		fmt.Println("No peers connected")
+	} else {
+		fmt.Println("Connected peers:")
+		for _, peer := range peers.Peers {
+			fmt.Printf("  %s", peer.FP)
+		}
+	}
+	*/
 }
 func (s *sockServer) handleLayout(w http.ResponseWriter, r *http.Request) {
 	if r.Method == "GET" {

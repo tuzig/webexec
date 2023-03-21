@@ -224,12 +224,14 @@ func (pb *PeerbookClient) Go() error {
 func getFP() string {
 	certs, err := GetCerts()
 	if err != nil {
-		Logger.Error(err)
+		Logger.Errorf("Failed to get certs: %w", err)
+		return ""
 	}
 	// TODO: is 0 the right choice?
 	fps, err := certs[0].GetFingerprints()
 	if err != nil {
 		Logger.Error("Failed to get fingerprints: %w", err)
+		return ""
 	}
 	s := strings.Replace(fps[0].Value, ":", "", -1)
 	return strings.ToUpper(s)

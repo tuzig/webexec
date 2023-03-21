@@ -426,9 +426,16 @@ func status(c *cli.Context) error {
 		return err
 	}
 	if pid == 0 {
-		fmt.Println("agent is not running")
+		fmt.Println("Agent is not running")
 	} else {
-		fmt.Printf("agent is running with process id %d\n", pid)
+		fmt.Printf("Agent is running with process id %d\n", pid)
+	}
+	// TODO: Get the the fingerprints of connected peers from the agent using the status socket
+	fp := getFP()
+	if fp == "" {
+		fmt.Println("Unitialized, please run `webexec init`")
+	} else {
+		fmt.Printf("Fingerprint:  %s\n", fp)
 	}
 	return nil
 }
