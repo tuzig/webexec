@@ -505,5 +505,7 @@ func TestExecCommandWithParent(t *testing.T) {
 	l, err := tty2.Read(b)
 	require.NoError(t, err)
 	require.Less(t, 5, l, "Expected at least 5 bytes %s", string(b))
-	require.Equal(t, "/tmp", string(b[:4]))
+	// validate that the pwd ends with "/tmp"
+	cwd := string(b[:l])
+	require.True(t, strings.HasSuffix(cwd, "/tmp\r\n"), "Expected ouput to end with /tmp, got %s", cwd)
 }
