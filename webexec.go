@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/kardianos/osext"
+	"github.com/pion/webrtc/v3"
 	"github.com/tuzig/webexec/httpserver"
 	"github.com/tuzig/webexec/peers"
 	"github.com/tuzig/webexec/pidfile"
@@ -449,22 +450,9 @@ func initCMD(c *cli.Context) error {
 		if err != nil {
 			return err
 		}
-		fmt.Printf("Created %q directory\n", homePath)
+		fmt.Printf("Created %q directory with:\n", homePath)
 	} else {
 		return fmt.Errorf("%q already exists, leaving as is.", homePath)
-	}
-	// TODO: add a CLI option to make it !sillent
-	err = createConf(true)
-	if err != nil {
-		return err
-	}
-	certs, err := GetCerts()
-	if err != nil {
-		return fmt.Errorf("Failed to get certificates: %s", err)
-	}
-	_, _, err = LoadConf(certs)
-	if err != nil {
-		return cli.Exit(fmt.Sprintf("Failed to parse default conf: %s", err), 1)
 	}
 	fPath := ConfPath("certnkey.pem")
 	key = &KeyType{Name: fPath}
@@ -473,8 +461,20 @@ func initCMD(c *cli.Context) error {
 		return cli.Exit(fmt.Sprintf("Failed to create certificate: %s", err), 2)
 	}
 	key.save(cert)
-	fmt.Printf(" %s - certificate file\n", fPath)
-	if Conf.peerbookHost != "" {
+	fmt.Printf("  certificate: %s\n", fPath)
+	// TODO: add a CLI option to make it !sillent
+	email := os.Getenv("PEERBOOK_EMAIL")
+	confPath, err := createConf(true, email)
+	fmt.Printf("  dotfile: %s", confPath)
+	if err != nil {
+		return err
+	}
+	_, _, err = LoadConf([]webrtc.Certificate{*cert})
+	if err != nil {
+		return cli.Exit(fmt.Sprintf("Failed to parse default conf: %s", err), 1)
+	}
+	// get the email from env var PEERBOOK_EMAIL
+	if email != "" {
 		verified, err := verifyPeer(Conf.peerbookHost)
 		if err != nil {
 			return fmt.Errorf("Got an error verifying peer: %s", err)
@@ -485,8 +485,10 @@ func initCMD(c *cli.Context) error {
 			fmt.Println("** unverified ** peerbook sent you a verification email.")
 		}
 	}
-	return nil
 
+	fp := getFP()
+	fmt.Printf("Fingerprint:  %s\n", fp)
+	return nil
 }
 func main() {
 	app := &cli.App{

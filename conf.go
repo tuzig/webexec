@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bufio"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -46,7 +45,8 @@ COLORTERM = "truecolor"
 TERM = "xterm"
 `
 const abConfTemplate = `%s[peerbook]
-email = "%s"`
+email = "%s"
+`
 const defaultPeerbookHost = "api.peerbook.io"
 
 type ICEServer struct {
@@ -247,41 +247,22 @@ func isValidEmail(email string) bool {
 
 // createConf creates the configuration files based on the defaults and user
 // input
-func createConf(silent bool) error {
+func createConf(silent bool, email string) (string, error) {
 	conf := defaultConf
-	if !silent {
-		stdin := bufio.NewReader(os.Stdin)
-		fmt.Println("To make it easier for clients to find this server")
-		fmt.Println("and enable trickle ICE you are invited")
-		fmt.Println("to publish it to peerbook.io")
-	please:
-		fmt.Print("Please enter your email (blank to skip): ")
-		email, err := stdin.ReadString('\n')
-		if err != nil {
-			return fmt.Errorf("Failed to read input: %s", err)
-		}
-		// remove the EOL at the end
-		email = email[:len(email)-1]
-		if email != "" {
-			if !isValidEmail(email) {
-				fmt.Println("Sorry, not a valid email. Please try again.")
-				goto please
-			}
-			conf = fmt.Sprintf(abConfTemplate, conf, email)
-		}
+	if email != "" {
+		conf = fmt.Sprintf(abConfTemplate, conf, email)
 	}
 	confPath := ConfPath("webexec.conf")
 	confFile, err := os.Create(confPath)
 	defer confFile.Close()
 	if err != nil {
-		return fmt.Errorf("Failed to create config file: %q", err)
+		return "", fmt.Errorf("Failed to create config file: %q", err)
 	}
 	_, err = confFile.WriteString(conf)
 	if err != nil {
-		return fmt.Errorf("Failed to write to configuration file: %s", err)
+		return "", fmt.Errorf("Failed to write to configuration file: %s", err)
 	}
-	fmt.Printf("Created:\n %s - conf file\n", confPath)
-	return nil
+	return confPath, nil
 }
 
 // ConfPath returns the full path of a configuration file
