@@ -182,7 +182,7 @@ loop:
 	}
 
 	// TODO: find a better way to wait for all the messages to be sent
-	time.AfterFunc(100*time.Millisecond, func() {
+	time.AfterFunc(time.Second/10, func() {
 		cancel()
 		pane = Panes.Get(id)
 		pane.Kill()
@@ -235,7 +235,6 @@ func (pane *Pane) Kill() {
 	}
 	if pane.IsRunning {
 		pane.cancelRWLoop()
-		pane.TTY.Close()
 		if pane.C != nil {
 			err := pane.C.Process.Kill()
 			if err != nil {
@@ -244,6 +243,9 @@ func (pane *Pane) Kill() {
 			}
 		}
 		pane.IsRunning = false
+	}
+	if pane.TTY != nil {
+		pane.TTY.Close()
 	}
 }
 
