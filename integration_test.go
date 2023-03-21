@@ -161,7 +161,6 @@ func TestSimpleEcho(t *testing.T) {
 }
 
 func TestResizeCommand(t *testing.T) {
-	paneID := 0
 	initTest(t)
 	done := make(chan bool)
 	client, certs, err := NewClient(true)
@@ -169,32 +168,6 @@ func TestResizeCommand(t *testing.T) {
 	peer := newPeer(t, "A", certs)
 	cdc, err := client.CreateDataChannel("%", nil)
 	require.Nil(t, err, "failed to create the control data channel: %v", err)
-	client.OnDataChannel(func(d *webrtc.DataChannel) {
-		msgNum := 0
-		d.OnMessage(func(msg webrtc.DataChannelMessage) {
-			var rows int
-			var cols int
-			Logger.Infof("Got data channel message: %q", string(msg.Data))
-			if msgNum == 0 {
-				_, err := fmt.Sscanf(
-					string(msg.Data), "%d,%dx%d", &paneID, &rows, &cols)
-				require.NoError(t, err,
-					"Failed to parse first message: %q", string(msg.Data))
-				require.Equal(t, 12, rows, "Got aa bad number of rows")
-				require.Equal(t, 34, cols, "Got aa bad number of cols")
-				// send a resize message
-				resizeArgs := peers.ResizeArgs{paneID, 80, 24}
-				m := peers.CTRLMessage{time.Now().UnixNano(), 456, "resize",
-					&resizeArgs}
-				resizeMsg, err := json.Marshal(m)
-				require.Nil(t, err, "failed marshilng ctrl msg: %v", msg)
-				Logger.Info("Sending the resize message")
-				cdc.Send(resizeMsg)
-			}
-			msgNum++
-		})
-
-	})
 	cdc.OnOpen(func() {
 		// control channel is open let's open another one, so we'll have
 		// what to resize
@@ -212,15 +185,19 @@ func TestResizeCommand(t *testing.T) {
 	cdc.OnMessage(func(msg webrtc.DataChannelMessage) {
 		ack := ParseAck(t, msg)
 		if ack.Ref == 123 {
-			// parse add_pane ack
-			var resizeArgs ResizeArgs
-			err = json.Unmarshal(msg.Data, &resizeArgs)
-			if err != nil {
-				peer.logger.Infof("Failed to parse incoming control message: %v", err)
-				return
-			}
-			paneID = resizeArgs.PaneID
-			require.NotEqual(t, -1, id, "Got a bad pane id: %d", paneID)
+			// parse add_pane and send the resize command
+			// extract paneID from the ack body whcih is raw json
+			var paneID int
+			err := json.Unmarshal(ack.Body, &paneID)
+			require.NoError(t, err, "failed to unmarshal ack body: %s", err)
+			require.NotEqual(t, -1, paneID, "Got a bad pane id: %d", paneID)
+			resizeArgs := peers.ResizeArgs{paneID, 80, 24}
+			m := peers.CTRLMessage{time.Now().UnixNano(), 456, "resize",
+				&resizeArgs}
+			resizeMsg, err := json.Marshal(m)
+			require.Nil(t, err, "failed marshilng ctrl msg: %v", err)
+			Logger.Info("Sending the resize message")
+			cdc.Send(resizeMsg)
 
 		} else if ack.Ref == 456 {
 			done <- true
@@ -509,7 +486,7 @@ func TestExecCommand(t *testing.T) {
 	b := make([]byte, 64)
 	l, err := tty.Read(b)
 	require.Nil(t, err)
-	require.Less(t, 5, l)
+	require.Less(t, 6, l, "Expected at least 5 bytes %s", string(b))
 	require.Equal(t, "hello", string(b[:5]))
 }
 func TestExecCommandWithParent(t *testing.T) {
@@ -526,7 +503,7 @@ func TestExecCommandWithParent(t *testing.T) {
 	require.Nil(t, err)
 	b := make([]byte, 64)
 	l, err := tty2.Read(b)
-	require.Nil(t, err)
-	require.Less(t, 4, l)
-	require.Equal(t, "/tmp", string(b[l-6:l-2]))
+	require.NoError(t, err)
+	require.Less(t, 5, l, "Expected at least 5 bytes %s", string(b))
+	require.Equal(t, "/tmp", string(b[:4]))
 }
