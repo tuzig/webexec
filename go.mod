@@ -20,7 +20,7 @@ require (
 	go.uber.org/fx v1.19.2
 	go.uber.org/zap v1.23.0
 	golang.org/x/crypto v0.0.0-20221010152910-d6f0a8c073c2
-	golang.org/x/net v0.5.0 // indirect
-	golang.org/x/sys v0.4.0
+	golang.org/x/net v0.7.0 // indirect
+	golang.org/x/sys v0.5.0
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0
 )
