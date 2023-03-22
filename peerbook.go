@@ -48,11 +48,10 @@ func StartPeerbookClient(lc fx.Lifecycle, client *PeerbookClient) {
 		return
 	}
 	if verified {
-		Logger.Infof("** verified ** by peerbook at %s", Conf.peerbookHost)
+		Logger.Infof("Verified by %s as %s", Conf.peerbookHost, Conf.peerbookUID)
 	} else {
-		Logger.Infof("** unverified ** peerbook sent you a verification email.")
-		fmt.Printf("                 If you don't get it please visit %s",
-			Conf.peerbookHost)
+		fp := getFP()
+		Logger.Infof("Unverified, please use Terminal7 to verify fingerprint: %s", fp)
 	}
 	lc.Append(fx.Hook{
 		OnStart: func(context.Context) error {
@@ -68,7 +67,7 @@ func StartPeerbookClient(lc fx.Lifecycle, client *PeerbookClient) {
 }
 func verifyPeer(host string) (bool, error) {
 	fp := getFP()
-	msg := map[string]string{"fp": fp, "email": Conf.email,
+	msg := map[string]string{"fp": fp, "uid": Conf.peerbookUID,
 		"kind": "webexec", "name": Conf.name}
 	m, err := json.Marshal(msg)
 	schema := "https"
@@ -248,7 +247,7 @@ func (pb *PeerbookClient) Dial() error {
 	params.Add("fp", fp)
 	params.Add("name", Conf.name)
 	params.Add("kind", "webexec")
-	params.Add("email", Conf.email)
+	params.Add("uid", Conf.peerbookUID)
 
 	schema := "wss"
 	if Conf.insecure {

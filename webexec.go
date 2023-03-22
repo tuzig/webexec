@@ -2,6 +2,7 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -14,6 +15,7 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -461,11 +463,29 @@ func initCMD(c *cli.Context) error {
 		return cli.Exit(fmt.Sprintf("Failed to create certificate: %s", err), 2)
 	}
 	key.save(cert)
-	fmt.Printf("  certificate: %s\n", fPath)
 	// TODO: add a CLI option to make it !sillent
-	email := os.Getenv("PEERBOOK_EMAIL")
-	confPath, err := createConf(true, email)
-	fmt.Printf("  dotfile: %s", confPath)
+	fmt.Printf("  certificate: %s\n", fPath)
+	uid := os.Getenv("PEERBOOK_UID")
+	pbHost := os.Getenv("PEERBOOK_HOST")
+	name := os.Getenv("PEERBOOK_NAME")
+	if name == "" {
+		name, err = os.Hostname()
+		if err != nil {
+			return fmt.Errorf("Failed to get hostname: %s", err)
+		}
+		// let the user edit the host name
+		fmt.Printf("Enter a name for this host [%s]: ", name)
+		reader := bufio.NewReader(os.Stdin)
+		text, _ := reader.ReadString('\n')
+		text = strings.TrimSpace(text)
+		if text != "" {
+			name = text
+		} else {
+			name = text
+		}
+	}
+	confPath, err := createConf(uid, pbHost, name)
+	fmt.Printf("  dotfile: %s\n", confPath)
 	if err != nil {
 		return err
 	}
@@ -473,21 +493,19 @@ func initCMD(c *cli.Context) error {
 	if err != nil {
 		return cli.Exit(fmt.Sprintf("Failed to parse default conf: %s", err), 1)
 	}
-	// get the email from env var PEERBOOK_EMAIL
-	if email != "" {
+	fp := getFP()
+	fmt.Printf("Fingerprint:  %s\n", fp)
+	if uid != "" {
 		verified, err := verifyPeer(Conf.peerbookHost)
 		if err != nil {
 			return fmt.Errorf("Got an error verifying peer: %s", err)
 		}
 		if verified {
-			fmt.Println("** verified ** by peerbook")
+			fmt.Println("Verified by peerbook")
 		} else {
-			fmt.Println("** unverified ** peerbook sent you a verification email.")
+			fmt.Println("Unverified, please use terminal7 to verify the fingerprint")
 		}
 	}
-
-	fp := getFP()
-	fmt.Printf("Fingerprint:  %s\n", fp)
 	return nil
 }
 func main() {

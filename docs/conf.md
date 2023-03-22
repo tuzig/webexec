@@ -59,6 +59,6 @@ The peerbook section is used to setup peerbook params. peerbook is a server
 that keeps a live address book of users' peers. peerbook uses websocket
 to forward offers and answers between clients and webexec.
 
-- `email`: the user's email 
+- `user_id`: the user's ID  
 - `host`: peerbook's address. default is `api.peerbook.io`
 - `name`: the host's name default is the system's hostname

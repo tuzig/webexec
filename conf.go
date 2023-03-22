@@ -45,7 +45,9 @@ COLORTERM = "truecolor"
 TERM = "xterm"
 `
 const abConfTemplate = `%s[peerbook]
-email = "%s"
+host = "%s"
+user_id = "%s"
+name = "%s"
 `
 const defaultPeerbookHost = "api.peerbook.io"
 
@@ -64,7 +66,7 @@ var Conf struct {
 	iceServers      []webrtc.ICEServer
 	peerbookHost    string
 	insecure        bool
-	email           string
+	peerbookUID     string
 	name            string
 	peerConf        *peers.Conf
 	T               *toml.Tree
@@ -182,12 +184,12 @@ func parseConf(s string) (*peers.Conf, httpserver.AddressType, error) {
 			peersConf.Env[k] = v.(string)
 		}
 	}
-	v = t.Get("peerbook.email")
+	v = t.Get("peerbook.user_id")
 	if v != nil {
-		Conf.email = v.(string)
-		url := t.Get("peerbook.host")
-		if url != nil {
-			Conf.peerbookHost = url.(string)
+		Conf.peerbookUID = v.(string)
+		host := t.Get("peerbook.host")
+		if host != nil {
+			Conf.peerbookHost = host.(string)
 		} else {
 			Conf.peerbookHost = defaultPeerbookHost
 		}
@@ -246,11 +248,14 @@ func isValidEmail(email string) bool {
 }
 
 // createConf creates the configuration files based on the defaults and user
-// input
-func createConf(silent bool, email string) (string, error) {
+// id, host and name
+func createConf(peerbookUID string, pbHost string, name string) (string, error) {
 	conf := defaultConf
-	if email != "" {
-		conf = fmt.Sprintf(abConfTemplate, conf, email)
+	if pbHost == "" {
+		pbHost = defaultPeerbookHost
+	}
+	if peerbookUID != "" {
+		conf = fmt.Sprintf(abConfTemplate, conf, pbHost, peerbookUID, name)
 	}
 	confPath := ConfPath("webexec.conf")
 	confFile, err := os.Create(confPath)
