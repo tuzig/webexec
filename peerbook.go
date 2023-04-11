@@ -42,19 +42,18 @@ func NewPeerbookClient(peerConf *peers.Conf) *PeerbookClient {
 	}
 }
 func StartPeerbookClient(lc fx.Lifecycle, client *PeerbookClient) {
-	verified, err := verifyPeer(Conf.peerbookHost)
-	if err != nil {
-		Logger.Errorf("Got an error verifying peer: %s", err)
-		return
-	}
-	if verified {
-		Logger.Infof("Verified by %s as %s", Conf.peerbookHost, Conf.peerbookUID)
-	} else {
-		fp := getFP()
-		Logger.Infof("Unverified, please use Terminal7 to verify fingerprint: %s", fp)
-	}
 	lc.Append(fx.Hook{
 		OnStart: func(context.Context) error {
+			verified, err := verifyPeer(Conf.peerbookHost)
+			if err != nil {
+				Logger.Warnf("Got an error verifying peer: %s", err)
+			}
+			if verified {
+				Logger.Infof("Verified by %s as %s", Conf.peerbookHost, Conf.peerbookUID)
+			} else {
+				fp := getFP()
+				Logger.Infof("Unverified, please use Terminal7 to verify fingerprint: %s", fp)
+			}
 			go client.Go()
 			Logger.Info("Started peerbook client")
 			return nil
