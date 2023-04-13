@@ -452,7 +452,7 @@ func initCMD(c *cli.Context) error {
 		if err != nil {
 			return err
 		}
-		fmt.Printf("Created %q directory with:\n", homePath)
+		fmt.Printf("Created %q directory\n", homePath)
 	} else {
 		return fmt.Errorf("%q already exists, leaving as is.", homePath)
 	}
@@ -464,28 +464,28 @@ func initCMD(c *cli.Context) error {
 	}
 	key.save(cert)
 	// TODO: add a CLI option to make it !sillent
-	fmt.Printf("  certificate: %s\n", fPath)
+	fmt.Printf("Created certificate in: %s\n", fPath)
 	uid := os.Getenv("PEERBOOK_UID")
 	pbHost := os.Getenv("PEERBOOK_HOST")
 	name := os.Getenv("PEERBOOK_NAME")
 	if name == "" {
-		name, err = os.Hostname()
+		dn, err := os.Hostname()
 		if err != nil {
 			return fmt.Errorf("Failed to get hostname: %s", err)
 		}
 		// let the user edit the host name
-		fmt.Printf("Enter a name for this host [%s]: ", name)
+		fmt.Printf("Enter a name for this host [%s]: ", dn)
 		reader := bufio.NewReader(os.Stdin)
 		text, _ := reader.ReadString('\n')
 		text = strings.TrimSpace(text)
 		if text != "" {
 			name = text
 		} else {
-			name = text
+			name = dn
 		}
 	}
 	confPath, err := createConf(uid, pbHost, name)
-	fmt.Printf("  dotfile: %s\n", confPath)
+	fmt.Printf("Created dotfile in: %s\n", confPath)
 	if err != nil {
 		return err
 	}
@@ -503,7 +503,7 @@ func initCMD(c *cli.Context) error {
 		if verified {
 			fmt.Println("Verified by peerbook")
 		} else {
-			fmt.Println("Unverified, please use terminal7 to verify the fingerprint")
+			fmt.Println("Unverified by peerbook. Please use terminal7 to verify the fingerprint")
 		}
 	}
 	return nil
