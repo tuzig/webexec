@@ -44,6 +44,11 @@ func NewPeerbookClient(peerConf *peers.Conf) *PeerbookClient {
 func StartPeerbookClient(lc fx.Lifecycle, client *PeerbookClient) {
 	lc.Append(fx.Hook{
 		OnStart: func(context.Context) error {
+			if Conf.peerbookUID == "" {
+				Logger.Info("No peerbook user ID configured, skipping peerbook connection")
+				return nil
+			}
+
 			verified, err := verifyPeer(Conf.peerbookHost)
 			if err != nil {
 				Logger.Warnf("Got an error verifying peer: %s", err)
