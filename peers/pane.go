@@ -126,6 +126,7 @@ func (pane *Pane) run(command []string) error {
 	cmd, tty, err := run(
 		command, pane.peer.Conf.Env, pane.Ws, pane.parent, pane.peer.FP)
 	if err != nil {
+		pane.logger.Debugf("command failed: %s", err)
 		return err
 	}
 	pane.C = cmd
