@@ -340,7 +340,7 @@ func (peer *Peer) OnCTRLMsg(msg webrtc.DataChannelMessage) {
 			return
 		}
 		if pane.TTY == nil {
-			pane.logger.Warnf("Tried to resize a pane with no tty")
+			peer.logger.Warnf("Tried to resize a pane with no tty")
 			peer.SendNack(m, "Tried to resize a pane with no tty")
 			return
 		}
