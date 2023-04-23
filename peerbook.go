@@ -71,8 +71,11 @@ func StartPeerbookClient(lc fx.Lifecycle, client *PeerbookClient) {
 }
 func verifyPeer(host string) (bool, error) {
 	fp := getFP()
-	msg := map[string]string{"fp": fp, "uid": Conf.peerbookUID,
-		"kind": "webexec", "name": Conf.name}
+	msg := map[string]string{
+		"fp":   fp,
+		"uid":  Conf.peerbookUID,
+		"kind": "webexec",
+		"name": Conf.name}
 	m, err := json.Marshal(msg)
 	schema := "https"
 	if Conf.insecure {
@@ -84,7 +87,7 @@ func verifyPeer(host string) (bool, error) {
 		return false, err
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode != 200 {
+	if resp.StatusCode != 200 && resp.StatusCode != 201 {
 		b, _ := ioutil.ReadAll(resp.Body)
 		return false, fmt.Errorf(string(b))
 	}
@@ -96,12 +99,9 @@ func verifyPeer(host string) (bool, error) {
 	v, found := ret["verified"]
 	if found {
 		return v.(bool), nil
+	} else {
+		return false, fmt.Errorf("No verified field in response")
 	}
-	_, found = ret["peers"]
-	if found {
-		return true, nil
-	}
-	return false, nil
 }
 func GetICEServers() ([]webrtc.ICEServer, error) {
 	host := Conf.peerbookHost
