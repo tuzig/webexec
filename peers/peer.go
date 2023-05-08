@@ -187,7 +187,9 @@ func (peer *Peer) OnChannelReq(d *webrtc.DataChannel) {
 				cdb.Delete(c)
 			})
 		}
-		peer.logger.Infof("Ignoring a strange channel label %q", label)
+		if label != "%" {
+			peer.logger.Infof("Ignoring a strange channel label %q", label)
+		}
 	})
 }
 
