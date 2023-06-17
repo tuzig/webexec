@@ -29,8 +29,18 @@ type MockAuthBackend struct {
 	authorized string
 }
 
-func NewMockAuthBackend(authorized string) *MockAuthBackend {
-	return &MockAuthBackend{authorized}
+func (a *MockAuthBackend) IsAuthorized(tokens ...string) bool {
+	fmt.Println("authorized", a.authorized)
+	if a.authorized == "" {
+		return false
+	}
+	for _, t := range tokens {
+		fmt.Println("token", t)
+		if t == a.authorized {
+			return true
+		}
+	}
+	return false
 }
 
 func generateCert() (*webrtc.Certificate, error) {
@@ -69,18 +79,6 @@ func generateCert() (*webrtc.Certificate, error) {
 		IsCA:                  true,
 	})
 }
-func (a *MockAuthBackend) IsAuthorized(tokens ...string) bool {
-	if a.authorized == "" {
-		return false
-	}
-	for _, t := range tokens {
-		if t == a.authorized {
-			return true
-		}
-	}
-	return false
-}
-
 func newClient(t *testing.T) (*webrtc.PeerConnection, *webrtc.Certificate, error) {
 	secretKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
@@ -103,7 +101,7 @@ func newCert(t *testing.T) *webrtc.Certificate {
 	return certificate
 }
 
-func TestConnect(t *testing.T) {
+func TestConnectGoodFP(t *testing.T) {
 	done := make(chan bool)
 	// start the webrtc client
 	client, cert, err := newClient(t)
@@ -125,14 +123,15 @@ func TestConnect(t *testing.T) {
 		require.Nil(t, err, "Failed ending an offer: %v", clientOffer)
 		fp, err := peers.ExtractFP(cert)
 		require.NoError(t, err, "Failed to extract the fingerprint: %q", err)
+		fmt.Println("fp", fp)
+		a := &MockAuthBackend{authorized: fp}
 		p := ConnectRequest{fp, 1, string(buf[:l])}
 		b, err := json.Marshal(p)
 		req := httptest.NewRequest(http.MethodPost, "/connect", bytes.NewBuffer(b))
 		req.RemoteAddr = "8.8.8.8"
 		w := httptest.NewRecorder()
-		a := NewMockAuthBackend(fp)
 		logger := zaptest.NewLogger(t).Sugar()
-		certificate := newCert(t)
+		certificate, err := generateCert()
 		require.NoError(t, err, "Failed to create a certificate: %q", err)
 		conf := &peers.Conf{
 			Certificate:       certificate,
@@ -145,7 +144,11 @@ func TestConnect(t *testing.T) {
 				return nil, nil
 			},
 		}
-		h := NewConnectHandler(a, conf, logger)
+		h := &ConnectHandler{
+			authBackend: a,
+			peerConf:    conf,
+			logger:      logger,
+		}
 		h.HandleConnect(w, req)
 		require.Equal(t, http.StatusOK, w.Code)
 		// read server offer
@@ -198,7 +201,7 @@ func TestConnectBadFP(t *testing.T) {
 		req := httptest.NewRequest(http.MethodPost, "/connect", bytes.NewBuffer(b))
 		req.RemoteAddr = "8.8.8.8"
 		w := httptest.NewRecorder()
-		a := NewMockAuthBackend("")
+		a := &MockAuthBackend{authorized: ""}
 		logger := zaptest.NewLogger(t).Sugar()
 		conf := &peers.Conf{
 			// Certificate:       certificate,
@@ -241,14 +244,13 @@ func TestConnectWithBearer(t *testing.T) {
 		req := httptest.NewRequest(http.MethodPost, "/connect", bytes.NewBuffer(b))
 		req.RemoteAddr = "8.8.8.8"
 		req.Header.Set("content-type", "application/json")
-		req.Header.Set("Bearer", "LetMePass")
+		req.Header.Set("Authorization", "Bearer LetMePass")
 		w := httptest.NewRecorder()
-		a := NewMockAuthBackend("LetMePass")
+		a := &MockAuthBackend{authorized: "LetMePass"}
 		logger := zaptest.NewLogger(t).Sugar()
 		certificate, err := generateCert()
 		require.NoError(t, err, "Failed to generate a certificate", err)
 		conf := &peers.Conf{
-			// Certificate:       certificate,
 			Logger:            logger,
 			DisconnectTimeout: time.Second,
 			FailedTimeout:     time.Second,
@@ -289,9 +291,9 @@ func TestConnectWithBadBearer(t *testing.T) {
 		req := httptest.NewRequest(http.MethodPost, "/connect", bytes.NewBuffer(b))
 		req.RemoteAddr = "8.8.8.8"
 		req.Header.Set("content-type", "application/json")
-		req.Header.Set("Bearer", "LetMePass")
+		req.Header.Set("Authorization", "Bearer LetMePass")
 		w := httptest.NewRecorder()
-		a := NewMockAuthBackend("")
+		a := &MockAuthBackend{authorized: ""}
 		logger := zaptest.NewLogger(t).Sugar()
 		certificate, err := generateCert()
 		require.NoError(t, err, "Failed to generate a certificate", err)

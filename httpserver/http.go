@@ -94,7 +94,18 @@ func (h *ConnectHandler) HandleConnect(w http.ResponseWriter, r *http.Request) {
 			http.StatusBadRequest)
 		return
 	}
-	bearer := r.Header.Get("Bearer")
+	bearer := ""
+	authorization := r.Header.Get("Authorization")
+	// ensure token length is at least 8
+	if authorization != "" {
+		if len(authorization) < 8 {
+			h.logger.Warnf("Token too short: %s", authorization)
+			http.Error(w, "Token too short", http.StatusUnauthorized)
+			return
+		}
+		bearer = authorization[7:]
+	}
+	h.logger.Debugf("Client %s with token %s trying to connect", fp, bearer)
 	authorized := localhost || h.authBackend.IsAuthorized(fp, bearer)
 	h.logger.Debugf("Client %s is %b authorized", fp, authorized)
 	if !authorized {
