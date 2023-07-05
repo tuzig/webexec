@@ -22,8 +22,6 @@ import (
 
 const writeWait = time.Second * 10
 
-type TURNResponse []map[string]string
-
 var PBICEServers []webrtc.ICEServer
 var wsWriteM sync.Mutex
 
@@ -123,22 +121,9 @@ func GetICEServers() ([]webrtc.ICEServer, error) {
 			b, _ := ioutil.ReadAll(resp.Body)
 			return nil, fmt.Errorf(string(b))
 		}
-		var d TURNResponse
-		Logger.Info("Decoding response")
-		err = json.NewDecoder(resp.Body).Decode(&d)
+		err = json.NewDecoder(resp.Body).Decode(&PBICEServers)
 		if err != nil {
 			return nil, err
-		}
-		for _, server := range d {
-			var urls []string
-			for _, u := range strings.Split(server["urls"], ",") {
-				urls = append(urls, strings.TrimSpace(u))
-			}
-			PBICEServers = append(PBICEServers, webrtc.ICEServer{
-				URLs:       urls,
-				Username:   server["username"],
-				Credential: server["credential"],
-			})
 		}
 	}
 	Logger.Infof("Got %d ICE servers from peerbook", len(PBICEServers))
