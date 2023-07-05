@@ -148,6 +148,7 @@ do_install() {
         then
             exit "Failed copying webexec to /usr/local/bin"
         fi
+        webexec start
         echo "Install finished, please exit and reconnect to enjoy version $LATEST_VERSION."
     fi
 
