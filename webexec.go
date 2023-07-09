@@ -251,7 +251,6 @@ func start(c *cli.Context) error {
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 	<-sigChan
 	Logger.Infof("Shutting down")
-	app.Stop(context.Background())
 	os.Remove(PIDFilePath())
 	return nil
 }
