@@ -279,10 +279,10 @@ func restart(c *cli.Context) error {
 // accept function accepts offers to connect
 func accept(c *cli.Context) error {
 	var id string
-    certs, err := GetCerts()
-    if err != nil {
-        return err
-    }
+	certs, err := GetCerts()
+	if err != nil {
+		return err
+	}
 	_, _, err = LoadConf(certs)
 	if err != nil {
 		return err
