@@ -278,7 +278,6 @@ func restart(c *cli.Context) error {
 
 // accept function accepts offers to connect
 func accept(c *cli.Context) error {
-	var id string
 	certs, err := GetCerts()
 	if err != nil {
 		return err
@@ -335,69 +334,94 @@ gotstatus:
 	}
 	fmt.Println(string(body))
 
+	ctx, cancel := context.WithCancel(context.Background())
+	go TrickleCandidates(ctx, httpc)
+	// wait for signal interrupt or SIGTERM
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+	<-sigChan
+	cancel()
+	return nil
+}
+func TrickleCandidates(ctx context.Context, httpc http.Client) {
+	id := ""
 	can := []byte{}
 	for {
-		line, err := terminal.ReadPassword(0)
-		if err != nil {
-			fmt.Printf("ReadPassword error: %s", err)
-			return err
-		}
-		can = append(can, line...)
-		var js json.RawMessage
-		// If it's not the end of a candidate, continue reading
-		if len(line) == 0 || line[len(line)-1] != '}' || json.Unmarshal(can, &js) != nil {
-			continue
-		}
-		if id == "" {
-			resp, err := httpc.Post(
-				"http://unix/offer/", "application/json", bytes.NewBuffer(can))
+		select {
+		case <-ctx.Done():
+			return
+		default:
+			line, err := terminal.ReadPassword(0)
 			if err != nil {
-				return fmt.Errorf("Failed to POST agent's unix socket: %s", err)
+				fmt.Printf("ReadPassword error: %s", err)
+				os.Exit(1)
 			}
-			if resp.StatusCode != http.StatusOK {
-				msg, _ := ioutil.ReadAll(resp.Body)
-				defer resp.Body.Close()
-				return fmt.Errorf("Agent returned an error: %s", msg)
+			can = append(can, line...)
+			var js json.RawMessage
+			// If it's not the end of a candidate, continue reading
+			if len(line) == 0 || line[len(line)-1] != '}' || json.Unmarshal(can, &js) != nil {
+				continue
 			}
-			var body map[string]string
-			json.NewDecoder(resp.Body).Decode(&body)
-			defer resp.Body.Close()
-			id = body["id"]
-			delete(body, "id")
-			msg, err := json.Marshal(body)
-			fmt.Println(string(msg))
-			go func() {
-				for {
-					can, err := getCandidate(httpc, id)
-					if err != nil {
-						return
-					}
-					if len(can) > 0 {
-						fmt.Println(can)
-					} else {
-						os.Exit(0)
-					}
+			if id == "" {
+				resp, err := httpc.Post(
+					"http://unix/offer/", "application/json", bytes.NewBuffer(can))
+				if err != nil {
+					fmt.Fprintf(os.Stderr, "Failed to POST agent's unix socket: %s", err)
+					os.Exit(1)
 				}
-			}()
-		} else {
-			req, err := http.NewRequest("PUT", "http://unix/offer/"+id, bytes.NewReader(can))
-			if err != nil {
-				return fmt.Errorf("Failed to create new PUT request: %q", err)
-			}
-			req.Header.Set("Content-Type", "application/json")
-			resp, err := httpc.Do(req)
-			if err != nil {
-				return fmt.Errorf("Failed to PUT candidate: %q", err)
-			}
-			if resp.StatusCode != http.StatusOK {
-				// msg, _ := ioutil.ReadAll(resp.Body)
-				// defer resp.Body.Close()
-				return fmt.Errorf("Got a server error when PUTing: %v", resp.StatusCode)
+				if resp.StatusCode != http.StatusOK {
+					msg, _ := ioutil.ReadAll(resp.Body)
+					defer resp.Body.Close()
+					fmt.Fprintf(os.Stderr, "Agent returned an error: %s", msg)
+					os.Exit(1)
+				}
+				var body map[string]string
+				json.NewDecoder(resp.Body).Decode(&body)
+				defer resp.Body.Close()
+				id = body["id"]
+				delete(body, "id")
+				msg, err := json.Marshal(body)
+				fmt.Println(string(msg))
+				go getAgentCandidates(ctx, httpc, id)
+			} else {
+				req, err := http.NewRequest("PUT", "http://unix/offer/"+id, bytes.NewReader(can))
+				if err != nil {
+					fmt.Fprintf(os.Stderr, "Failed to create new PUT request: %q", err)
+				}
+				req.Header.Set("Content-Type", "application/json")
+				resp, err := httpc.Do(req)
+				if err != nil {
+					fmt.Fprintf(os.Stderr, "Failed to PUT candidate: %q", err)
+					os.Exit(1)
+				}
+				if resp.StatusCode != http.StatusOK {
+					// msg, _ := ioutil.ReadAll(resp.Body)
+					// defer resp.Body.Close()
+					// print error on stderr
+					fmt.Fprintf(os.Stderr, "Got a server error when PUTing: %v", resp.StatusCode)
+				}
 			}
 		}
-		can = []byte{}
 	}
-	return nil
+	can = []byte{}
+}
+func getAgentCandidates(ctx context.Context, httpc http.Client, id string) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+			can, err := getCandidate(httpc, id)
+			if err != nil {
+				return
+			}
+			if len(can) > 0 {
+				fmt.Println(can)
+			} else {
+				os.Exit(0)
+			}
+		}
+	}
 }
 func getCandidate(httpc http.Client, id string) (string, error) {
 	r, err := httpc.Get("http://unix/offer/" + id)
