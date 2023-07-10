@@ -19,7 +19,6 @@ test.describe('use webexec accept to start a session', ()  => {
         page.on('pageerror', (err: Error) => console.log('PAGEERROR', err.message))
         const response = await page.goto("http://client")
         await expect(response.ok()).toBeTruthy()
-        await waitPort({host:'webexec', port:7777})
     })
 
     test('it can accept an offer and candidates', async () => {
@@ -40,9 +39,9 @@ test.describe('use webexec accept to start a session', ()  => {
             })
         } catch(e) { expect(e).toBeNull() }
         // log key SSH events
+        console.log("ssh connected")
         conn.on('error', e => console.log("ssh error", e))
         conn.on('close', e => {
-            cmdClosed = true
             console.log("ssh closed", e)
         })
         conn.on('end', e => console.log("ssh ended", e))
@@ -57,15 +56,14 @@ test.describe('use webexec accept to start a session', ()  => {
                 })
             })
         } catch(e) { expect(e).toBeNull() }
-        let dataLines = 0
         let webexecCan = ""
         stream.on('close', (code, signal) => {
             console.log(`closed with ${signal}`)
             cmdClosed = true
-            conn.end()
         }).on('data', async (data) => {
             let s
             let b = new Buffer.from(data)
+            console.log("DATA: " + b.toString())
             webexecCan += b.toString()
             // remove the CR & LF in the end
             if (webexecCan.slice(-1) == "\n")
@@ -124,5 +122,34 @@ test.describe('use webexec accept to start a session', ()  => {
             } catch(e) { expect(e).toBeNull() }
             await sleep(500)
         }
+        while (!cmdClosed) {
+            await sleep(500)
+        }
+        try {
+            stream = await new Promise((resolve, reject) => {
+                conn.exec("webexec status", { pty: true }, async (err, s) => {
+                    if (err)
+                        reject(err)
+                    else 
+                        resolve(s)
+                })
+            })
+        } catch(e) { expect(e).toBeNull() }
+        let response = ""
+        cmdClosed = false
+        stream.on('close', (code, signal) => {
+            console.log(`closed with ${signal}`)
+            cmdClosed = true
+            conn.end()
+        }).on('data', async (data) => {
+            let s
+            let b = new Buffer.from(data)
+            console.log("DATA: " + b.toString())
+            response += b.toString()
+        })
+        while (!cmdClosed) {
+            await sleep(200)
+        }
+        expect(response).toMatch("process id")
     })
 })
