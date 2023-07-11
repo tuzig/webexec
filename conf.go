@@ -233,6 +233,10 @@ func LoadConf(certs []webrtc.Certificate) (*peers.Conf, httpserver.AddressType, 
 			err)
 	}
 	conf, addr, err := parseConf(string(b))
+	if err != nil {
+		return nil, "", fmt.Errorf("Failed to parse conf file %q: %s", confPath,
+			err)
+	}
 	conf.Certificate = &certs[0]
 	conf.Logger = Logger
 	conf.GetICEServers = GetICEServers
