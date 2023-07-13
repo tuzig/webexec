@@ -15,6 +15,10 @@ and the release workflow reads it to set github's release notes.
 
 - Use the standard "Authorization" header for "Bearer <token>"
 
+### Changed
+
+- Supporting PeerBook 1.3
+
 ## [0.19.2] 2022-3-7
 
 ### Changed
