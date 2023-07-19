@@ -113,8 +113,6 @@ do_install() {
         cd $tmp
 	fi
     get_n_extract $tmp
-    ./webexec init
-    ./webexec start
     if [ -z $SSH_TTY ]
     then
         echo "Moving to another shell to survive this connection ending"

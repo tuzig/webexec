@@ -189,6 +189,15 @@ func forkAgent(address httpserver.AddressType) (int, error) {
 
 // start - start the user's agent
 func start(c *cli.Context) error {
+	// test if the config directory exists
+
+	homePath := ConfPath("")
+	fmt.Printf("Home path: %s\n", homePath)
+	_, err := os.Stat(homePath)
+	if os.IsNotExist(err) {
+		fmt.Printf("%s does not exist, initializing\n", homePath)
+		initCMD(c)
+	}
 	certs, err := GetCerts()
 	if err != nil {
 		return fmt.Errorf("Failed to get the certificates: %s", err)
