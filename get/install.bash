@@ -128,9 +128,12 @@ do_install() {
         cd $tmp
 	fi
     get_n_extract $tmp
-    ./webexec start
     if [ -z $SSH_TTY ]
     then
+        if [ ! -d $HOME/.config/webexec ]
+        then
+            ./webexec init
+        fi
         echo "Moving to another shell to survive this connection ending"
         $sh_c "nohup bash ./replace_n_launch.sh $user ${HOME:-/root}"
     else
@@ -150,7 +153,5 @@ do_install() {
         webexec start
         echo "Install finished, please exit and reconnect to enjoy version $LATEST_VERSION."
     fi
-
-
 }
 do_install "$@"

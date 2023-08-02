@@ -115,6 +115,10 @@ do_install() {
     get_n_extract $tmp
     if [ -z $SSH_TTY ]
     then
+        if [ ! -d $HOME/.config/webexec ]
+        then
+            ./webexec init
+        fi
         echo "Moving to another shell to survive this connection ending"
         $sh_c "nohup bash ./replace_n_launch.sh $user ${HOME:-/root}"
     else
