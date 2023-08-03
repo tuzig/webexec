@@ -22,8 +22,8 @@ and the release workflow reads it to set github's release notes.
 
 ### Fixed 
 
-- Installer is fixed
-ZZ
+- The install script
+
 ## [1.0.0] 2023-7-31
 
 ### Fixed
