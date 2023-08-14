@@ -590,6 +590,27 @@ func initCMD(c *cli.Context) error {
 	}
 	return nil
 }
+func upgrade(c *cli.Context) error {
+    if getVersionNote() == "" {
+        fmt.Println("You are already running the latest version")
+        return nil
+    }
+    resp, err := http.Get("https://get.webexec.sh")
+    if err != nil {
+        return fmt.Errorf("Failed to get upgrade script: %s", err)
+    }
+    defer resp.Body.Close()
+    script, err := io.ReadAll(resp.Body)
+    if err != nil {
+        return fmt.Errorf("Failed to read upgrade script: %s", err)
+    }
+
+    cmd := exec.Command("bash", "-c", string(script))
+    cmd.Stdout = os.Stdout
+    cmd.Stderr = os.Stderr
+    cmd.Stdin = os.Stdin
+    return cmd.Run()
+}
 func main() {
 	app := &cli.App{
 		Name:        "webexec",
@@ -659,7 +680,11 @@ func main() {
 				Name:   "accept",
 				Usage:  "accepts an offer to connect",
 				Action: accept,
-			},
+			}, {
+                Name:   "upgrade",
+                Usage:  "upgrades WebExec to the latest version",
+                Action: upgrade,
+            },
 		},
 	}
 	err := app.Run(os.Args)
