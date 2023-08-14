@@ -4,6 +4,7 @@ go 1.16
 
 require (
 	git.rootprojects.org/root/go-gitver/v2 v2.0.2
+	github.com/coreos/go-semver v0.3.1 // indirect
 	github.com/creack/pty v1.1.11
 	github.com/dchest/uniuri v0.0.0-20200228104902-7aecb25e1fe5
 	github.com/gorilla/websocket v1.4.2

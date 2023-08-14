@@ -52,6 +52,7 @@ type Conf struct {
 	Logger            *zap.SugaredLogger
 	Certificate       *webrtc.Certificate
 	RunCommand        RunCommandInterface
+    GetWelcome        func() string
 }
 
 // Peer is a type used to remember a client.
@@ -456,6 +457,14 @@ func (peer *Peer) OnCTRLMsg(msg webrtc.DataChannelMessage) {
 			return
 		}
 		d.OnOpen(func() {
+            if peer.Conf.GetWelcome != nil {
+                msg := peer.Conf.GetWelcome()
+                peer.logger.Infof("Sending welcome message: %s", msg)
+                err := d.Send([]byte(msg))
+                if err != nil {
+                    peer.logger.Warnf("Failed to send welcome message: %v", err)
+                }
+            }
 			pane.run(cmd)
 			c := cdb.Add(d, pane, peer)
 			peer.logger.Infof("opened data channel for pane %d", pane.ID)
