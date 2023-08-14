@@ -240,6 +240,7 @@ func LoadConf(certs []webrtc.Certificate) (*peers.Conf, httpserver.AddressType, 
 	conf.Certificate = &certs[0]
 	conf.Logger = Logger
 	conf.GetICEServers = GetICEServers
+    conf.GetWelcome = GetWelcome
 
 	return conf, addr, err
 }

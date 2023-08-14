@@ -19,6 +19,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/coreos/go-semver/semver"
 	"github.com/kardianos/osext"
 	"github.com/pion/webrtc/v3"
 	"github.com/tuzig/webexec/httpserver"
@@ -44,7 +45,43 @@ var (
 	gotExitSignal      chan bool
 	logWriter          io.Writer
 	key                *KeyType
+    cachedVersion struct {
+        version *semver.Version
+        expire time.Time
+    }
 )
+
+
+func GetWelcome() string {
+    msg := "Connected over WebRTC.\n"
+    note := getVersionNote()
+    if note != "" {
+        msg += "\r└─ " + note
+    }
+    return msg
+}
+
+func getVersionNote() string {
+    if cachedVersion.version == nil || cachedVersion.expire.After(time.Now()) {
+        resp, err := http.Get("https://version.webexec.sh/latest")
+        if err != nil {
+            return ""
+        }
+        defer resp.Body.Close()
+        body, err := io.ReadAll(resp.Body)
+        if err != nil {
+            return ""
+        }
+        cachedVersion.version = semver.New(strings.Trim(string(body), "\n"))
+        cachedVersion.expire = time.Now().Add(time.Hour)
+    }
+    latestVersion := cachedVersion.version
+    currentVersion := semver.New(version)
+    if currentVersion.LessThan(*latestVersion) {
+        return fmt.Sprintf("WebExec version %s is available, please run `webexec upgrade`\n", latestVersion)
+    }
+    return ""
+}
 
 // PIDFIlePath return the path of the PID file
 func PIDFilePath() string {
@@ -226,6 +263,11 @@ func start(c *cli.Context) error {
 				return err
 			}
 			fmt.Printf("agent started as process #%d\n", pid)
+            versionNote := getVersionNote()
+            if versionNote != "" {
+                fmt.Println(versionNote)
+            }
+
 			return nil
 		} else {
 			loggerOption = fx.Provide(InitAgentLogger)
