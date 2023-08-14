@@ -9,6 +9,15 @@ his file's format is define in
 and the release workflow reads it to set github's release notes.
 
 
+## [1.1] 2023-8-14
+
+### Added
+
+- The upgrade subcommand
+- Welcome message on connect
+- Message when a new version is available
+- A uri that returns the latest version in https://version.webexec.sh/latest
+
 ## [1.0.1] 2023-8-3
 
 ### Fixed 
