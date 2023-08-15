@@ -45,42 +45,47 @@ var (
 	gotExitSignal      chan bool
 	logWriter          io.Writer
 	key                *KeyType
-    cachedVersion struct {
-        version *semver.Version
-        expire time.Time
-    }
+	cachedVersion      struct {
+		version *semver.Version
+		expire  time.Time
+	}
 )
 
-
 func GetWelcome() string {
-    msg := "Connected over WebRTC.\n"
-    note := getVersionNote()
-    if note != "" {
-        msg += "\r└─ " + note
-    }
-    return msg
+	msg := "Connected over WebRTC.\n"
+	note := getVersionNote()
+	if note != "" {
+		msg += "\r└─ " + note
+	}
+	return msg
 }
 
 func getVersionNote() string {
-    if cachedVersion.version == nil || cachedVersion.expire.After(time.Now()) {
-        resp, err := http.Get("https://version.webexec.sh/latest")
-        if err != nil {
-            return ""
-        }
-        defer resp.Body.Close()
-        body, err := io.ReadAll(resp.Body)
-        if err != nil {
-            return ""
-        }
-        cachedVersion.version = semver.New(strings.Trim(string(body), "\n"))
-        cachedVersion.expire = time.Now().Add(time.Hour)
-    }
-    latestVersion := cachedVersion.version
-    currentVersion := semver.New(version)
-    if currentVersion.LessThan(*latestVersion) {
-        return fmt.Sprintf("WebExec version %s is available, please run `webexec upgrade`\n", latestVersion)
-    }
-    return ""
+	if cachedVersion.version == nil || cachedVersion.expire.After(time.Now()) {
+		resp, err := http.Get("https://version.webexec.sh/latest")
+		if err != nil {
+			return ""
+		}
+		defer resp.Body.Close()
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return ""
+		}
+		cachedVersion.version, err = semver.NewVersion(strings.Trim(string(body), "\n"))
+		if err != nil {
+			return ""
+		}
+		cachedVersion.expire = time.Now().Add(time.Hour)
+	}
+	latestVersion := cachedVersion.version
+	currentVersion, err := semver.NewVersion(version)
+	if err != nil {
+		return ""
+	}
+	if currentVersion.LessThan(*latestVersion) {
+		return fmt.Sprintf("WebExec version %s is available, please run `webexec upgrade`\n", latestVersion)
+	}
+	return ""
 }
 
 // PIDFIlePath return the path of the PID file
@@ -263,10 +268,10 @@ func start(c *cli.Context) error {
 				return err
 			}
 			fmt.Printf("agent started as process #%d\n", pid)
-            versionNote := getVersionNote()
-            if versionNote != "" {
-                fmt.Println(versionNote)
-            }
+			versionNote := getVersionNote()
+			if versionNote != "" {
+				fmt.Println(versionNote)
+			}
 
 			return nil
 		} else {
@@ -591,25 +596,25 @@ func initCMD(c *cli.Context) error {
 	return nil
 }
 func upgrade(c *cli.Context) error {
-    if getVersionNote() == "" {
-        fmt.Println("You are already running the latest version")
-        return nil
-    }
-    resp, err := http.Get("https://get.webexec.sh")
-    if err != nil {
-        return fmt.Errorf("Failed to get upgrade script: %s", err)
-    }
-    defer resp.Body.Close()
-    script, err := io.ReadAll(resp.Body)
-    if err != nil {
-        return fmt.Errorf("Failed to read upgrade script: %s", err)
-    }
+	if getVersionNote() == "" {
+		fmt.Println("You are already running the latest version")
+		return nil
+	}
+	resp, err := http.Get("https://get.webexec.sh")
+	if err != nil {
+		return fmt.Errorf("Failed to get upgrade script: %s", err)
+	}
+	defer resp.Body.Close()
+	script, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("Failed to read upgrade script: %s", err)
+	}
 
-    cmd := exec.Command("bash", "-c", string(script))
-    cmd.Stdout = os.Stdout
-    cmd.Stderr = os.Stderr
-    cmd.Stdin = os.Stdin
-    return cmd.Run()
+	cmd := exec.Command("bash", "-c", string(script))
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	cmd.Stdin = os.Stdin
+	return cmd.Run()
 }
 func main() {
 	app := &cli.App{
@@ -681,10 +686,10 @@ func main() {
 				Usage:  "accepts an offer to connect",
 				Action: accept,
 			}, {
-                Name:   "upgrade",
-                Usage:  "upgrades WebExec to the latest version",
-                Action: upgrade,
-            },
+				Name:   "upgrade",
+				Usage:  "upgrades WebExec to the latest version",
+				Action: upgrade,
+			},
 		},
 	}
 	err := app.Run(os.Args)
