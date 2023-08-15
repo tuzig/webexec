@@ -52,10 +52,10 @@ var (
 )
 
 func GetWelcome() string {
-	msg := "Connected over WebRTC.\n"
+	msg := "Connected over WebRTC\r\n"
 	note := getVersionNote()
 	if note != "" {
-		msg += "\r└─ " + note
+		msg += "└─ " + note + "\r\n"
 	}
 	return msg
 }
