@@ -128,7 +128,7 @@ do_install() {
         cd $tmp
 	fi
     get_n_extract $tmp
-    if [ -z $SSH_TTY ]
+    if [[ $(ps -o comm= -p $PPID) == *webexec ]]
     then
         if [ ! -d $HOME/.config/webexec ]
         then
@@ -137,10 +137,11 @@ do_install() {
         echo "Moving to another shell to survive this connection ending"
         $sh_c "nohup bash ./replace_n_launch.sh $user ${HOME:-/root}"
     else
-        if command_exists webexec; then
+        if command_exists webexec
+        then
             webexec stop > /dev/null
         fi
-        cp webexec /usr/local/bin 2> /dev/null
+        mv webexec /usr/local/bin
         if [ $? -ne 0 ]
         then
             echo "Failed copying webexec to /usr/local/bin. Retrying as root"
