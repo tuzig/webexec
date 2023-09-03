@@ -52,7 +52,7 @@ type Conf struct {
 	Logger            *zap.SugaredLogger
 	Certificate       *webrtc.Certificate
 	RunCommand        RunCommandInterface
-    GetWelcome        func() string
+	GetWelcome        func() string
 }
 
 // Peer is a type used to remember a client.
@@ -314,6 +314,18 @@ func (peer *Peer) AddCandidate(candidate webrtc.ICECandidateInit) error {
 	return peer.PC.AddICECandidate(candidate)
 }
 
+func (peer *Peer) Broadcast(typ string, args interface{}) error {
+	for _, p := range Peers {
+		if p != peer && p.cdc != nil {
+			err := SendCTRLMsg(p, typ, args)
+			if err != nil {
+				peer.logger.Warnf("Failed to send a broadcast message: %v", err)
+			}
+		}
+	}
+	return nil
+}
+
 // OnCTRLMsg handles incoming control messages
 func (peer *Peer) OnCTRLMsg(msg webrtc.DataChannelMessage) {
 	var raw json.RawMessage
@@ -351,6 +363,12 @@ func (peer *Peer) OnCTRLMsg(msg webrtc.DataChannelMessage) {
 		ws.Cols = resizeArgs.Sx
 		ws.Rows = resizeArgs.Sy
 		pane.Resize(&ws)
+		err := peer.Broadcast("resize", resizeArgs)
+		if err != nil {
+			peer.logger.Errorf("Failed to broadcast resize message: %v", err)
+			peer.SendNack(m, "Failed to broadcast resize message")
+			return
+		}
 		err = peer.SendAck(m, nil)
 		if err != nil {
 			peer.logger.Errorf("#%d: Failed to send a resize ack: %v", peer.FP, err)
@@ -368,6 +386,8 @@ func (peer *Peer) OnCTRLMsg(msg webrtc.DataChannelMessage) {
 		err = json.Unmarshal(raw, &payloadArgs)
 		peer.logger.Infof("Setting payload to: %s", payloadArgs.Payload)
 		Payload = payloadArgs.Payload
+		// send the set_payload message to all connected peers
+		peer.Broadcast("set_payload", payloadArgs)
 		err = peer.SendAck(m, Payload)
 	case "mark":
 		// acdb a marker and store it in each pane
@@ -457,14 +477,14 @@ func (peer *Peer) OnCTRLMsg(msg webrtc.DataChannelMessage) {
 			return
 		}
 		d.OnOpen(func() {
-            if peer.Conf.GetWelcome != nil {
-                msg := peer.Conf.GetWelcome()
-                peer.logger.Infof("Sending welcome message: %s", msg)
-                err := d.Send([]byte(msg))
-                if err != nil {
-                    peer.logger.Warnf("Failed to send welcome message: %v", err)
-                }
-            }
+			if peer.Conf.GetWelcome != nil {
+				msg := peer.Conf.GetWelcome()
+				peer.logger.Infof("Sending welcome message: %s", msg)
+				err := d.Send([]byte(msg))
+				if err != nil {
+					peer.logger.Warnf("Failed to send welcome message: %v", err)
+				}
+			}
 			pane.run(cmd)
 			c := cdb.Add(d, pane, peer)
 			peer.logger.Infof("opened data channel for pane %d", pane.ID)
