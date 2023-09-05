@@ -294,7 +294,7 @@ func (pane *Pane) Resize(ws *pty.Winsize) {
 	}
 }
 
-func (pane *Pane) dumpVT() {
+func (pane *Pane) dumpVT(d *webrtc.DataChannel) {
 	logger := pane.peer.logger
 	var (
 		view []byte
@@ -314,14 +314,14 @@ func (pane *Pane) dumpVT() {
 			view = append(view, byte('\n'))
 			view = append(view, byte('\r'))
 		}
-		pane.outbuf <- view
+		d.Send(view)
 		view = nil
 	}
 	// position the cursor
 	x, y := t.Cursor()
 	logger.Infof("Got cursor at: %d, %d", x, y)
 	ps := fmt.Sprintf("\x1b[%d;%dH", y+1, x+1)
-	pane.outbuf <- []byte(ps)
+	d.Send([]byte(ps))
 }
 
 // Restore restore the screen or buffer.
@@ -341,7 +341,7 @@ func (pane *Pane) Restore(d *webrtc.DataChannel, marker int) {
 				"Sending scrren dump to pane: %d, dc: %d", pane.ID, *id)
 			//TODO: this and the next afterfunc is silly
 			time.AfterFunc(time.Second/10, func() {
-				pane.dumpVT()
+				pane.dumpVT(d)
 			})
 		} else {
 			logger.Warn("not restoring as st is null")
@@ -349,7 +349,7 @@ func (pane *Pane) Restore(d *webrtc.DataChannel, marker int) {
 	} else {
 		logger.Infof("Sending history buffer since marker: %d", marker)
 		time.AfterFunc(time.Second/10, func() {
-			pane.outbuf <- pane.Buffer.GetSinceMarker(marker)
+			d.Send(pane.Buffer.GetSinceMarker(marker))
 		})
 	}
 }
