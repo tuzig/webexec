@@ -9,16 +9,18 @@ his file's format is define in
 and the release workflow reads it to set github's release notes.
 
 
-## Unreleased
+## [1.2.0] 2023-9-6
 
 ### Added
 
 - broadcasting layout changes to all connected peers
+- rename admin command to rename a peer
 
 ### Fixed
 
 - welcome message newlines
 - restore buffer now sends the buffer only to the requesting peer
+- upgrading using the installer
 
 ## [1.1.1] 2023-8-15
 
