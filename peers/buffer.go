@@ -57,6 +57,7 @@ func (buffer *Buffer) GetSinceMarker(id int) []byte {
 	buffer.m.Lock()
 	if id == -1 || buffer.markers[id] == -1 {
 		// the case when the marker is lost in history, send all the buffer
+		Logger.Infof("marker %d is lost in history, sending all the buffer", id)
 		start = buffer.end
 		if start == 0 {
 			end = buffer.size
