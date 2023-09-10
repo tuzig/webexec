@@ -25,7 +25,11 @@ and the release workflow reads it to set github's release notes.
 
 ### Fixed 
 
+<<<<<<< HEAD
 - first marker restore 
+=======
+- first market restore 
+>>>>>>> f8c5dc2 (Releasing v1.2.1)
 
 ## [1.2.0] 2023-9-6
 
