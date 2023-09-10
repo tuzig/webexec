@@ -395,10 +395,8 @@ func (peer *Peer) OnCTRLMsg(msg webrtc.DataChannelMessage) {
 		lastMarker++
 		peer.Marker = lastMarker
 		markerM.Unlock()
-		for _, client := range cdb.All4Peer(peer) {
-			client.pane.Buffer.Mark(peer.Marker)
-			client.dc.Close()
-			// will be removed on close
+		for _, pane := range Panes.All() {
+			pane.Buffer.Mark(peer.Marker)
 		}
 		err = peer.SendAck(m, []byte(fmt.Sprintf("%d", peer.Marker)))
 	case "reconnect_pane":
