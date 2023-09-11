@@ -9,11 +9,17 @@ his file's format is define in
 and the release workflow reads it to set github's release notes.
 
 
+## [1.2.2] 2023-9-11
+
+### Fixed
+
+- after install, the agent was exiting with an error
+
 ## [1.2.1] 2023-9-10
 
 ### Fixed 
 
-- first market restore 
+- first marker restore 
 
 ## [1.2.0] 2023-9-6
 
