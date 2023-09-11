@@ -391,12 +391,12 @@ gotstatus:
 	fmt.Println(string(body))
 
 	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 	go TrickleCandidates(ctx, httpc)
 	// wait for signal interrupt or SIGTERM
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 	<-sigChan
-	cancel()
 	return nil
 }
 func TrickleCandidates(ctx context.Context, httpc http.Client) {
