@@ -8,8 +8,6 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/url"
-	"os"
-	"os/signal"
 	"strings"
 	"sync"
 	"time"
@@ -167,8 +165,6 @@ func (pb *PeerbookClient) Go() error {
 	}()
 	// writer
 	go func() {
-		interrupt := make(chan os.Signal, 1)
-		signal.Notify(interrupt, os.Interrupt)
 		for {
 			Logger.Info("in sender for")
 			select {
@@ -190,20 +186,6 @@ func (pb *PeerbookClient) Go() error {
 					}
 					continue
 				}
-			case <-interrupt:
-				// Cleanly close the connection by sending a close message and then
-				// waiting (with timeout) for the server to close the connection.
-				Logger.Info("Closing peerbook connection")
-				err := pb.ws.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
-				if err != nil {
-					Logger.Errorf("Failed to close websocket", err)
-					return
-				}
-				select {
-				case <-done:
-				case <-time.After(time.Second):
-				}
-				return
 			}
 		}
 	}()
