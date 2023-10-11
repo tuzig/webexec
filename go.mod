@@ -4,7 +4,7 @@ go 1.16
 
 require (
 	git.rootprojects.org/root/go-gitver/v2 v2.0.2
-	github.com/coreos/go-semver v0.3.1 // indirect
+	github.com/coreos/go-semver v0.3.1
 	github.com/creack/pty v1.1.11
 	github.com/dchest/uniuri v0.0.0-20200228104902-7aecb25e1fe5
 	github.com/gorilla/websocket v1.4.2
@@ -20,8 +20,8 @@ require (
 	github.com/urfave/cli/v2 v2.3.0
 	go.uber.org/fx v1.19.2
 	go.uber.org/zap v1.23.0
-	golang.org/x/crypto v0.0.0-20221010152910-d6f0a8c073c2
-	golang.org/x/net v0.7.0 // indirect
-	golang.org/x/sys v0.5.0
+	golang.org/x/crypto v0.14.0
+	golang.org/x/net v0.17.0 // indirect
+	golang.org/x/sys v0.13.0
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0
 )
