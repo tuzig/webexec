@@ -38,6 +38,7 @@ var (
 	webrtcAPIM sync.Mutex
 	peersM     sync.Mutex
 	cdb        = NewClientsDB()
+	msgIDM     sync.Mutex
 )
 
 type Conf struct {
@@ -294,13 +295,28 @@ func (peer *Peer) Reconnect(d *webrtc.DataChannel, id int) (*Pane, error) {
 // SendAck sends an ack for a given control message
 func (peer *Peer) SendAck(cm CTRLMessage, body []byte) error {
 	args := AckArgs{Ref: cm.Ref, Body: body}
-	return SendCTRLMsg(peer, "ack", &args)
+	return peer.SendControlMessage("ack", &args)
 }
 
 // SendNack sends an nack for a given control message
 func (peer *Peer) SendNack(cm CTRLMessage, desc string) error {
 	args := NAckArgs{Ref: cm.Ref, Desc: desc}
-	return SendCTRLMsg(peer, "nack", &args)
+	return peer.SendControlMessage("nack", &args)
+}
+
+// SendControlMessage sends a control message to the client
+func (peer *Peer) SendControlMessage(typ string, args interface{}) error {
+	msgIDM.Lock()
+	peer.LastRef++
+	msg := CTRLMessage{time.Now().UnixNano() / 1000000, peer.LastRef,
+		typ, args}
+	msgIDM.Unlock()
+	msgJ, err := json.Marshal(msg)
+	if err != nil {
+		return fmt.Errorf("Failed to marshal the ack msg: %e\n   msg == %q", err, msg)
+	}
+	peer.logger.Infof("Sending ctrl message: %s", msgJ)
+	return peer.cdc.Send(msgJ)
 }
 
 // Peer.AddCandidate adds a new ICE candidate to the peer
@@ -317,7 +333,7 @@ func (peer *Peer) AddCandidate(candidate webrtc.ICECandidateInit) error {
 func (peer *Peer) Broadcast(typ string, args interface{}) error {
 	for _, p := range Peers {
 		if p != peer && p.cdc != nil {
-			err := SendCTRLMsg(p, typ, args)
+			err := p.SendControlMessage(typ, args)
 			if err != nil {
 				peer.logger.Warnf("Failed to send a broadcast message: %v", err)
 			}
