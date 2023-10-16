@@ -310,6 +310,11 @@ func (peer *Peer) SendControlMessage(typ string, args interface{}) error {
 	msg := CTRLMessage{time.Now().UnixNano() / 1000000, peer.LastRef,
 		typ, args}
 	msgIDM.Unlock()
+	return peer.SendMessage(msg)
+}
+
+// SendMessage marshales a message and sends it over the cdc
+func (peer *Peer) SendMessage(msg interface{}) error {
 	msgJ, err := json.Marshal(msg)
 	if err != nil {
 		return fmt.Errorf("Failed to marshal the ack msg: %e\n   msg == %q", err, msg)
