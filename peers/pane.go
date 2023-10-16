@@ -114,7 +114,7 @@ func NewPane(peer *Peer, ws *pty.Winsize, parent int) (*Pane, error) {
 }
 
 // start starts the command and pty
-func (pane *Pane) run(command []string) error {
+func (pane *Pane) Run(command []string) error {
 	logger := pane.peer.logger
 	run := pane.peer.Conf.RunCommand
 	if run == nil {
@@ -210,7 +210,7 @@ loop:
 				break loop
 			}
 			// We need to get the dcs from Panes for an updated version
-			cs := cdb.All4Pane(pane)
+			cs := CDB.All4Pane(pane)
 			logger.Infof("@%d: Sending %d bytes to %d dcs", pane.ID, len(m), len(cs))
 			for _, d := range cs {
 				s := d.dc.ReadyState()
@@ -221,7 +221,7 @@ loop:
 					}
 				} else {
 					logger.Infof("closing & removing dc because state: %q", s)
-					cdb.Delete(d)
+					CDB.Delete(d)
 					d.dc.Close()
 				}
 			}
@@ -238,11 +238,11 @@ loop:
 func (pane *Pane) Kill() {
 	logger := pane.peer.logger
 	logger.Infof("Killing a pane")
-	for _, d := range cdb.All4Pane(pane) {
+	for _, d := range CDB.All4Pane(pane) {
 		if d.dc.ReadyState() == webrtc.DataChannelStateOpen {
 			d.dc.Close()
 		}
-		cdb.Delete(d)
+		CDB.Delete(d)
 	}
 	if pane.IsRunning {
 		pane.cancelRWLoop()
