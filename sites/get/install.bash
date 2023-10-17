@@ -7,7 +7,7 @@
 #   $ ./get-webexec.sh
 #
 # The latest release is currently hard-coded.
-LATEST_VERSION="1.2.1"
+LATEST_VERSION="1.2.2"
 
 echo "webexec version $LATEST_VERSION installer"
          
@@ -152,6 +152,10 @@ do_install() {
             exit "Failed copying webexec to /usr/local/bin"
         fi
         webexec start
+        if [ $? -ne 0 ]
+        then
+            exit "Failed starting webexec"
+        fi
         echo "Install finished, please exit and reconnect to enjoy version $LATEST_VERSION."
     fi
 }
