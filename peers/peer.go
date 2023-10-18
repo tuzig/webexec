@@ -51,6 +51,7 @@ type Conf struct {
 	RunCommand        RunCommandInterface
 	GetWelcome        func() string
 	OnCTRLMsg         func(*Peer, webrtc.DataChannelMessage)
+	OnStateChange     func(*Peer, webrtc.PeerConnectionState)
 }
 
 // Peer is a type used to remember a client.
@@ -116,7 +117,6 @@ func NewPeer(fp string, conf *Conf) (*Peer, error) {
 		if state == webrtc.PeerConnectionStateFailed {
 			peer.PC.Close()
 			peer.PC = nil
-			return
 		}
 		if state == webrtc.PeerConnectionStateConnecting {
 			for c := range peer.pendingCandidates {
@@ -125,6 +125,9 @@ func NewPeer(fp string, conf *Conf) (*Peer, error) {
 					peer.logger.Errorf("Failed to add ice candidate: %s", err)
 				}
 			}
+		}
+		if peer.Conf.OnStateChange != nil {
+			peer.Conf.OnStateChange(&peer, state)
 		}
 	})
 	pc.OnDataChannel(peer.OnChannelReq)
