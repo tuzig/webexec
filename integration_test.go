@@ -187,8 +187,7 @@ func TestResizeCommand(t *testing.T) {
 		if ack.Ref == 123 {
 			// parse add_pane and send the resize command
 			// extract paneID from the ack body whcih is raw json
-			var paneID int
-			err := json.Unmarshal(ack.Body, &paneID)
+			paneID, err := strconv.Atoi(string(ack.Body))
 			require.NoError(t, err, "failed to unmarshal ack body: %s", err)
 			require.NotEqual(t, -1, paneID, "Got a bad pane id: %d", paneID)
 			resizeArgs := peers.ResizeArgs{paneID, 80, 24}
@@ -283,7 +282,9 @@ func TestMarkerRestore(t *testing.T) {
 			if cm.Type == "ack" {
 				args := ParseAck(t, msg)
 				if args.Ref == markerRef {
-					json.Unmarshal(args.Body, &marker)
+					// convert the body to int
+					marker, err = strconv.Atoi(string(args.Body))
+					require.NoError(t, err)
 					Logger.Infof("Got marker: %d", marker)
 					gotSetMarkerAck <- true
 				}

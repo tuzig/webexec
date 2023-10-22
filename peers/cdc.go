@@ -27,7 +27,7 @@ type RestoreArgs struct {
 type AckArgs struct {
 	// Ref holds the message id the error refers to or 0 for system errors
 	Ref  int    `json:"ref"`
-	Body []byte `json:"body"`
+	Body string `json:"body"`
 }
 
 // SetPayloadArgs is a type to hold the args for a set_payload type of a message

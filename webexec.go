@@ -666,7 +666,7 @@ func handleCTRLMsg(peer *peers.Peer, msg webrtc.DataChannelMessage) {
 			peer.SendNack(m, "Failed to broadcast resize message")
 			return
 		}
-		err = peer.SendAck(m, nil)
+		err = peer.SendAck(m, "")
 		if err != nil {
 			Logger.Errorf("#%d: Failed to send a resize ack: %v", peer.FP, err)
 			return
@@ -675,17 +675,17 @@ func handleCTRLMsg(peer *peers.Peer, msg webrtc.DataChannelMessage) {
 		var args peers.RestoreArgs
 		err = json.Unmarshal(raw, &args)
 		peer.Marker = args.Marker
-		err = peer.SendAck(m, peers.Payload)
+		err = peer.SendAck(m, string(peers.Payload))
 	case "get_payload":
-		err = peer.SendAck(m, peers.Payload)
+		err = peer.SendAck(m, string(peers.Payload))
 	case "set_payload":
 		var payloadArgs peers.SetPayloadArgs
 		err = json.Unmarshal(raw, &payloadArgs)
-		Logger.Infof("Setting payload to: %s", peers.Payload)
+		Logger.Infof("Setting payload to: %s", string(peers.Payload))
 		peers.Payload = payloadArgs.Payload
 		// send the set_payload message to all connected peers
 		peer.Broadcast("set_payload", payloadArgs)
-		err = peer.SendAck(m, peers.Payload)
+		err = peer.SendAck(m, string(peers.Payload))
 	case "mark":
 		// acdb a marker and store it in each pane
 		markerM.Lock()
@@ -695,7 +695,7 @@ func handleCTRLMsg(peer *peers.Peer, msg webrtc.DataChannelMessage) {
 		for _, pane := range peers.Panes.All() {
 			pane.Buffer.Mark(peer.Marker)
 		}
-		err = peer.SendAck(m, []byte(fmt.Sprintf("%d", peer.Marker)))
+		err = peer.SendAck(m, fmt.Sprintf("%d", peer.Marker))
 	case "reconnect_pane":
 		var a peers.ReconnectPaneArgs
 		err = json.Unmarshal(raw, &a)
@@ -719,7 +719,7 @@ func handleCTRLMsg(peer *peers.Peer, msg webrtc.DataChannelMessage) {
 				peer.SendNack(m, fmt.Sprintf("Failed to reconnect to: %d", a.ID))
 				return
 			} else {
-				peer.SendAck(m, []byte(fmt.Sprintf("%d", pane.ID)))
+				peer.SendAck(m, fmt.Sprintf("%d", pane.ID))
 			}
 		})
 
@@ -783,7 +783,7 @@ func handleCTRLMsg(peer *peers.Peer, msg webrtc.DataChannelMessage) {
 			pane.Run(cmd)
 			c := peers.CDB.Add(d, pane, peer)
 			Logger.Infof("opened data channel for pane %d", pane.ID)
-			peer.SendAck(m, []byte(fmt.Sprintf("%d", pane.ID)))
+			peer.SendAck(m, fmt.Sprintf("%d", pane.ID))
 			d.OnMessage(pane.OnMessage)
 			d.OnClose(func() {
 				peers.CDB.Delete(c)
