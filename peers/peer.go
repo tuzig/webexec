@@ -295,7 +295,7 @@ func (peer *Peer) Reconnect(d *webrtc.DataChannel, id int) (*Pane, error) {
 }
 
 // SendAck sends an ack for a given control message
-func (peer *Peer) SendAck(cm CTRLMessage, body []byte) error {
+func (peer *Peer) SendAck(cm CTRLMessage, body string) error {
 	args := AckArgs{Ref: cm.Ref, Body: body}
 	return peer.SendControlMessage("ack", &args)
 }
