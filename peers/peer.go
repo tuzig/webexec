@@ -115,8 +115,7 @@ func NewPeer(fp string, conf *Conf) (*Peer, error) {
 	pc.OnConnectionStateChange(func(state webrtc.PeerConnectionState) {
 		peer.logger.Infof("WebRTC Connection State change: %s", state.String())
 		if state == webrtc.PeerConnectionStateFailed {
-			peer.PC.Close()
-			peer.PC = nil
+			peer.Close()
 		}
 		if state == webrtc.PeerConnectionStateConnecting {
 			for c := range peer.pendingCandidates {
@@ -348,6 +347,15 @@ func (peer *Peer) Broadcast(typ string, args interface{}) error {
 	}
 	return nil
 }
+func (peer *Peer) Close() {
+	if peer.PC != nil {
+		err := peer.PC.Close()
+		if err != nil {
+			peer.logger.Error("Failed closing peer connection: %w", err)
+		}
+		peer.PC = nil
+	}
+}
 
 // GetFingerprint extract the fingerprints from a client's offer and returns
 // a compressed fingerprint
@@ -418,16 +426,11 @@ func Shutdown() {
 		if logger == nil {
 			logger = peer.logger
 		}
-		if peer.PC != nil {
-			err = peer.PC.Close()
-			if err != nil {
-				logger.Error("Failed closing peer connection: %w", err)
-			}
-		}
+		peer.Close()
 	}
 	for _, p := range Panes.All() {
 		err = p.C.Process.Kill()
-		if err != nil {
+		if err != nil && logger != nil {
 			logger.Error("Failed closing a process: %w", err)
 		}
 	}

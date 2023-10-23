@@ -267,8 +267,7 @@ func (pb *PeerbookClient) handleMessage(message []byte) error {
 		pu := v.(map[string]interface{})
 		peer, found := peers.Peers[fp]
 		if found && peer.PC != nil && !pu["verified"].(bool) {
-			peer.PC.Close()
-			peer.PC = nil
+			peer.Close()
 		}
 	}
 	o, found := m["offer"].(string)
@@ -284,8 +283,7 @@ func (pb *PeerbookClient) handleMessage(message []byte) error {
 			return fmt.Errorf("Failed to get offer's fingerprint: %w", err)
 		}
 		if offerFP != fp {
-			peers.Peers[fp].PC.Close()
-			peers.Peers[fp].PC = nil
+			peers.Peers[fp].Close()
 			Logger.Warnf("Refusing connection because fp mismatch: %s", fp)
 			return fmt.Errorf("Mismatched fingerprint: %s", fp)
 		}
