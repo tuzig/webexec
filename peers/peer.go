@@ -227,6 +227,9 @@ func (peer *Peer) GetOrCreatePane(d *webrtc.DataChannel) (*Pane, error) {
 		d.OnMessage(func(msg webrtc.DataChannelMessage) {
 			peer.Conf.OnCTRLMsg(peer, msg)
 		})
+		if peer.Conf.OnCTRLMsg != nil {
+			peer.Conf.OnCTRLMsg(peer, webrtc.DataChannelMessage{})
+		}
 		return nil, nil
 	}
 	// if the label starts witha digit, i.e. "80x24" it needs a pty
