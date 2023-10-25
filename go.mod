@@ -4,11 +4,11 @@ go 1.16
 
 require (
 	git.rootprojects.org/root/go-gitver/v2 v2.0.2
-	github.com/coreos/go-semver v0.3.1 // indirect
+	github.com/coreos/go-semver v0.3.1
 	github.com/creack/pty v1.1.11
 	github.com/dchest/uniuri v0.0.0-20200228104902-7aecb25e1fe5
 	github.com/gorilla/websocket v1.4.2
-	github.com/hinshun/vt10x v0.0.0-20201217012337-52c1408d37d6
+	github.com/hinshun/vt10x v0.0.0-20220301184237-5011da428d02
 	github.com/kardianos/osext v0.0.0-20190222173326-2bc1f35cddc0
 	github.com/pelletier/go-toml v1.9.3
 	github.com/pion/webrtc/v3 v3.1.49

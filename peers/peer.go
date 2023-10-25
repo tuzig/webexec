@@ -492,6 +492,16 @@ func (peer *Peer) OnCTRLMsg(msg webrtc.DataChannelMessage) {
 				cdb.Delete(c)
 			})
 		})
+		if a.Foreground != "" {
+			setBg := fmt.Sprintf("\x1B]10;%s\x07", a.Foreground)
+			pane.vt.Write([]byte(setBg))
+			peer.logger.Infof("Setting foreground to: %s", a.Foreground)
+		}
+		if a.Background != "" {
+			setBg := fmt.Sprintf("\x1B]11;%s\x07", a.Background)
+			pane.vt.Write([]byte(setBg))
+			peer.logger.Infof("Setting background to: %s", a.Background)
+		}
 
 	default:
 		peer.logger.Errorf("Got a control message with unknown type: %q", m.Type)

@@ -31,7 +31,7 @@ type Pane struct {
 	TTY          io.ReadWriteCloser
 	Buffer       *Buffer
 	Ws           *pty.Winsize
-	vt           vt10x.VT
+	vt           vt10x.Terminal
 	outbuf       chan []byte
 	cancelRWLoop context.CancelFunc
 	ctx          context.Context
@@ -84,7 +84,7 @@ func ExecCommand(command []string, env map[string]string, ws *pty.Winsize, pID i
 // NewPane opens a new pane
 func NewPane(peer *Peer, ws *pty.Winsize, parent int) (*Pane, error) {
 
-	var vt vt10x.VT
+	var vt vt10x.Terminal
 	if parent != 0 {
 		parentPane := Panes.Get(parent)
 		if parentPane == nil {
@@ -94,8 +94,7 @@ func NewPane(peer *Peer, ws *pty.Winsize, parent int) (*Pane, error) {
 		parent = parentPane.C.Process.Pid
 	}
 	if ws != nil {
-		vt = vt10x.New()
-		vt.Resize(int(ws.Cols), int(ws.Rows))
+		vt = vt10x.New(vt10x.WithSize(int(ws.Cols), int(ws.Rows)))
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	pane := &Pane{
@@ -294,34 +293,42 @@ func (pane *Pane) Resize(ws *pty.Winsize) {
 	}
 }
 
-func (pane *Pane) dumpVT(d *webrtc.DataChannel) {
-	logger := pane.peer.logger
-	var (
-		view []byte
-		c    rune
-	)
+func (pane *Pane) dumpVT() []byte {
+
+	var result string
+	var prevFG, prevBG vt10x.Color
+
 	t := pane.vt
 	t.Lock()
 	defer t.Unlock()
-	rows, cols := t.Size()
-	logger.Infof("dumping scree size %dx%d", rows, cols)
+	cols, rows := t.Size()
 	for y := 0; y < rows; y++ {
 		for x := 0; x < cols; x++ {
-			c, _, _ = t.Cell(x, y)
-			view = append(view, byte(c))
+			glyph := t.Cell(x, y)
+			if glyph.FG != prevFG || glyph.BG != prevBG {
+				result += printColorChange(glyph.FG, glyph.BG)
+				prevFG = glyph.FG
+				prevBG = glyph.BG
+				pane.peer.logger.Infof("got a color change: %x %x", glyph.FG, glyph.BG)
+			}
+			// TODO: Handle attributes such as bold, italic, underline, etc. using glyph.Mode
+			result += string(glyph.Char)
 		}
-		if y < rows-1 {
-			view = append(view, byte('\n'))
-			view = append(view, byte('\r'))
-		}
-		d.Send(view)
-		view = nil
 	}
-	// position the cursor
-	x, y := t.Cursor()
-	logger.Infof("Got cursor at: %d, %d", x, y)
-	ps := fmt.Sprintf("\x1b[%d;%dH", y+1, x+1)
-	d.Send([]byte(ps))
+	c := t.Cursor()
+	result += fmt.Sprintf("\x1b[%d;%dH", c.Y+1, c.X+1)
+
+	return []byte(result)
+}
+
+func printColorChange(fg, bg vt10x.Color) string {
+	fgR := (fg & 0xff0000) >> 16
+	fgG := (fg & 0x00ff00) >> 8
+	fgB := (fg & 0x0000ff)
+	bgR := (bg & 0xff0000) >> 16
+	bgG := (bg & 0x00ff00) >> 8
+	bgB := (bg & 0x0000ff)
+	return fmt.Sprintf("\x1b[38;2;%d;%d;%dm\x1b[48;2;%d;%d;%dm", fgR, fgG, fgB, bgR, bgG, bgB)
 }
 
 // Restore restore the screen or buffer.
@@ -341,7 +348,7 @@ func (pane *Pane) Restore(d *webrtc.DataChannel, marker int) {
 				"Sending scrren dump to pane: %d, dc: %d", pane.ID, *id)
 			//TODO: this and the next afterfunc is silly
 			time.AfterFunc(time.Second/10, func() {
-				pane.dumpVT(d)
+				d.Send(pane.dumpVT())
 			})
 		} else {
 			logger.Warn("not restoring as st is null")
