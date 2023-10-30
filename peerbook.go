@@ -166,7 +166,6 @@ func (pb *PeerbookClient) Go() error {
 	// writer
 	go func() {
 		for {
-			Logger.Info("in sender for")
 			select {
 			case <-done:
 				return
@@ -334,6 +333,9 @@ func (pb *PeerbookClient) handleMessage(message []byte) error {
 			sourceFP   string                  `json:"source_fp"`
 			sourceName string                  `json:"source_name"`
 			Candidate  webrtc.ICECandidateInit `json:"candidate"`
+		}
+		if err != nil {
+			return fmt.Errorf("Failed to decode candidate: %w", err)
 		}
 		r.Seek(0, 0)
 		err = dec.Decode(&can)
