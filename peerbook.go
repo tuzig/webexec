@@ -327,21 +327,17 @@ func (pb *PeerbookClient) handleMessage(message []byte) error {
 		pb.outChan <- j
 		return nil
 	}
-	_, found = m["candidate"]
+	can, found := m["candidate"]
 	if found {
-		var can struct {
-			sourceFP   string                  `json:"source_fp"`
-			sourceName string                  `json:"source_name"`
-			Candidate  webrtc.ICECandidateInit `json:"candidate"`
-		}
-		if err != nil {
-			return fmt.Errorf("Failed to decode candidate: %w", err)
-		}
-		r.Seek(0, 0)
-		err = dec.Decode(&can)
 		peer, found := peers.Peers[fp]
 		if found {
-			err := peer.AddCandidate(can.Candidate)
+			var can2 webrtc.ICECandidateInit
+			err = json.Unmarshal([]byte(can.(string)), &can2)
+			if err != nil {
+				return fmt.Errorf("Failed to decode candidate: %w", err)
+			}
+			Logger.Debugf("Adding candidate %v", can2)
+			err := peer.AddCandidate(can2)
 			if err != nil {
 				return fmt.Errorf("Failed to add ice candidate: %w", err)
 			}
