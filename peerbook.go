@@ -269,14 +269,14 @@ func (pb *PeerbookClient) handleMessage(message []byte) error {
 			peer.Close()
 		}
 	}
-	o, found := m["offer"].(string)
+	o, found := m["offer"].(map[string]interface{})
 	if found {
-		var offer webrtc.SessionDescription
-		err = peers.DecodeOffer(&offer, []byte(o))
-		if err != nil {
-			return fmt.Errorf("Failed to get fingerprint from offer: %w", err)
+		offer := webrtc.SessionDescription{Type: webrtc.SDPTypeOffer}
+		if sdp, ok := o["sdp"].(string); ok {
+			offer.SDP = sdp
+		} else {
+			return fmt.Errorf("Missing 'sdp' paramater")
 		}
-
 		offerFP, err := peers.GetFingerprint(&offer)
 		if err != nil {
 			return fmt.Errorf("Failed to get offer's fingerprint: %w", err)
@@ -327,12 +327,12 @@ func (pb *PeerbookClient) handleMessage(message []byte) error {
 		pb.outChan <- j
 		return nil
 	}
-	can, found := m["candidate"]
+	can, found := m["candidate"].([]byte)
 	if found {
 		peer, found := peers.Peers[fp]
 		if found {
 			var can2 webrtc.ICECandidateInit
-			err = json.Unmarshal([]byte(can.(string)), &can2)
+			err = json.Unmarshal(can, &can2)
 			if err != nil {
 				return fmt.Errorf("Failed to decode candidate: %w", err)
 			}
