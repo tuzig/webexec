@@ -241,7 +241,7 @@ func (pb *PeerbookClient) Dial() error {
 	return nil
 }
 func (pb *PeerbookClient) handleMessage(message []byte) error {
-	var m map[string]interface{}
+	var m map[string]json.RawMessage
 	r := bytes.NewReader(message)
 	dec := json.NewDecoder(r)
 	err := dec.Decode(&m)
@@ -250,32 +250,45 @@ func (pb *PeerbookClient) handleMessage(message []byte) error {
 	}
 	code, found := m["code"]
 	if found {
-		Logger.Infof("Got a status message: %v %s", code, m["text"].(string))
+		var msg string
+		err = json.Unmarshal(code, &msg)
+		if err != nil {
+			return fmt.Errorf("Failed to decode message: %w", err)
+		}
+		Logger.Infof("Got a status message: %v %s", code, msg)
 		return nil
 	}
 	_, found = m["peers"]
 	if found {
 		return nil
 	}
-	fp, found := m["source_fp"].(string)
+	rawFP, found := m["source_fp"]
 	if !found {
 		return fmt.Errorf("Missing 'source_fp' paramater")
 	}
+	var fp string
+	err = json.Unmarshal(rawFP, &fp)
+	if err != nil {
+		return fmt.Errorf("Failed to decode message source_fp: %w", err)
+	}
 	v, found := m["peer_update"]
 	if found {
-		pu := v.(map[string]interface{})
+		var pu map[string]interface{}
+		err = json.Unmarshal(v, &pu)
+		if err != nil {
+			return fmt.Errorf("Failed to decode peer_update: %w", err)
+		}
 		peer, found := peers.Peers[fp]
 		if found && peer.PC != nil && !pu["verified"].(bool) {
 			peer.Close()
 		}
 	}
-	o, found := m["offer"].(map[string]interface{})
+	o, found := m["offer"]
 	if found {
-		offer := webrtc.SessionDescription{Type: webrtc.SDPTypeOffer}
-		if sdp, ok := o["sdp"].(string); ok {
-			offer.SDP = sdp
-		} else {
-			return fmt.Errorf("Missing 'sdp' paramater")
+		var offer webrtc.SessionDescription
+		err = json.Unmarshal(o, &offer)
+		if err != nil {
+			return fmt.Errorf("Failed to decode offer: %w", err)
 		}
 		offerFP, err := peers.GetFingerprint(&offer)
 		if err != nil {
@@ -313,12 +326,7 @@ func (pb *PeerbookClient) handleMessage(message []byte) error {
 			return fmt.Errorf("Failed to create an answer: %w", err)
 		}
 		err = peer.PC.SetLocalDescription(answer)
-		payload := make([]byte, 4096)
-		l, err := peers.EncodeOffer(payload, answer)
-		if err != nil {
-			return fmt.Errorf("Failed to encode offer : %w", err)
-		}
-		m := map[string]string{"answer": string(payload[:l]), "target": fp}
+		m := map[string]interface{}{"answer": answer, "target": fp}
 		Logger.Infof("Sending answer: %v", m)
 		j, err := json.Marshal(m)
 		if err != nil {
@@ -327,7 +335,7 @@ func (pb *PeerbookClient) handleMessage(message []byte) error {
 		pb.outChan <- j
 		return nil
 	}
-	can, found := m["candidate"].([]byte)
+	can, found := m["candidate"]
 	if found {
 		peer, found := peers.Peers[fp]
 		if found {
