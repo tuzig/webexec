@@ -7,6 +7,7 @@ require (
 	github.com/coreos/go-semver v0.3.1
 	github.com/creack/pty v1.1.11
 	github.com/dchest/uniuri v0.0.0-20200228104902-7aecb25e1fe5
+	github.com/google/uuid v1.3.0 // indirect
 	github.com/gorilla/websocket v1.4.2
 	github.com/hinshun/vt10x v0.0.0-20201217012337-52c1408d37d6
 	github.com/kardianos/osext v0.0.0-20190222173326-2bc1f35cddc0
