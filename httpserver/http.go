@@ -154,6 +154,17 @@ func (h *ConnectHandler) HandleOffer(w http.ResponseWriter, r *http.Request) {
 // HandleCandidate is called when a client requests the candidate endpoint
 // it should be a patch and the body webrtc's client candidate.
 func (h *ConnectHandler) HandleCandidate(w http.ResponseWriter, r *http.Request) {
+	if r.Method == "DELETE" {
+		// get the session id from the url
+		sessionID, err := uuid.Parse(r.URL.Path[len("/candidates/"):])
+		if err != nil {
+			http.Error(w, "Invalid session id", http.StatusBadRequest)
+			return
+		}
+		delete(h.sessions, sessionID)
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
 	if r.Method != "PATCH" {
 		http.Error(w, "Invalid method", http.StatusBadRequest)
 		return
