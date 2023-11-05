@@ -63,7 +63,11 @@ func StartHTTPServer(lc fx.Lifecycle, c *ConnectHandler, address AddressType,
 
 	c.peerConf.Logger = logger
 	AddHandlers(http.DefaultServeMux, c)
-	h := cors.Default().Handler(http.DefaultServeMux)
+	h := cors.New(cors.Options{
+		AllowedOrigins: []string{"*"},
+		AllowedMethods: []string{"POST", "PATCH", "DELETE"},
+		AllowedHeaders: []string{"*"},
+	}).Handler(http.DefaultServeMux)
 	server := &http.Server{Addr: string(address), Handler: h}
 	lc.Append(fx.Hook{
 		OnStart: func(context.Context) error {
@@ -181,8 +185,14 @@ func (h *ConnectHandler) HandleCandidate(w http.ResponseWriter, r *http.Request)
 		http.Error(w, "Failed to read request body", http.StatusBadRequest)
 		return
 	}
-	err = peer.AddCandidate(webrtc.ICECandidateInit{
-		Candidate: string(candidateData)})
+	var candidate webrtc.ICECandidateInit
+	err = json.Unmarshal(candidateData, &candidate)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Failed to decode candidate - %s", err),
+			http.StatusBadRequest)
+		return
+	}
+	err = peer.AddCandidate(candidate)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
