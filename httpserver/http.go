@@ -7,6 +7,7 @@ import (
 	"io"
 	"io/ioutil"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/google/uuid"
@@ -38,14 +39,20 @@ type ConnectRequest struct {
 	Offer       string `json:"offer"`
 }
 
-func NewConnectHandler(address AddressType,
+func NewConnectHandler(
 	backend AuthBackend, conf *peers.Conf, logger *zap.SugaredLogger) *ConnectHandler {
+
+	adress := os.Getenv("WEBEXEC_SERVER_URL")
+	if adress == "" {
+		adress = "http://localhost:7777"
+	}
+	logger.Infof("Using %s as server address", adress)
 
 	return &ConnectHandler{
 		authBackend: backend,
 		peerConf:    conf,
 		logger:      logger,
-		address:     "http://localhost:7777",
+		address:     AddressType(adress),
 		sessions:    make(map[uuid.UUID]*peers.Peer),
 	}
 }

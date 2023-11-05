@@ -204,7 +204,7 @@ func TestConnectBadFP(t *testing.T) {
 				return nil, nil
 			},
 		}
-		h := NewConnectHandler(AddressType(""), a, conf, logger)
+		h := NewConnectHandler(a, conf, logger)
 		h.HandleConnect(w, req)
 		require.Equal(t, http.StatusUnauthorized, w.Code)
 	}
@@ -251,7 +251,7 @@ func TestConnectWithBearer(t *testing.T) {
 				return nil, nil
 			},
 		}
-		h := NewConnectHandler(AddressType(""), a, conf, logger)
+		h := NewConnectHandler(a, conf, logger)
 		h.HandleConnect(w, req)
 		require.Equal(t, http.StatusOK, w.Code)
 	}
@@ -299,7 +299,7 @@ func TestConnectWithBadBearer(t *testing.T) {
 				return nil, nil
 			},
 		}
-		h := NewConnectHandler(AddressType(""), a, conf, logger)
+		h := NewConnectHandler(a, conf, logger)
 		h.HandleConnect(w, req)
 		require.Equal(t, http.StatusUnauthorized, w.Code)
 	}

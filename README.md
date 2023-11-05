@@ -31,11 +31,19 @@ $ go install ./...
 
 # Ports Used
 
-webexec has a signlaing server that listen for connection request in
-ports 7777. Once communication is established, WebRTC uses UDP ports with 
+webexec has a signlaing server that listen for connection request on 
+ports 7777. By default it listens only for localhost. To
+open webexec to the world set `WEBEXEC_SERVER_URL` to the the server's
+public URL, default is `http://localhost:7777`.
+
+Once communication is established, WebRTC uses UDP ports with 
 a default range of 60000-61000.
 If you prefer another range you can set the `udp_port_min` and `udp_port_max`
 in the `[net]` section of the conf file and `webexec restart`.
+
+When running on cloud providers you'll need to set the firewall rules
+to allow traffic from any address to tcp port 7777 and UDP range 60000-61000
+(same as mosh).
 
 ## Contributing
 
