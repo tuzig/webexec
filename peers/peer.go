@@ -52,6 +52,7 @@ type Conf struct {
 	GetWelcome        func() string
 	OnCTRLMsg         func(*Peer, webrtc.DataChannelMessage)
 	OnStateChange     func(*Peer, webrtc.PeerConnectionState)
+	WebrtcSetting     *webrtc.SettingEngine
 }
 
 // Peer is a type used to remember a client.
@@ -72,13 +73,18 @@ type Peer struct {
 func NewPeer(fp string, conf *Conf) (*Peer, error) {
 	webrtcAPIM.Lock()
 	if WebRTCAPI == nil {
-		s := webrtc.SettingEngine{}
+		var s *webrtc.SettingEngine
+		if conf.WebrtcSetting != nil {
+			s = conf.WebrtcSetting
+		} else {
+			s = &webrtc.SettingEngine{}
+		}
 		if conf.PortMax > 0 {
 			s.SetEphemeralUDPPortRange(conf.PortMin, conf.PortMax)
 		}
 		s.SetICETimeouts(
 			conf.DisconnectTimeout, conf.FailedTimeout, conf.KeepAliveInterval)
-		WebRTCAPI = webrtc.NewAPI(webrtc.WithSettingEngine(s))
+		WebRTCAPI = webrtc.NewAPI(webrtc.WithSettingEngine(*s))
 	}
 	webrtcAPIM.Unlock()
 	iceservers, err := conf.GetICEServers()
