@@ -115,18 +115,20 @@ func (h *ConnectHandler) IsAuthorized(r *http.Request, fp string) bool {
 // it should be a post and the body webrtc's client offer.
 // In reponse the handlers send the server's webrtc's offer.
 func (h *ConnectHandler) HandleOffer(w http.ResponseWriter, r *http.Request) {
-	var offer webrtc.SessionDescription
 	h.logger.Debugf("Got request from %s", r.RemoteAddr)
 	if r.Method != "POST" {
 		http.Error(w, "Invalid method", http.StatusBadRequest)
 		return
 	}
-	// unmarshal the offer from the request body
-	dec := json.NewDecoder(r.Body)
-	err := dec.Decode(&offer)
+	// read the sdp string from the request body
+	sdp, err := ioutil.ReadAll(r.Body)
 	if err != nil {
-		http.Error(w, fmt.Sprintf("Failed to decode SDP: %s", err), http.StatusBadRequest)
+		http.Error(w, "Failed to read request body", http.StatusBadRequest)
 		return
+	}
+	offer := webrtc.SessionDescription{
+		Type: webrtc.SDPTypeOffer,
+		SDP:  string(sdp),
 	}
 	fp, err := peers.GetFingerprint(&offer)
 	if err != nil {
