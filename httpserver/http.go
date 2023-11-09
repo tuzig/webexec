@@ -69,13 +69,9 @@ func StartHTTPServer(lc fx.Lifecycle, c *ConnectHandler, address AddressType,
 	logger *zap.SugaredLogger) *http.Server {
 
 	c.peerConf.Logger = logger
-	AddHandlers(http.DefaultServeMux, c)
-	h := cors.New(cors.Options{
-		AllowedOrigins: []string{"*"},
-		AllowedMethods: []string{"POST", "PATCH", "DELETE"},
-		AllowedHeaders: []string{"*"},
-	}).Handler(http.DefaultServeMux)
-	server := &http.Server{Addr: string(address), Handler: h}
+	server := &http.Server{
+		Addr:    string(address),
+		Handler: c.GetHandler()}
 	lc.Append(fx.Hook{
 		OnStart: func(context.Context) error {
 			logger.Info("Starting HTTP server")
@@ -89,6 +85,14 @@ func StartHTTPServer(lc fx.Lifecycle, c *ConnectHandler, address AddressType,
 		},
 	})
 	return server
+}
+func (h *ConnectHandler) GetHandler() http.Handler {
+	handler := cors.New(cors.Options{
+		AllowedOrigins: []string{"*"},
+		AllowedMethods: []string{"POST", "PATCH", "DELETE"},
+		AllowedHeaders: []string{"*"},
+	}).Handler(http.DefaultServeMux)
+	return handler
 }
 func (h *ConnectHandler) IsAuthorized(r *http.Request, fp string) bool {
 	// check for localhost
