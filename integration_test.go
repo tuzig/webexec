@@ -254,10 +254,11 @@ func TestPayloadOperations(t *testing.T) {
 func TestMarkerRestore(t *testing.T) {
 	initTest(t)
 	var (
-		cID       string
-		dc        *webrtc.DataChannel
-		markerRef int
-		marker    int
+		cID         string
+		dc          *webrtc.DataChannel
+		markerRef   int
+		markerMutex sync.Mutex
+		marker      int
 	)
 	gotSetMarkerAck := make(chan bool)
 	gotFirst := make(chan bool)
@@ -283,6 +284,8 @@ func TestMarkerRestore(t *testing.T) {
 			require.Nil(t, err, "Failed to marshal the server msg: %v", err)
 			if cm.Type == "ack" {
 				args := ParseAck(t, msg)
+				markerMutex.Lock()
+				defer markerMutex.Unlock()
 				if args.Ref == markerRef {
 					// convert the body to int
 					marker, err = strconv.Atoi(string(args.Body))
@@ -319,7 +322,9 @@ func TestMarkerRestore(t *testing.T) {
 		t.Error("Timeout waiting for first datfirst data data")
 	case <-gotFirst:
 	}
+	markerMutex.Lock()
 	markerRef = getMarker(cdc)
+	markerMutex.Unlock()
 	select {
 	case <-time.After(6 * time.Second):
 		t.Error("Timeout waiting for marker ack")
