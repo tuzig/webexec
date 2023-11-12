@@ -69,6 +69,7 @@ func StartHTTPServer(lc fx.Lifecycle, c *ConnectHandler, address AddressType,
 	logger *zap.SugaredLogger) *http.Server {
 
 	c.peerConf.Logger = logger
+	AddHandlers(http.DefaultServeMux, c)
 	server := &http.Server{
 		Addr:    string(address),
 		Handler: c.GetHandler()}
