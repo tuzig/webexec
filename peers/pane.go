@@ -24,6 +24,7 @@ var Panes = NewPanesDB()
 
 // Pane type hold a command, a pseudo tty and the connected data channels
 type Pane struct {
+	sync.Mutex
 	ID     int
 	parent int
 	// C holds the exectuted command
@@ -37,7 +38,6 @@ type Pane struct {
 	cancelRWLoop context.CancelFunc
 	ctx          context.Context
 	peer         *Peer
-	RunMutex     sync.Mutex
 }
 
 // ExecCommand in ahelper function for executing a command
@@ -130,9 +130,9 @@ func (pane *Pane) Run(command []string) error {
 		return err
 	}
 	pane.C = cmd
-	pane.RunMutex.Lock()
+	pane.Lock()
 	pane.IsRunning = true
-	pane.RunMutex.Unlock()
+	pane.Unlock()
 	pane.TTY = tty
 	errbuf := new(bytes.Buffer)
 	if cmd != nil {
@@ -248,8 +248,8 @@ func (pane *Pane) Kill() {
 		}
 		CDB.Delete(d)
 	}
-	pane.RunMutex.Lock()
-	defer pane.RunMutex.Unlock()
+	pane.Lock()
+	defer pane.Unlock()
 	if pane.IsRunning {
 		pane.cancelRWLoop()
 		if pane.C != nil {

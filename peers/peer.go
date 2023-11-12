@@ -290,8 +290,8 @@ func (peer *Peer) Reconnect(d *webrtc.DataChannel, id int) (*Pane, error) {
 	if pane == nil {
 		return nil, fmt.Errorf("Got a bad pane id: %d", id)
 	}
-	pane.RunMutex.Lock()
-	defer pane.RunMutex.Unlock()
+	pane.Lock()
+	defer pane.Unlock()
 	if pane.IsRunning {
 		c := CDB.Add(d, pane, peer)
 		d.OnMessage(pane.OnMessage)

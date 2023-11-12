@@ -155,9 +155,9 @@ func TestSimpleEcho(t *testing.T) {
 	lp := panes[len(panes)-1]
 
 	waitForChild(lp.C.Process.Pid, time.Second)
-	lp.RunMutex.Lock()
+	lp.Lock()
 	require.False(t, lp.IsRunning)
-	lp.RunMutex.Unlock()
+	lp.Unlock()
 	// For some reason we sometimes get an empty message and count can be 3
 	require.GreaterOrEqual(t, count, 2, "Expected to recieve 2 messages and got %d", count)
 }
