@@ -57,6 +57,7 @@ type Conf struct {
 
 // Peer is a type used to remember a client.
 type Peer struct {
+	sync.Mutex
 	FP                string
 	Token             string
 	LastContact       *time.Time
@@ -359,6 +360,8 @@ func (peer *Peer) Broadcast(typ string, args interface{}) error {
 	return nil
 }
 func (peer *Peer) Close() {
+	peer.Lock()
+	defer peer.Unlock()
 	if peer.PC != nil {
 		err := peer.PC.Close()
 		if err != nil {
