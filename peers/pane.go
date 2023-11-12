@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"sync"
 	"time"
 
 	"github.com/creack/pty"
@@ -36,6 +37,7 @@ type Pane struct {
 	cancelRWLoop context.CancelFunc
 	ctx          context.Context
 	peer         *Peer
+	RunMutex     sync.Mutex
 }
 
 // ExecCommand in ahelper function for executing a command
@@ -128,7 +130,9 @@ func (pane *Pane) Run(command []string) error {
 		return err
 	}
 	pane.C = cmd
+	pane.RunMutex.Lock()
 	pane.IsRunning = true
+	pane.RunMutex.Unlock()
 	pane.TTY = tty
 	errbuf := new(bytes.Buffer)
 	if cmd != nil {
@@ -244,6 +248,8 @@ func (pane *Pane) Kill() {
 		}
 		CDB.Delete(d)
 	}
+	pane.RunMutex.Lock()
+	defer pane.RunMutex.Unlock()
 	if pane.IsRunning {
 		pane.cancelRWLoop()
 		if pane.C != nil {
