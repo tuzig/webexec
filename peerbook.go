@@ -250,12 +250,12 @@ func (pb *PeerbookClient) handleMessage(message []byte) error {
 	}
 	code, found := m["code"]
 	if found {
-		var msg string
-		err = json.Unmarshal(code, &msg)
+		var codeInt int
+		err = json.Unmarshal(code, &codeInt)
 		if err != nil {
 			return fmt.Errorf("Failed to decode message: %w", err)
 		}
-		Logger.Infof("Got a status message: %v %s", code, msg)
+		Logger.Infof("Got a status message: %v %d", code, codeInt)
 		return nil
 	}
 	_, found = m["peers"]
