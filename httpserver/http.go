@@ -18,6 +18,8 @@ import (
 	"go.uber.org/zap"
 )
 
+const SessionTTL = time.Second * 30
+
 type AddressType string
 
 type AuthBackend interface {
@@ -57,19 +59,13 @@ func NewConnectHandler(
 	}
 }
 
-func AddHandlers(mux *http.ServeMux, c *ConnectHandler) {
-	mux.HandleFunc("/connect", c.HandleConnect)
-	mux.HandleFunc("/offer", c.HandleOffer)
-	mux.HandleFunc("/candidates/", c.HandleCandidate)
-}
-
 // StartHTTPServer starts a http server that listens to the given address
 // and serves the connect endpoint.
 func StartHTTPServer(lc fx.Lifecycle, c *ConnectHandler, address AddressType,
 	logger *zap.SugaredLogger) *http.Server {
 
 	c.peerConf.Logger = logger
-	AddHandlers(http.DefaultServeMux, c)
+	c.AddHandlers(http.DefaultServeMux)
 	server := &http.Server{
 		Addr:    string(address),
 		Handler: c.GetHandler()}
@@ -95,6 +91,12 @@ func (h *ConnectHandler) GetHandler() http.Handler {
 	}).Handler(http.DefaultServeMux)
 	return handler
 }
+func (h *ConnectHandler) AddHandlers(mux *http.ServeMux) {
+	mux.HandleFunc("/connect", h.HandleConnect)
+	mux.HandleFunc("/offer", h.HandleOffer)
+	mux.HandleFunc("/candidates/", h.HandleCandidate)
+}
+
 func (h *ConnectHandler) IsAuthorized(r *http.Request, fp string) bool {
 	// check for localhost
 	a := r.RemoteAddr
@@ -157,6 +159,14 @@ func (h *ConnectHandler) HandleOffer(w http.ResponseWriter, r *http.Request) {
 	}
 	sessionID := uuid.New()
 	h.sessions[sessionID] = peer
+	go func() {
+		time.Sleep(SessionTTL)
+		_, found := h.sessions[sessionID]
+		if !found {
+			return
+		}
+		delete(h.sessions, sessionID)
+	}()
 
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Access-Control-Expose-Headers", "Location")
@@ -172,13 +182,13 @@ func (h *ConnectHandler) HandleOffer(w http.ResponseWriter, r *http.Request) {
 // HandleCandidate is called when a client requests the candidate endpoint
 // it should be a patch and the body webrtc's client candidate.
 func (h *ConnectHandler) HandleCandidate(w http.ResponseWriter, r *http.Request) {
+	sessionID, err := uuid.Parse(r.URL.Path[len("/candidates/"):])
+	if err != nil {
+		http.Error(w, "Invalid session id", http.StatusBadRequest)
+		return
+	}
 	if r.Method == "DELETE" {
 		// get the session id from the url
-		sessionID, err := uuid.Parse(r.URL.Path[len("/candidates/"):])
-		if err != nil {
-			http.Error(w, "Invalid session id", http.StatusBadRequest)
-			return
-		}
 		delete(h.sessions, sessionID)
 		w.WriteHeader(http.StatusNoContent)
 		return
@@ -187,13 +197,12 @@ func (h *ConnectHandler) HandleCandidate(w http.ResponseWriter, r *http.Request)
 		http.Error(w, "Invalid method", http.StatusBadRequest)
 		return
 	}
-	// get the session id from the url
-	sessionID, err := uuid.Parse(r.URL.Path[len("/candidates/"):])
-	if err != nil {
-		http.Error(w, "Invalid session id", http.StatusBadRequest)
+	// ensure uuid is valid
+	peer, found := h.sessions[sessionID]
+	if !found {
+		http.Error(w, "Session not found", http.StatusNotFound)
 		return
 	}
-	peer := h.sessions[sessionID]
 	candidateData, err := ioutil.ReadAll(r.Body)
 	if err != nil {
 		http.Error(w, "Failed to read request body", http.StatusBadRequest)

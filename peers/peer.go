@@ -333,7 +333,7 @@ func (peer *Peer) SendControlMessage(typ string, args interface{}) error {
 
 // SendMessage marshales a message and sends it over the cdc
 func (peer *Peer) SendMessage(msg []byte) error {
-	peer.logger.Infof("Sending ctrl message: %s", msg)
+	peer.logger.Infof("Sending message: %s", msg)
 	return peer.cdc.Send(msg)
 }
 
