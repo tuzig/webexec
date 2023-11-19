@@ -21,10 +21,8 @@ import (
 	"time"
 
 	"github.com/coreos/go-semver/semver"
-	"github.com/creack/pty"
 	"github.com/kardianos/osext"
 	"github.com/pion/webrtc/v3"
-	"github.com/riywo/loginshell"
 	"github.com/tuzig/webexec/httpserver"
 	"github.com/tuzig/webexec/peers"
 	"github.com/tuzig/webexec/pidfile"
@@ -633,8 +631,6 @@ func handleCTRLMsg(peer *peers.Peer, msg webrtc.DataChannelMessage) {
 	m := peers.CTRLMessage{
 		Args: &raw,
 	}
-	t := true
-	dcOpts := &webrtc.DataChannelInit{Ordered: &t}
 	Logger.Infof("Got a CTRLMessage: %q\n", string(msg.Data))
 	err := json.Unmarshal(msg.Data, &m)
 	if err != nil {
@@ -643,162 +639,21 @@ func handleCTRLMsg(peer *peers.Peer, msg webrtc.DataChannelMessage) {
 	}
 	switch m.Type {
 	case "resize":
-		var resizeArgs peers.ResizeArgs
-		err = json.Unmarshal(raw, &resizeArgs)
-		if err != nil {
-			Logger.Infof("Failed to parse incoming control message: %v", err)
-			return
-		}
-		cID := resizeArgs.PaneID
-		pane := peers.Panes.Get(cID)
-		if pane == nil {
-			Logger.Error("Failed to parse resize message pane_id out of range")
-			return
-		}
-		if pane.TTY == nil {
-			Logger.Warnf("Tried to resize a pane with no tty")
-			peer.SendNack(m, "Tried to resize a pane with no tty")
-			return
-		}
-		var ws pty.Winsize
-		ws.Cols = resizeArgs.Sx
-		ws.Rows = resizeArgs.Sy
-		pane.Resize(&ws)
-		err := peer.Broadcast("resize", resizeArgs)
-		if err != nil {
-			Logger.Errorf("Failed to broadcast resize message: %v", err)
-			peer.SendNack(m, "Failed to broadcast resize message")
-			return
-		}
-		err = peer.SendAck(m, "")
-		if err != nil {
-			Logger.Errorf("#%d: Failed to send a resize ack: %v", peer.FP, err)
-			return
-		}
+		handleResize(peer, m, raw)
 	case "restore":
-		var args peers.RestoreArgs
-		err = json.Unmarshal(raw, &args)
-		peer.Marker = args.Marker
-		err = peer.SendAck(m, string(peers.Payload))
+		handleRestore(peer, m, raw)
 	case "get_payload":
-		err = peer.SendAck(m, string(peers.Payload))
+		handleGetPayload(peer, m)
 	case "set_payload":
-		var payloadArgs peers.SetPayloadArgs
-		err = json.Unmarshal(raw, &payloadArgs)
-		Logger.Infof("Setting payload to: %s", string(peers.Payload))
-		peers.Payload = payloadArgs.Payload
-		// send the set_payload message to all connected peers
-		peer.Broadcast("set_payload", payloadArgs)
-		err = peer.SendAck(m, string(peers.Payload))
+		handleSetPayload(peer, m, raw)
 	case "mark":
-		// acdb a marker and store it in each pane
-		markerM.Lock()
-		lastMarker++
-		peer.Marker = lastMarker
-		markerM.Unlock()
-		for _, pane := range peers.Panes.All() {
-			pane.Buffer.Mark(peer.Marker)
-		}
-		err = peer.SendAck(m, fmt.Sprintf("%d", peer.Marker))
+		handleMark(peer, m)
 	case "reconnect_pane":
-		var a peers.ReconnectPaneArgs
-		err = json.Unmarshal(raw, &a)
-		if err != nil {
-			Logger.Infof("Failed to parse incoming control message: %v", err)
-			return
-		}
-		Logger.Infof("@%d: got reconnect_pane", a.ID)
-
-		l := fmt.Sprintf("%d:%d", m.Ref, a.ID)
-		d, err := peer.PC.CreateDataChannel(l, dcOpts)
-		if err != nil {
-			Logger.Warnf("Failed to create data channel : %v", err)
-			return
-		}
-		d.OnOpen(func() {
-			Logger.Info("open is completed!!!")
-			pane, err := peer.Reconnect(d, a.ID)
-			if err != nil || pane == nil {
-				Logger.Warnf("Failed to reconnect to pane  data channel : %v", err)
-				peer.SendNack(m, fmt.Sprintf("Failed to reconnect to: %d", a.ID))
-				return
-			} else {
-				peer.SendAck(m, fmt.Sprintf("%d", pane.ID))
-			}
-		})
-
+		handleReconnectPane(peer, m, raw)
 	case "add_pane":
-		var a peers.AddPaneArgs
-		var ws *pty.Winsize
-		err = json.Unmarshal(raw, &a)
-		if err != nil {
-			Logger.Infof("Failed to parse incoming control message: %v", err)
-			return
-		}
-		Logger.Infof("got add_pane: %v", a)
-		if a.Rows > 0 && a.Cols > 0 {
-			ws = &pty.Winsize{Rows: a.Rows, Cols: a.Cols, X: a.X, Y: a.Y}
-		} else {
-			ws = &pty.Winsize{Rows: 24, Cols: 80}
-			Logger.Warn("Got an add_pane commenad with no rows or cols")
-		}
-
-		if a.Command[0] == "*" {
-			shell, err := loginshell.Shell()
-			if err != nil {
-				Logger.Warnf("Failed to determine user's shell: %v", err)
-				a.Command[0] = "/bin/bash"
-			} else {
-				Logger.Infof("Using %s for shell", shell)
-				a.Command[0] = shell
-			}
-		}
-		/* TODO: delete
-		dirname, err := os.UserHomeDir()
-		if err != nil {
-			Logger.Warnf("Failed to determine user's home directory: %v", err)
-			dirname = "/"
-		}
-		cmd := append([]string{"env", fmt.Sprintf("HOME=%s", dirname)}, a.Command...)
-		*/
-		cmd := a.Command
-		pane, err := peers.NewPane(peer, ws, a.Parent)
-		if err != nil {
-			Logger.Warnf("Failed to add a new pane: %v", err)
-			return
-		}
-		l := fmt.Sprintf("%d:%d", m.Ref, pane.ID)
-		d, err := peer.PC.CreateDataChannel(l, dcOpts)
-		if err != nil {
-			msg := fmt.Sprintf("Failed to create data channel : %s", l)
-			peer.SendNack(m, msg)
-			Logger.Warnf(msg)
-			return
-		}
-		d.OnOpen(func() {
-			if peer.Conf.GetWelcome != nil {
-				msg := peer.Conf.GetWelcome()
-				Logger.Infof("Sending welcome message: %s", msg)
-				err := d.Send([]byte(msg))
-				if err != nil {
-					Logger.Warnf("Failed to send welcome message: %v", err)
-				}
-			}
-			pane.Run(cmd)
-			c := peers.CDB.Add(d, pane, peer)
-			Logger.Infof("opened data channel for pane %d", pane.ID)
-			peer.SendAck(m, fmt.Sprintf("%d", pane.ID))
-			d.OnMessage(pane.OnMessage)
-			d.OnClose(func() {
-				peers.CDB.Delete(c)
-			})
-		})
-
+		handleAddPane(peer, m, raw)
 	default:
 		Logger.Errorf("Got a control message with unknown type: %q", m.Type)
-	}
-	if err != nil {
-		Logger.Errorf("#%d: Failed to send [n]ack: %v", peer.FP, err)
 	}
 	return
 }
