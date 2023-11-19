@@ -166,7 +166,6 @@ func (pb *PeerbookClient) Go() error {
 	// writer
 	go func() {
 		for {
-			Logger.Info("in sender for")
 			select {
 			case <-done:
 				return
@@ -242,7 +241,7 @@ func (pb *PeerbookClient) Dial() error {
 	return nil
 }
 func (pb *PeerbookClient) handleMessage(message []byte) error {
-	var m map[string]interface{}
+	var m map[string]json.RawMessage
 	r := bytes.NewReader(message)
 	dec := json.NewDecoder(r)
 	err := dec.Decode(&m)
@@ -251,41 +250,52 @@ func (pb *PeerbookClient) handleMessage(message []byte) error {
 	}
 	code, found := m["code"]
 	if found {
-		Logger.Infof("Got a status message: %v %s", code, m["text"].(string))
+		var codeInt int
+		err = json.Unmarshal(code, &codeInt)
+		if err != nil {
+			return fmt.Errorf("Failed to decode message: %w", err)
+		}
+		Logger.Infof("Got a status message: %v %d", code, codeInt)
 		return nil
 	}
 	_, found = m["peers"]
 	if found {
 		return nil
 	}
-	fp, found := m["source_fp"].(string)
+	rawFP, found := m["source_fp"]
 	if !found {
 		return fmt.Errorf("Missing 'source_fp' paramater")
 	}
+	var fp string
+	err = json.Unmarshal(rawFP, &fp)
+	if err != nil {
+		return fmt.Errorf("Failed to decode message source_fp: %w", err)
+	}
 	v, found := m["peer_update"]
 	if found {
-		pu := v.(map[string]interface{})
+		var pu map[string]interface{}
+		err = json.Unmarshal(v, &pu)
+		if err != nil {
+			return fmt.Errorf("Failed to decode peer_update: %w", err)
+		}
 		peer, found := peers.Peers[fp]
 		if found && peer.PC != nil && !pu["verified"].(bool) {
-			peer.PC.Close()
-			peer.PC = nil
+			peer.Close()
 		}
 	}
-	o, found := m["offer"].(string)
+	o, found := m["offer"]
 	if found {
 		var offer webrtc.SessionDescription
-		err = peers.DecodeOffer(&offer, []byte(o))
+		err = json.Unmarshal(o, &offer)
 		if err != nil {
-			return fmt.Errorf("Failed to get fingerprint from offer: %w", err)
+			return fmt.Errorf("Failed to decode offer: %w", err)
 		}
-
 		offerFP, err := peers.GetFingerprint(&offer)
 		if err != nil {
 			return fmt.Errorf("Failed to get offer's fingerprint: %w", err)
 		}
 		if offerFP != fp {
-			peers.Peers[fp].PC.Close()
-			peers.Peers[fp].PC = nil
+			peers.Peers[fp].Close()
 			Logger.Warnf("Refusing connection because fp mismatch: %s", fp)
 			return fmt.Errorf("Mismatched fingerprint: %s", fp)
 		}
@@ -316,12 +326,7 @@ func (pb *PeerbookClient) handleMessage(message []byte) error {
 			return fmt.Errorf("Failed to create an answer: %w", err)
 		}
 		err = peer.PC.SetLocalDescription(answer)
-		payload := make([]byte, 4096)
-		l, err := peers.EncodeOffer(payload, answer)
-		if err != nil {
-			return fmt.Errorf("Failed to encode offer : %w", err)
-		}
-		m := map[string]string{"answer": string(payload[:l]), "target": fp}
+		m := map[string]interface{}{"answer": answer, "target": fp}
 		Logger.Infof("Sending answer: %v", m)
 		j, err := json.Marshal(m)
 		if err != nil {
@@ -330,18 +335,17 @@ func (pb *PeerbookClient) handleMessage(message []byte) error {
 		pb.outChan <- j
 		return nil
 	}
-	_, found = m["candidate"]
+	can, found := m["candidate"]
 	if found {
-		var can struct {
-			sourceFP   string                  `json:"source_fp"`
-			sourceName string                  `json:"source_name"`
-			Candidate  webrtc.ICECandidateInit `json:"candidate"`
-		}
-		r.Seek(0, 0)
-		err = dec.Decode(&can)
 		peer, found := peers.Peers[fp]
 		if found {
-			err := peer.AddCandidate(can.Candidate)
+			var can2 webrtc.ICECandidateInit
+			err = json.Unmarshal(can, &can2)
+			if err != nil {
+				return fmt.Errorf("Failed to decode candidate: %w", err)
+			}
+			Logger.Debugf("Adding candidate %v", can2)
+			err := peer.AddCandidate(can2)
 			if err != nil {
 				return fmt.Errorf("Failed to add ice candidate: %w", err)
 			}

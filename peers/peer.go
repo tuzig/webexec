@@ -16,7 +16,6 @@ import (
 
 	"github.com/creack/pty"
 	"github.com/pion/webrtc/v3"
-	"github.com/riywo/loginshell"
 	"go.uber.org/zap"
 )
 
@@ -31,13 +30,11 @@ var (
 	// Payload holds the client's payload
 	Payload []byte
 	// WebRTCAPI is the gateway to webrtc calls
-	WebRTCAPI *webrtc.API
-	// the id of the last marker used
-	lastMarker = 0
-	markerM    sync.RWMutex
+	WebRTCAPI  *webrtc.API
 	webrtcAPIM sync.Mutex
 	peersM     sync.Mutex
-	cdb        = NewClientsDB()
+	CDB        = NewClientsDB()
+	msgIDM     sync.Mutex
 )
 
 type Conf struct {
@@ -53,10 +50,14 @@ type Conf struct {
 	Certificate       *webrtc.Certificate
 	RunCommand        RunCommandInterface
 	GetWelcome        func() string
+	OnCTRLMsg         func(*Peer, webrtc.DataChannelMessage)
+	OnStateChange     func(*Peer, webrtc.PeerConnectionState)
+	WebrtcSetting     *webrtc.SettingEngine
 }
 
 // Peer is a type used to remember a client.
 type Peer struct {
+	sync.Mutex
 	FP                string
 	Token             string
 	LastContact       *time.Time
@@ -73,13 +74,18 @@ type Peer struct {
 func NewPeer(fp string, conf *Conf) (*Peer, error) {
 	webrtcAPIM.Lock()
 	if WebRTCAPI == nil {
-		s := webrtc.SettingEngine{}
+		var s *webrtc.SettingEngine
+		if conf.WebrtcSetting != nil {
+			s = conf.WebrtcSetting
+		} else {
+			s = &webrtc.SettingEngine{}
+		}
 		if conf.PortMax > 0 {
 			s.SetEphemeralUDPPortRange(conf.PortMin, conf.PortMax)
 		}
 		s.SetICETimeouts(
 			conf.DisconnectTimeout, conf.FailedTimeout, conf.KeepAliveInterval)
-		WebRTCAPI = webrtc.NewAPI(webrtc.WithSettingEngine(s))
+		WebRTCAPI = webrtc.NewAPI(webrtc.WithSettingEngine(*s))
 	}
 	webrtcAPIM.Unlock()
 	iceservers, err := conf.GetICEServers()
@@ -116,9 +122,7 @@ func NewPeer(fp string, conf *Conf) (*Peer, error) {
 	pc.OnConnectionStateChange(func(state webrtc.PeerConnectionState) {
 		peer.logger.Infof("WebRTC Connection State change: %s", state.String())
 		if state == webrtc.PeerConnectionStateFailed {
-			peer.PC.Close()
-			peer.PC = nil
-			return
+			peer.Close()
 		}
 		if state == webrtc.PeerConnectionStateConnecting {
 			for c := range peer.pendingCandidates {
@@ -127,6 +131,9 @@ func NewPeer(fp string, conf *Conf) (*Peer, error) {
 					peer.logger.Errorf("Failed to add ice candidate: %s", err)
 				}
 			}
+		}
+		if peer.Conf.OnStateChange != nil {
+			peer.Conf.OnStateChange(&peer, state)
 		}
 	})
 	pc.OnDataChannel(peer.OnChannelReq)
@@ -182,10 +189,10 @@ func (peer *Peer) OnChannelReq(d *webrtc.DataChannel) {
 			peer.logger.Errorf(msg)
 		}
 		if pane != nil {
-			c := cdb.Add(d, pane, peer)
+			c := CDB.Add(d, pane, peer)
 			d.OnMessage(pane.OnMessage)
 			d.OnClose(func() {
-				cdb.Delete(c)
+				CDB.Delete(c)
 			})
 		}
 		if label != "%" {
@@ -224,7 +231,12 @@ func (peer *Peer) GetOrCreatePane(d *webrtc.DataChannel) (*Pane, error) {
 		//TODO: if there's an older cdc close it
 		peer.logger.Info("Got a request to open a control channel")
 		peer.cdc = d
-		d.OnMessage(peer.OnCTRLMsg)
+		d.OnMessage(func(msg webrtc.DataChannelMessage) {
+			peer.Conf.OnCTRLMsg(peer, msg)
+		})
+		if peer.Conf.OnCTRLMsg != nil {
+			peer.Conf.OnCTRLMsg(peer, webrtc.DataChannelMessage{})
+		}
 		return nil, nil
 	}
 	// if the label starts witha digit, i.e. "80x24" it needs a pty
@@ -259,7 +271,7 @@ func (peer *Peer) GetOrCreatePane(d *webrtc.DataChannel) (*Pane, error) {
 	}
 	if pane != nil {
 		pane.sendFirstMessage(d)
-		err = pane.run(fields[cmdIndex:])
+		err = pane.Run(fields[cmdIndex:])
 		if err != nil {
 			return nil, fmt.Errorf("Failed to run command: %q", err)
 		}
@@ -278,11 +290,13 @@ func (peer *Peer) Reconnect(d *webrtc.DataChannel, id int) (*Pane, error) {
 	if pane == nil {
 		return nil, fmt.Errorf("Got a bad pane id: %d", id)
 	}
+	pane.Lock()
+	defer pane.Unlock()
 	if pane.IsRunning {
-		c := cdb.Add(d, pane, peer)
+		c := CDB.Add(d, pane, peer)
 		d.OnMessage(pane.OnMessage)
 		d.OnClose(func() {
-			cdb.Delete(c)
+			CDB.Delete(c)
 		})
 		pane.Restore(d, peer.Marker)
 		return pane, nil
@@ -292,15 +306,35 @@ func (peer *Peer) Reconnect(d *webrtc.DataChannel, id int) (*Pane, error) {
 }
 
 // SendAck sends an ack for a given control message
-func (peer *Peer) SendAck(cm CTRLMessage, body []byte) error {
+func (peer *Peer) SendAck(cm CTRLMessage, body string) error {
 	args := AckArgs{Ref: cm.Ref, Body: body}
-	return SendCTRLMsg(peer, "ack", &args)
+	return peer.SendControlMessage("ack", &args)
 }
 
 // SendNack sends an nack for a given control message
 func (peer *Peer) SendNack(cm CTRLMessage, desc string) error {
 	args := NAckArgs{Ref: cm.Ref, Desc: desc}
-	return SendCTRLMsg(peer, "nack", &args)
+	return peer.SendControlMessage("nack", &args)
+}
+
+// SendControlMessage sends a control message to the client
+func (peer *Peer) SendControlMessage(typ string, args interface{}) error {
+	msgIDM.Lock()
+	peer.LastRef++
+	msg := CTRLMessage{time.Now().UnixNano() / 1000000, peer.LastRef,
+		typ, args}
+	msgIDM.Unlock()
+	msgJ, err := json.Marshal(msg)
+	if err != nil {
+		return fmt.Errorf("Failed to marshal the ack msg: %e\n   msg == %q", err, msg)
+	}
+	return peer.SendMessage(msgJ)
+}
+
+// SendMessage marshales a message and sends it over the cdc
+func (peer *Peer) SendMessage(msg []byte) error {
+	peer.logger.Infof("Sending ctrl message: %s", msg)
+	return peer.cdc.Send(msg)
 }
 
 // Peer.AddCandidate adds a new ICE candidate to the peer
@@ -317,7 +351,7 @@ func (peer *Peer) AddCandidate(candidate webrtc.ICECandidateInit) error {
 func (peer *Peer) Broadcast(typ string, args interface{}) error {
 	for _, p := range Peers {
 		if p != peer && p.cdc != nil {
-			err := SendCTRLMsg(p, typ, args)
+			err := p.SendControlMessage(typ, args)
 			if err != nil {
 				peer.logger.Warnf("Failed to send a broadcast message: %v", err)
 			}
@@ -325,181 +359,16 @@ func (peer *Peer) Broadcast(typ string, args interface{}) error {
 	}
 	return nil
 }
-
-// OnCTRLMsg handles incoming control messages
-func (peer *Peer) OnCTRLMsg(msg webrtc.DataChannelMessage) {
-	var raw json.RawMessage
-	m := CTRLMessage{
-		Args: &raw,
+func (peer *Peer) Close() {
+	peer.Lock()
+	defer peer.Unlock()
+	if peer.PC != nil {
+		err := peer.PC.Close()
+		if err != nil {
+			peer.logger.Error("Failed closing peer connection: %w", err)
+		}
+		peer.PC = nil
 	}
-	t := true
-	dcOpts := &webrtc.DataChannelInit{Ordered: &t}
-	peer.logger.Infof("Got a CTRLMessage: %q\n", string(msg.Data))
-	err := json.Unmarshal(msg.Data, &m)
-	if err != nil {
-		peer.logger.Infof("Failed to parse incoming control message: %v", err)
-		return
-	}
-	switch m.Type {
-	case "resize":
-		var resizeArgs ResizeArgs
-		err = json.Unmarshal(raw, &resizeArgs)
-		if err != nil {
-			peer.logger.Infof("Failed to parse incoming control message: %v", err)
-			return
-		}
-		cID := resizeArgs.PaneID
-		pane := Panes.Get(cID)
-		if pane == nil {
-			peer.logger.Error("Failed to parse resize message pane_id out of range")
-			return
-		}
-		if pane.TTY == nil {
-			peer.logger.Warnf("Tried to resize a pane with no tty")
-			peer.SendNack(m, "Tried to resize a pane with no tty")
-			return
-		}
-		var ws pty.Winsize
-		ws.Cols = resizeArgs.Sx
-		ws.Rows = resizeArgs.Sy
-		pane.Resize(&ws)
-		err := peer.Broadcast("resize", resizeArgs)
-		if err != nil {
-			peer.logger.Errorf("Failed to broadcast resize message: %v", err)
-			peer.SendNack(m, "Failed to broadcast resize message")
-			return
-		}
-		err = peer.SendAck(m, nil)
-		if err != nil {
-			peer.logger.Errorf("#%d: Failed to send a resize ack: %v", peer.FP, err)
-			return
-		}
-	case "restore":
-		var args RestoreArgs
-		err = json.Unmarshal(raw, &args)
-		peer.Marker = args.Marker
-		err = peer.SendAck(m, Payload)
-	case "get_payload":
-		err = peer.SendAck(m, Payload)
-	case "set_payload":
-		var payloadArgs SetPayloadArgs
-		err = json.Unmarshal(raw, &payloadArgs)
-		peer.logger.Infof("Setting payload to: %s", payloadArgs.Payload)
-		Payload = payloadArgs.Payload
-		// send the set_payload message to all connected peers
-		peer.Broadcast("set_payload", payloadArgs)
-		err = peer.SendAck(m, Payload)
-	case "mark":
-		// acdb a marker and store it in each pane
-		markerM.Lock()
-		lastMarker++
-		peer.Marker = lastMarker
-		markerM.Unlock()
-		for _, pane := range Panes.All() {
-			pane.Buffer.Mark(peer.Marker)
-		}
-		err = peer.SendAck(m, []byte(fmt.Sprintf("%d", peer.Marker)))
-	case "reconnect_pane":
-		var a ReconnectPaneArgs
-		err = json.Unmarshal(raw, &a)
-		if err != nil {
-			peer.logger.Infof("Failed to parse incoming control message: %v", err)
-			return
-		}
-		peer.logger.Infof("@%d: got reconnect_pane", a.ID)
-
-		l := fmt.Sprintf("%d:%d", m.Ref, a.ID)
-		d, err := peer.PC.CreateDataChannel(l, dcOpts)
-		if err != nil {
-			peer.logger.Warnf("Failed to create data channel : %v", err)
-			return
-		}
-		d.OnOpen(func() {
-			peer.logger.Info("open is completed!!!")
-			pane, err := peer.Reconnect(d, a.ID)
-			if err != nil || pane == nil {
-				peer.logger.Warnf("Failed to reconnect to pane  data channel : %v", err)
-				peer.SendNack(m, fmt.Sprintf("Failed to reconnect to: %d", a.ID))
-				return
-			} else {
-				peer.SendAck(m, []byte(fmt.Sprintf("%d", pane.ID)))
-			}
-		})
-
-	case "add_pane":
-		var a AddPaneArgs
-		var ws *pty.Winsize
-		err = json.Unmarshal(raw, &a)
-		if err != nil {
-			peer.logger.Infof("Failed to parse incoming control message: %v", err)
-			return
-		}
-		peer.logger.Infof("got add_pane: %v", a)
-		if a.Rows > 0 && a.Cols > 0 {
-			ws = &pty.Winsize{Rows: a.Rows, Cols: a.Cols, X: a.X, Y: a.Y}
-		} else {
-			ws = &pty.Winsize{Rows: 24, Cols: 80}
-			peer.logger.Warn("Got an add_pane commenad with no rows or cols")
-		}
-
-		if a.Command[0] == "*" {
-			shell, err := loginshell.Shell()
-			if err != nil {
-				peer.logger.Warnf("Failed to determine user's shell: %v", err)
-				a.Command[0] = "/bin/bash"
-			} else {
-				peer.logger.Infof("Using %s for shell", shell)
-				a.Command[0] = shell
-			}
-		}
-		/* TODO: delete
-		dirname, err := os.UserHomeDir()
-		if err != nil {
-			peer.logger.Warnf("Failed to determine user's home directory: %v", err)
-			dirname = "/"
-		}
-		cmd := append([]string{"env", fmt.Sprintf("HOME=%s", dirname)}, a.Command...)
-		*/
-		cmd := a.Command
-		pane, err := NewPane(peer, ws, a.Parent)
-		if err != nil {
-			peer.logger.Warnf("Failed to add a new pane: %v", err)
-			return
-		}
-		l := fmt.Sprintf("%d:%d", m.Ref, pane.ID)
-		d, err := peer.PC.CreateDataChannel(l, dcOpts)
-		if err != nil {
-			msg := fmt.Sprintf("Failed to create data channel : %s", l)
-			peer.SendNack(m, msg)
-			peer.logger.Warnf(msg)
-			return
-		}
-		d.OnOpen(func() {
-			if peer.Conf.GetWelcome != nil {
-				msg := peer.Conf.GetWelcome()
-				peer.logger.Infof("Sending welcome message: %s", msg)
-				err := d.Send([]byte(msg))
-				if err != nil {
-					peer.logger.Warnf("Failed to send welcome message: %v", err)
-				}
-			}
-			pane.run(cmd)
-			c := cdb.Add(d, pane, peer)
-			peer.logger.Infof("opened data channel for pane %d", pane.ID)
-			peer.SendAck(m, []byte(fmt.Sprintf("%d", pane.ID)))
-			d.OnMessage(pane.OnMessage)
-			d.OnClose(func() {
-				cdb.Delete(c)
-			})
-		})
-
-	default:
-		peer.logger.Errorf("Got a control message with unknown type: %q", m.Type)
-	}
-	if err != nil {
-		peer.logger.Errorf("#%d: Failed to send [n]ack: %v", peer.FP, err)
-	}
-	return
 }
 
 // GetFingerprint extract the fingerprints from a client's offer and returns
@@ -571,16 +440,11 @@ func Shutdown() {
 		if logger == nil {
 			logger = peer.logger
 		}
-		if peer.PC != nil {
-			err = peer.PC.Close()
-			if err != nil {
-				logger.Error("Failed closing peer connection: %w", err)
-			}
-		}
+		peer.Close()
 	}
 	for _, p := range Panes.All() {
 		err = p.C.Process.Kill()
-		if err != nil {
+		if err != nil && logger != nil {
 			logger.Error("Failed closing a process: %w", err)
 		}
 	}

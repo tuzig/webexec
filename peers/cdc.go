@@ -6,8 +6,6 @@ package peers
 import (
 	"encoding/json"
 	"fmt"
-	"sync"
-	"time"
 
 	"github.com/creack/pty"
 )
@@ -28,8 +26,8 @@ type RestoreArgs struct {
 // AckArgs is a type to hold the args for an Ack message
 type AckArgs struct {
 	// Ref holds the message id the error refers to or 0 for system errors
-	Ref  int             `json:"ref"`
-	Body json.RawMessage `json:"body"`
+	Ref  int    `json:"ref"`
+	Body string `json:"body,omitempty"`
 }
 
 // SetPayloadArgs is a type to hold the args for a set_payload type of a message
@@ -66,24 +64,6 @@ type CTRLMessage struct {
 	Ref  int         `json:"message_id"`
 	Type string      `json:"type"`
 	Args interface{} `json:"args"`
-}
-
-var msgIDM sync.Mutex
-
-// SendCTRLMsg sends a control message to a peer.
-// The message is compose from a type and args
-func SendCTRLMsg(peer *Peer, typ string, args interface{}) error {
-	msgIDM.Lock()
-	peer.LastRef++
-	msg := CTRLMessage{time.Now().UnixNano() / 1000000, peer.LastRef,
-		typ, args}
-	msgIDM.Unlock()
-	msgJ, err := json.Marshal(msg)
-	if err != nil {
-		return fmt.Errorf("Failed to marshal the ack msg: %e\n   msg == %q", err, msg)
-	}
-	peer.logger.Infof("Sending ctrl message: %s", msgJ)
-	return peer.cdc.Send(msgJ)
 }
 
 // ParseWinsize gets a string in the format of "24x80" and returns a Winsize

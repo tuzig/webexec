@@ -155,7 +155,9 @@ func TestSimpleEcho(t *testing.T) {
 	lp := panes[len(panes)-1]
 
 	waitForChild(lp.C.Process.Pid, time.Second)
+	lp.Lock()
 	require.False(t, lp.IsRunning)
+	lp.Unlock()
 	// For some reason we sometimes get an empty message and count can be 3
 	require.GreaterOrEqual(t, count, 2, "Expected to recieve 2 messages and got %d", count)
 }
@@ -187,8 +189,7 @@ func TestResizeCommand(t *testing.T) {
 		if ack.Ref == 123 {
 			// parse add_pane and send the resize command
 			// extract paneID from the ack body whcih is raw json
-			var paneID int
-			err := json.Unmarshal(ack.Body, &paneID)
+			paneID, err := strconv.Atoi(string(ack.Body))
 			require.NoError(t, err, "failed to unmarshal ack body: %s", err)
 			require.NotEqual(t, -1, paneID, "Got a bad pane id: %d", paneID)
 			resizeArgs := peers.ResizeArgs{paneID, 80, 24}
@@ -253,10 +254,11 @@ func TestPayloadOperations(t *testing.T) {
 func TestMarkerRestore(t *testing.T) {
 	initTest(t)
 	var (
-		cID       string
-		dc        *webrtc.DataChannel
-		markerRef int
-		marker    int
+		cID         string
+		dc          *webrtc.DataChannel
+		markerRef   int
+		markerMutex sync.Mutex
+		marker      int
 	)
 	gotSetMarkerAck := make(chan bool)
 	gotFirst := make(chan bool)
@@ -282,8 +284,12 @@ func TestMarkerRestore(t *testing.T) {
 			require.Nil(t, err, "Failed to marshal the server msg: %v", err)
 			if cm.Type == "ack" {
 				args := ParseAck(t, msg)
+				markerMutex.Lock()
+				defer markerMutex.Unlock()
 				if args.Ref == markerRef {
-					json.Unmarshal(args.Body, &marker)
+					// convert the body to int
+					marker, err = strconv.Atoi(string(args.Body))
+					require.NoError(t, err)
 					Logger.Infof("Got marker: %d", marker)
 					gotSetMarkerAck <- true
 				}
@@ -316,7 +322,9 @@ func TestMarkerRestore(t *testing.T) {
 		t.Error("Timeout waiting for first datfirst data data")
 	case <-gotFirst:
 	}
+	markerMutex.Lock()
 	markerRef = getMarker(cdc)
+	markerMutex.Unlock()
 	select {
 	case <-time.After(6 * time.Second):
 		t.Error("Timeout waiting for marker ack")

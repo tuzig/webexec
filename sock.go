@@ -171,6 +171,8 @@ func (s *sockServer) handleOffer(w http.ResponseWriter, r *http.Request) {
 			}
 			return
 		case <-time.After(time.Second * 5):
+			a.p.Lock()
+			defer a.p.Unlock()
 			if a.p.PC == nil {
 				http.Error(w, "Connection failed", http.StatusServiceUnavailable)
 			} else if a.p.PC.ConnectionState() == webrtc.PeerConnectionStateConnected {
