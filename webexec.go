@@ -654,6 +654,11 @@ func handleCTRLMsg(peer *peers.Peer, msg webrtc.DataChannelMessage) {
 		handleAddPane(peer, m, raw)
 	default:
 		Logger.Errorf("Got a control message with unknown type: %q", m.Type)
+		// send nack
+		err = peer.SendNack(m, "unknown control message type")
+		if err != nil {
+			Logger.Errorf("#%d: Failed to send nack: %v", peer.FP, err)
+		}
 	}
 	return
 }
