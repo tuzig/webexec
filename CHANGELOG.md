@@ -9,6 +9,12 @@ his file's format is define in
 and the release workflow reads it to set github's release notes.
 
 
+## Unreleased
+
+### Added
+
+- WHIP support
+
 ## [1.2.2] 2023-9-11
 
 ### Fixed

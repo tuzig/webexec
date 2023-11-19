@@ -69,9 +69,9 @@ func handleGetPayload(peer *peers.Peer, m peers.CTRLMessage) {
 }
 
 // handleSetPayload handles set_payload control messages.
-func handleSetPayload(peer *peers.Peer, m peers.CTRLMessage, raw json.RawMessage) {
+func handleSetPayload(peer *peers.Peer, m peers.CTRLMessage, rawArgs json.RawMessage) {
 	var payloadArgs peers.SetPayloadArgs
-	err := json.Unmarshal(raw, &payloadArgs)
+	err := json.Unmarshal(rawArgs, &payloadArgs)
 	if err != nil {
 		Logger.Infof("Failed to parse incoming control message: %v", err)
 		return
