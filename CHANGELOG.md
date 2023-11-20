@@ -14,6 +14,7 @@ and the release workflow reads it to set github's release notes.
 ### Added
 
 - WHIP support
+- terminal restore is now in full colors
 
 ## [1.2.2] 2023-9-11
 
