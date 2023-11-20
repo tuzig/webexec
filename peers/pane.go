@@ -12,9 +12,9 @@ import (
 	"time"
 
 	"github.com/creack/pty"
-	"github.com/hinshun/vt10x"
 	"github.com/pion/webrtc/v3"
 	"github.com/shirou/gopsutil/v3/process"
+	"github.com/tuzig/vt10x"
 )
 
 const OutBufSize = 4096
@@ -328,13 +328,26 @@ func (pane *Pane) dumpVT() []byte {
 }
 
 func printColorChange(fg, bg vt10x.Color) string {
-	fgR := (fg & 0xff0000) >> 16
-	fgG := (fg & 0x00ff00) >> 8
-	fgB := (fg & 0x0000ff)
-	bgR := (bg & 0xff0000) >> 16
-	bgG := (bg & 0x00ff00) >> 8
-	bgB := (bg & 0x0000ff)
-	return fmt.Sprintf("\x1b[38;2;%d;%d;%dm\x1b[48;2;%d;%d;%dm", fgR, fgG, fgB, bgR, bgG, bgB)
+	ret := ""
+	if fg == vt10x.DefaultFG {
+		// add a rest for the foreground color
+		ret += "\x1b[39m"
+	} else {
+		fgR := (fg & 0xff0000) >> 16
+		fgG := (fg & 0x00ff00) >> 8
+		fgB := (fg & 0x0000ff)
+		ret += fmt.Sprintf("\x1b[38;2;%d;%d;%dm", fgR, fgG, fgB)
+	}
+	if bg == vt10x.DefaultBG {
+		// add a rest for the background color
+		ret += "\x1b[49m"
+	} else {
+		bgR := (bg & 0xff0000) >> 16
+		bgG := (bg & 0x00ff00) >> 8
+		bgB := (bg & 0x0000ff)
+		ret += fmt.Sprintf("\x1b[48;2;%d;%d;%dm", bgR, bgG, bgB)
+	}
+	return ret
 }
 
 // Restore restore the screen or buffer.
