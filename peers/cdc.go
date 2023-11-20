@@ -45,14 +45,12 @@ type ResizeArgs struct {
 }
 
 type AddPaneArgs struct {
-	Command    []string `json:"command"`
-	Rows       uint16   `json:"rows, omitempty"`
-	Cols       uint16   `json:"cols, omitempty"`
-	X          uint16   `json:"x, omitempty"`
-	Y          uint16   `json:"y, omitempty"`
-	Parent     int      `json:"parent,omitempty"`
-	Foreground string   `json:"foreground,omitempty"`
-	Background string   `json:"background,omitempty"`
+	Command []string `json:"command"`
+	Rows    uint16   `json:"rows, omitempty"`
+	Cols    uint16   `json:"cols, omitempty"`
+	X       uint16   `json:"x, omitempty"`
+	Y       uint16   `json:"y, omitempty"`
+	Parent  int      `json:"parent,omitempty"`
 }
 
 type ReconnectPaneArgs struct {

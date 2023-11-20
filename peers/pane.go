@@ -330,7 +330,6 @@ func (pane *Pane) dumpVT() []byte {
 func printColorChange(fg, bg vt10x.Color) string {
 	ret := ""
 	if fg == vt10x.DefaultFG {
-		// add a rest for the foreground color
 		ret += "\x1b[39m"
 	} else {
 		fgR := (fg & 0xff0000) >> 16
@@ -339,7 +338,6 @@ func printColorChange(fg, bg vt10x.Color) string {
 		ret += fmt.Sprintf("\x1b[38;2;%d;%d;%dm", fgR, fgG, fgB)
 	}
 	if bg == vt10x.DefaultBG {
-		// add a rest for the background color
 		ret += "\x1b[49m"
 	} else {
 		bgR := (bg & 0xff0000) >> 16
