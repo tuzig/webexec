@@ -71,6 +71,7 @@ func newPeer(t *testing.T, fp string, certificate *webrtc.Certificate) *peers.Pe
 		GetICEServers: func() ([]webrtc.ICEServer, error) {
 			return []webrtc.ICEServer{}, nil
 		},
+		OnCTRLMsg: handleCTRLMsg,
 	}
 	peer, err := peers.NewPeer(fp, &conf)
 	require.NoError(t, err)

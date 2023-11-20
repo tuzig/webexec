@@ -165,16 +165,6 @@ func TestConnectGoodFP(t *testing.T) {
 		t.Errorf("Timeouton cdc open")
 	case <-done:
 	}
-	/*
-			// There's t.Cleanup in go 1.15+
-			ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-			defer cancel()
-			err := Shutdown(ctx)
-			require.Nil(t, err, "Failed shutting the http server: %v", err)
-		Shutdown()
-		// TODO: be smarter, this is just a hack to get github action to pass
-		time.Sleep(500 * time.Millisecond)
-	*/
 }
 func TestConnectBadFP(t *testing.T) {
 	client, cert, err := newClient(t)
@@ -324,4 +314,82 @@ func TestEncodeDecodeStringArray(t *testing.T) {
 	err = peers.DecodeOffer(&c, b[:l])
 	require.Nil(t, err, "Failed to decode offer: %s", err)
 	require.Equal(t, a, c)
+}
+func FuncTestOffer(t *testing.T) {
+	done := make(chan bool)
+	// start the webrtc client
+	client, cert, err := newClient(t)
+	require.NoError(t, err, "Failed to create a client: %q", err)
+	cdc, err := client.CreateDataChannel("%", nil)
+	require.Nil(t, err, "Failed to create the control data channel: %q", err)
+	clientOffer, err := client.CreateOffer(nil)
+	require.Nil(t, err, "Failed to create client offer: %q", err)
+	err = client.SetLocalDescription(clientOffer)
+	require.Nil(t, err, "Failed to set client's local Description client offer: %q", err)
+
+	var sd webrtc.SessionDescription
+	fp, err := peers.ExtractFP(cert)
+	require.NoError(t, err, "Failed to extract the fingerprint: %q", err)
+	a := &MockAuthBackend{authorized: fp}
+	b, err := json.Marshal(clientOffer)
+	require.NoError(t, err, "Failed to marshal the client offer: %s", err)
+	req := httptest.NewRequest(http.MethodPost, "/offer", bytes.NewBuffer(b))
+	req.RemoteAddr = "8.8.8.8"
+	w := httptest.NewRecorder()
+	logger := zaptest.NewLogger(t).Sugar()
+	certificate, err := generateCert()
+	require.NoError(t, err, "Failed to create a certificate: %q", err)
+	conf := &peers.Conf{
+		Certificate:       certificate,
+		Logger:            logger,
+		DisconnectTimeout: time.Second,
+		FailedTimeout:     time.Second,
+		KeepAliveInterval: time.Second,
+		GatheringTimeout:  time.Second,
+		GetICEServers: func() ([]webrtc.ICEServer, error) {
+			return nil, nil
+		},
+	}
+	h := &ConnectHandler{
+		authBackend: a,
+		peerConf:    conf,
+		logger:      logger,
+		address:     AddressType("127.0.0.1:7777"),
+	}
+	h.HandleOffer(w, req)
+	require.Equal(t, http.StatusCreated, w.Code)
+	// get the Location header
+	cansURL := w.Header().Get("Location")
+	require.NotEmpty(t, cansURL, "Location header is empty")
+	require.Contains(t, "/candidates/", cansURL, "Location header is not a connect url")
+	client.OnICECandidate(func(c *webrtc.ICECandidate) {
+		if c == nil {
+			return
+		}
+		can := c.ToJSON()
+		client.AddICECandidate(can)
+		// send the candidate to cansURL using a PATCH request
+		b, err := json.Marshal(can)
+		require.Nil(t, err, "Failed to marshal the candidate: %s", err)
+		req := httptest.NewRequest(http.MethodPatch, cansURL, bytes.NewBuffer(b))
+		req.RemoteAddr = "8.8.8.8"
+		w := httptest.NewRecorder()
+		h.HandleCandidate(w, req)
+		require.Equal(t, http.StatusNoContent, w.Code)
+	})
+
+	// read server offer
+	dec := json.NewDecoder(w.Body)
+	err = dec.Decode(&sd)
+	require.Nil(t, err, "Failed decoding an offer: %v", clientOffer)
+	client.SetRemoteDescription(sd)
+	// count the incoming messages
+	cdc.OnOpen(func() {
+		done <- true
+	})
+	select {
+	case <-time.After(3 * time.Second):
+		t.Errorf("Timeouton cdc open")
+	case <-done:
+	}
 }

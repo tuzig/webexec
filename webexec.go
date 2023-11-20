@@ -16,6 +16,7 @@ import (
 	"os/exec"
 	"os/signal"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -49,6 +50,9 @@ var (
 		version *semver.Version
 		expire  time.Time
 	}
+	markerM sync.RWMutex
+	// the id of the last marker used
+	lastMarker = 0
 )
 
 func GetWelcome() string {
@@ -616,6 +620,49 @@ func upgrade(c *cli.Context) error {
 	cmd.Stdin = os.Stdin
 	return cmd.Run()
 }
+
+// handleCTRLMsg handles incoming control messages
+func handleCTRLMsg(peer *peers.Peer, msg webrtc.DataChannelMessage) {
+	if msg.Data == nil {
+		Logger.Infof("Got a CTRLMessage with no data")
+		return
+	}
+	var raw json.RawMessage
+	m := peers.CTRLMessage{
+		Args: &raw,
+	}
+	Logger.Infof("Got a CTRLMessage: %q\n", string(msg.Data))
+	err := json.Unmarshal(msg.Data, &m)
+	if err != nil {
+		Logger.Infof("Failed to parse incoming control message: %v", err)
+		return
+	}
+	switch m.Type {
+	case "resize":
+		handleResize(peer, m, raw)
+	case "restore":
+		handleRestore(peer, m, raw)
+	case "get_payload":
+		handleGetPayload(peer, m)
+	case "set_payload":
+		handleSetPayload(peer, m, raw)
+	case "mark":
+		handleMark(peer, m)
+	case "reconnect_pane":
+		handleReconnectPane(peer, m, raw)
+	case "add_pane":
+		handleAddPane(peer, m, raw)
+	default:
+		Logger.Errorf("Got a control message with unknown type: %q", m.Type)
+		// send nack
+		err = peer.SendNack(m, "unknown control message type")
+		if err != nil {
+			Logger.Errorf("#%d: Failed to send nack: %v", peer.FP, err)
+		}
+	}
+	return
+}
+
 func main() {
 	app := &cli.App{
 		Name:        "webexec",
