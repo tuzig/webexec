@@ -315,18 +315,18 @@ func (pane *Pane) dumpVT() []byte {
 				result += printColorChange(glyph.FG, glyph.BG)
 				prevFG = glyph.FG
 				prevBG = glyph.BG
-				pane.peer.logger.Infof("got a color change: %x %x", glyph.FG, glyph.BG)
 			}
 			// TODO: Handle attributes such as bold, italic, underline, etc. using glyph.Mode
 			result += string(glyph.Char)
-			if y < rows-1 {
-				result += "\r\n"
-			}
+		}
+		if y < rows-1 {
+			result += "\r\n"
 		}
 	}
 	c := t.Cursor()
 	result += fmt.Sprintf("\x1b[%d;%dH", c.Y+1, c.X+1)
 
+	pane.peer.logger.Infof("Sending %d bytes of screen dump", len(result))
 	return []byte(result)
 }
 
