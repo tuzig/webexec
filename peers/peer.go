@@ -363,10 +363,7 @@ func (peer *Peer) Close() {
 	peer.Lock()
 	defer peer.Unlock()
 	if peer.PC != nil {
-		err := peer.PC.Close()
-		if err != nil {
-			peer.logger.Error("Failed closing peer connection: %w", err)
-		}
+		peer.PC.Close()
 		peer.PC = nil
 	}
 }
