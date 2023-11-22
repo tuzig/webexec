@@ -121,6 +121,8 @@ func TestSimpleEcho(t *testing.T) {
 	Logger.Infof("TestSimpleEcho")
 	closed := make(chan bool)
 	client, certs, err := NewClient(true)
+	require.Nil(t, err, "Failed to create a new client %v", err)
+	defer client.Close()
 	peer := newPeer(t, "A", certs)
 	// count the incoming messages
 	count := 0
@@ -167,6 +169,7 @@ func TestResizeCommand(t *testing.T) {
 	done := make(chan bool)
 	client, certs, err := NewClient(true)
 	require.Nil(t, err, "Failed to create a new client %v", err)
+	defer client.Close()
 	peer := newPeer(t, "A", certs)
 	cdc, err := client.CreateDataChannel("%", nil)
 	require.Nil(t, err, "failed to create the control data channel: %v", err)
@@ -218,6 +221,7 @@ func TestPayloadOperations(t *testing.T) {
 	done := make(chan bool)
 	client, certs, err := NewClient(true)
 	require.Nil(t, err, "Failed to create a new client %v", err)
+	defer client.Close()
 	peer := newPeer(t, "A", certs)
 	cdc, err := client.CreateDataChannel("%", nil)
 	require.Nil(t, err, "Failed to create the control data channel: %v", err)
@@ -266,6 +270,7 @@ func TestMarkerRestore(t *testing.T) {
 	gotAck := make(chan bool)
 	client, certs, err := NewClient(true)
 	require.Nil(t, err, "Failed to create a new client %v", err)
+	defer client.Close()
 	// start the server
 	peer := newPeer(t, "A", certs)
 	require.Nil(t, err, "Failed to start a new server %v", err)
@@ -332,6 +337,7 @@ func TestMarkerRestore(t *testing.T) {
 	}
 	client2, certs, err := NewClient(true)
 	require.Nil(t, err, "Failed to create the second client %v", err)
+	defer client2.Close()
 	peer2 := newPeer(t, "A", certs)
 	require.Nil(t, err, "Failed to start a new server %v", err)
 	// create the command & control data channel
@@ -381,6 +387,7 @@ func TestAddPaneMessage(t *testing.T) {
 	wg.Add(3)
 	client, certs, err := NewClient(true)
 	require.Nil(t, err, "Failed to create a new client %v", err)
+	defer client.Close()
 	peer := newPeer(t, "A", certs)
 	done := make(chan bool)
 	client.OnDataChannel(func(d *webrtc.DataChannel) {
@@ -435,6 +442,7 @@ func TestReconnectPane(t *testing.T) {
 	)
 	client, certs, err := NewClient(true)
 	require.Nil(t, err, "Failed to create a new client %v", err)
+	defer client.Close()
 	peer := newPeer(t, "A", certs)
 	client.OnDataChannel(func(d *webrtc.DataChannel) {
 		l := d.Label()

@@ -136,6 +136,7 @@ func TestOfferPutCandidates(t *testing.T) {
 		},
 	})
 	require.Nil(t, err, "Failed to start a new client", err)
+	defer client.Close()
 	pendingCandidates := make(chan *webrtc.ICECandidate, 5)
 	client.OnICECandidate(func(c *webrtc.ICECandidate) {
 		Logger.Info("Got can")
