@@ -319,6 +319,9 @@ func (pane *Pane) dumpVT() []byte {
 			}
 			// TODO: Handle attributes such as bold, italic, underline, etc. using glyph.Mode
 			result += string(glyph.Char)
+			if y < rows-1 {
+				result += "\r\n"
+			}
 		}
 	}
 	c := t.Cursor()
