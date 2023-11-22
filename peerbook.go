@@ -305,7 +305,7 @@ func (pb *PeerbookClient) handleMessage(message []byte) error {
 			return fmt.Errorf("Failed to create a new peer: %w", err)
 		}
 		peer.PC.OnICECandidate(func(can *webrtc.ICECandidate) {
-			if can != nil {
+			if can != nil && peer.PC.ConnectionState() != webrtc.PeerConnectionStateConnected {
 				m := map[string]interface{}{
 					"target": fp, "candidate": can.ToJSON()}
 				Logger.Infof("Sending candidate: %v", m)

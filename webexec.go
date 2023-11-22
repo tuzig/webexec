@@ -624,7 +624,7 @@ func upgrade(c *cli.Context) error {
 // handleCTRLMsg handles incoming control messages
 func handleCTRLMsg(peer *peers.Peer, msg webrtc.DataChannelMessage) {
 	if msg.Data == nil {
-		Logger.Infof("Got a CTRLMessage with no data")
+		Logger.Infof("Got a CTRLMessage with no data %v", msg)
 		return
 	}
 	var raw json.RawMessage
