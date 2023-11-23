@@ -80,6 +80,10 @@ func ExecCommand(command []string, env map[string]string, ws *pty.Winsize, pID i
 	if err != nil {
 		return nil, nil, fmt.Errorf("Failed launching %q: %q %s", command, err, fp)
 	}
+	go func() {
+		cmd.Process.Wait()
+	}()
+
 	return cmd, tty, nil
 }
 
