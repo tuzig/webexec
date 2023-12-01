@@ -9,12 +9,16 @@ his file's format is define in
 and the release workflow reads it to set github's release notes.
 
 
-## Unreleased
+## [1.3.0] 2023-11-23
+
+### Fixed
+
+- No more zombie processes
 
 ### Added
 
 - WHIP support
-- terminal restore is now in full colors
+- terminal restore is now in full color
 
 ## [1.2.2] 2023-9-11
 
@@ -26,11 +30,7 @@ and the release workflow reads it to set github's release notes.
 
 ### Fixed 
 
-<<<<<<< HEAD
 - first marker restore 
-=======
-- first market restore 
->>>>>>> f8c5dc2 (Releasing v1.2.1)
 
 ## [1.2.0] 2023-9-6
 
