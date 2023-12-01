@@ -7,9 +7,9 @@
 #   $ ./get-webexec.sh
 #
 # The latest release is currently hard-coded.
-LATEST_VERSION="1.2.2"
-
-echo "webexec version $LATEST_VERSION installer"
+LATEST_VERSION=$(curl -s "https://api.github.com/repos/tuzig/webexec/releases/latest" \
+                 | sed -nE 's/.*"tag_name": "v([^"]*).*/\1/p')
+echo "Installing webexec version $LATEST_VERSION"
          
 ARCH="$(uname -m | tr [:upper:] [:lower:])" 
 if [[ "$ARCH" = arm64 ]]; then

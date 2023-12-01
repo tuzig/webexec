@@ -7,4 +7,3 @@ dist
 node_modules
 aatp/assets
 .cache/**
-sites/version

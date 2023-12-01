@@ -34,6 +34,10 @@ import (
 	"gopkg.in/natefinch/lumberjack.v2"
 )
 
+type GHReleaseInfo struct {
+	TagName string `json:"tag_name"`
+}
+
 var (
 	// Logger is our global logger
 	Logger *zap.SugaredLogger
@@ -66,17 +70,29 @@ func GetWelcome() string {
 
 func getVersionNote() string {
 	if cachedVersion.version == nil || cachedVersion.expire.After(time.Now()) {
-		resp, err := http.Get("https://version.webexec.sh/latest")
+		resp, err := http.Get("https://api.github.com/repos/tuzig/webexec/releases/latest")
 		if err != nil {
+			Logger.Warnf("Get version request failed: %s", err)
 			return ""
 		}
 		defer resp.Body.Close()
-		body, err := io.ReadAll(resp.Body)
+
+		body, err := ioutil.ReadAll(resp.Body)
 		if err != nil {
+			Logger.Warnf("Could not read the latest version description: %s", err)
 			return ""
 		}
-		cachedVersion.version, err = semver.NewVersion(strings.Trim(string(body), "\n"))
+
+		var releaseInfo GHReleaseInfo
+		err = json.Unmarshal(body, &releaseInfo)
 		if err != nil {
+			Logger.Warnf("Could not unmarshal the latest version body: %s", err)
+			return ""
+		}
+		s := strings.TrimPrefix(releaseInfo.TagName, "v")
+		cachedVersion.version, err = semver.NewVersion(s)
+		if err != nil {
+			Logger.Warnf("Could not parse the latest version: %s", err)
 			return ""
 		}
 		cachedVersion.expire = time.Now().Add(time.Hour)
@@ -87,7 +103,7 @@ func getVersionNote() string {
 		return ""
 	}
 	if currentVersion.LessThan(*latestVersion) {
-		return fmt.Sprintf("WebExec version %s is available, please run `webexec upgrade`\n", latestVersion)
+		return fmt.Sprintf("webexec version %s is available, please run `webexec upgrade`\n", latestVersion)
 	}
 	return ""
 }
@@ -734,7 +750,7 @@ func main() {
 				Action: accept,
 			}, {
 				Name:   "upgrade",
-				Usage:  "upgrades WebExec to the latest version",
+				Usage:  "upgrades webexec to the latest version",
 				Action: upgrade,
 			},
 		},
