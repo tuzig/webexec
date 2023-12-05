@@ -12,9 +12,9 @@ import (
 	"time"
 
 	"github.com/creack/pty"
+	"github.com/hinshun/vt10x"
 	"github.com/pion/webrtc/v3"
 	"github.com/shirou/gopsutil/v3/process"
-	"github.com/tuzig/vt10x"
 )
 
 const OutBufSize = 4096
