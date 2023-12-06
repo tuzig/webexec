@@ -9,7 +9,6 @@ require (
 	github.com/dchest/uniuri v0.0.0-20200228104902-7aecb25e1fe5
 	github.com/google/uuid v1.3.0
 	github.com/gorilla/websocket v1.4.2
-	github.com/hinshun/vt10x v0.0.0-20220301184237-5011da428d02
 	github.com/kardianos/osext v0.0.0-20190222173326-2bc1f35cddc0
 	github.com/pelletier/go-toml v1.9.3
 	github.com/pion/webrtc/v3 v3.1.49
@@ -18,6 +17,7 @@ require (
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
 	github.com/shirou/gopsutil/v3 v3.21.10
 	github.com/stretchr/testify v1.8.0
+	github.com/tuzig/vt10x v0.0.0-20231206072048-370e51642bf7
 	github.com/urfave/cli/v2 v2.3.0
 	go.uber.org/fx v1.19.2
 	go.uber.org/zap v1.23.0
@@ -26,5 +26,3 @@ require (
 	golang.org/x/sys v0.13.0
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0
 )
-
-replace github.com/hinshun/vt10x => github.com/tuzig/vt10x v0.0.0-20231205083603-6308a945ec63

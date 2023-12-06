@@ -9,6 +9,19 @@ his file's format is define in
 and the release workflow reads it to set github's release notes.
 
 
+## [Unreleased]
+
+### Fixed
+
+```
+$ go install github.com/tuzig/webexec@latest
+go: downloading github.com/tuzig/webexec v1.3.0
+go: github.com/tuzig/webexec@latest (in github.com/tuzig/webexec@v1.3.0):
+        The go.mod file for the module providing named packages contains one or
+        more replace directives. It must not contain directives that would cause
+        it to be interpreted differently than if it were the main module.
+```
+
 ## [1.3.0] 2023-11-23
 
 ### Fixed
