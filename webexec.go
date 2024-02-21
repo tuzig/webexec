@@ -310,7 +310,6 @@ func start(c *cli.Context) error {
 		fx.Provide(
 			LoadConf,
 			httpserver.NewConnectHandler,
-			// TODO: find a way to pass the filepath
 			fx.Annotate(NewFileAuth, fx.As(new(httpserver.AuthBackend))),
 			NewSockServer,
 			NewPeerbookClient,

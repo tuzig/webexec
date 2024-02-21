@@ -47,11 +47,30 @@ func (a *FileAuth) ReadAuthorizedTokens() ([]string, error) {
 	return tokens, nil
 }
 
+// AuthorizeTokens adds the given tokens to the tokens file
+func (a *FileAuth) AuthorizeToken(token string) error {
+	file, err := os.OpenFile(a.TokensFilePath, os.O_APPEND|os.O_WRONLY, 0644)
+	if err != nil {
+		return fmt.Errorf("Failed to open authorized_fingerprints: %s", err)
+	}
+	defer file.Close()
+	if _, err := file.WriteString(token + "\n"); err != nil {
+		return fmt.Errorf("Failed to write to authorized_fingerprints: %s", err)
+	}
+	return nil
+}
+
 // IsAuthorized checks whether a client token is authorized
 func (a *FileAuth) IsAuthorized(clientTokens ...string) bool {
+	Logger.Infof("Checking if client is authorized: %v %v", a, clientTokens)
 	tokens, err := a.ReadAuthorizedTokens()
 	if err != nil {
 		return false
+	}
+	if len(tokens) == 0 {
+		// The file is empty, clientTokens should be added to the file and authorized
+		a.AuthorizeToken(clientTokens[0])
+		return true
 	}
 	for _, ct := range clientTokens {
 		for _, token := range tokens {

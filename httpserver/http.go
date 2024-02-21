@@ -98,12 +98,6 @@ func (h *ConnectHandler) AddHandlers(mux *http.ServeMux) {
 }
 
 func (h *ConnectHandler) IsAuthorized(r *http.Request, fp string) bool {
-	// check for localhost
-	a := r.RemoteAddr
-	if (len(a) >= 9 && a[:9] == "127.0.0.1") ||
-		(len(a) >= 5 && a[:5] == "[::1]") {
-		return true
-	}
 	bearer := ""
 	authorization := r.Header.Get("Authorization")
 	// ensure token length is at least 8
