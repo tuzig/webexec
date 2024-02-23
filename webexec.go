@@ -684,17 +684,12 @@ func main() {
 		Usage:       "execute commands and pipe their stdin&stdout over webrtc",
 		HideVersion: true,
 		Commands: []*cli.Command{
-			/* TODO: Add clipboard commands
+			// add the client subcommand supporting add, remove, list
 			{
-				Name:   "copy",
-				Usage:  "Copy data from STDIN to the clipboard",
-				Action: copyCMD,
+				Name:        "client",
+				Usage:       "manage clients",
+				Subcommands: ClientCommands,
 			}, {
-				Name:   "paste",
-				Usage:  "Paste data from the clipboard to STDOUT",
-				Action: paste,
-			},*/
-			{
 				Name:   "version",
 				Usage:  "Print version information",
 				Action: versionCMD,
@@ -752,6 +747,16 @@ func main() {
 				Usage:  "upgrades webexec to the latest version",
 				Action: upgrade,
 			},
+			/* TODO: Add clipboard commands
+			{
+				Name:   "copy",
+				Usage:  "Copy data from STDIN to the clipboard",
+				Action: copyCMD,
+			}, {
+				Name:   "paste",
+				Usage:  "Paste data from the clipboard to STDOUT",
+				Action: paste,
+			},*/
 		},
 	}
 	err := app.Run(os.Args)
