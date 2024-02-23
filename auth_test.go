@@ -43,12 +43,7 @@ func TestFirstTooken(t *testing.T) {
 	tokens, err := a.ReadAuthorizedTokens()
 	require.NoError(t, err, "ReadAuthorizedTokens failed with: %s", err)
 	require.Empty(t, tokens, "ReadAuthorizedTokens returned non-empty tokens")
-	require.True(t, a.IsAuthorized("GOODTOKEN"))
-	// read the file to ensure GOODTOKEN is there
-	tokens, err = a.ReadAuthorizedTokens()
-	require.NoError(t, err, "ReadAuthorizedTokens failed with: %s", err)
-	require.Len(t, tokens, 1, "ReadAuthorizedTokens returned wrong number of tokens")
-	require.Equal(t, "GOODTOKEN", tokens[0], "ReadAuthorizedTokens returned wrong token")
+	require.False(t, a.IsAuthorized("GOODTOKEN"))
 }
 func TestIsAuthorized(t *testing.T) {
 	// create the token file and test good & bad tokens
