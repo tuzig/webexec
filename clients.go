@@ -91,6 +91,15 @@ func listClients(c *cli.Context) error {
 	scanner := bufio.NewScanner(file)
 	fmt.Println("Authorized fingerprints:")
 	for scanner.Scan() {
+		line := scanner.Text()
+		// skip empty lines
+		if len(line) == 0 {
+			continue
+		}
+		// skip comments
+		if line[0] == '#' {
+			continue
+		}
 		fmt.Println(scanner.Text())
 	}
 	if err := scanner.Err(); err != nil {
