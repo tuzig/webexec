@@ -9,7 +9,7 @@ his file's format is define in
 and the release workflow reads it to set github's release notes.
 
 
-## Unreleased
+## [1.3.2] 2024-2-25
 
 ### Fixed
 
