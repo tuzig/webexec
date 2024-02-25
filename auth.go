@@ -53,7 +53,7 @@ func (a *FileAuth) ReadAuthorizedTokens() ([]string, error) {
 		if len(line) == 0 {
 			continue
 		}
-		tokens = append(tokens, scanner.Text())
+		tokens = append(tokens, line)
 	}
 
 	if err := scanner.Err(); err != nil {
