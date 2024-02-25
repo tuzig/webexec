@@ -684,7 +684,6 @@ func main() {
 		Usage:       "execute commands and pipe their stdin&stdout over webrtc",
 		HideVersion: true,
 		Commands: []*cli.Command{
-			// add the client subcommand supporting add, remove, list
 			{
 				Name:        "client",
 				Usage:       "manage clients",

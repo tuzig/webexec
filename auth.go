@@ -44,8 +44,7 @@ func (a *FileAuth) ReadAuthorizedTokens() ([]string, error) {
 		if len(line) > 0 && line[0] == '#' {
 			continue
 		}
-		// ignore all the text after the first space
-		// this is to allow comments in the file
+		// ignore the part after the first space - used for client identification
 		if i := strings.Index(line, " "); i != -1 {
 			line = line[:i]
 		}
@@ -64,7 +63,6 @@ func (a *FileAuth) ReadAuthorizedTokens() ([]string, error) {
 
 // IsAuthorized checks whether a client token is authorized
 func (a *FileAuth) IsAuthorized(clientTokens ...string) bool {
-	Logger.Infof("Checking if client is authorized: %v %v", a, clientTokens)
 	tokens, err := a.ReadAuthorizedTokens()
 	if err != nil {
 		return false

@@ -9,6 +9,12 @@ his file's format is define in
 and the release workflow reads it to set github's release notes.
 
 
+## Unreleased
+
+### Fixed
+
+- no exception for localhost - no unrecognized client allowed
+
 ## [1.3.1] 2023-12-6
 
 ### Fixed
