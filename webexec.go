@@ -636,6 +636,35 @@ func upgrade(c *cli.Context) error {
 	return cmd.Run()
 }
 
+func pasteCMD(c *cli.Context) error {
+	fp := GetSockFP()
+	_, err := os.Stat(fp)
+	if os.IsNotExist(err) {
+		fmt.Println("Agent is not running. Please run `webexec start`")
+	}
+	httpc := http.Client{
+		Transport: &http.Transport{
+			DialContext: func(_ context.Context, _, _ string) (net.Conn, error) {
+				return net.Dial("unix", fp)
+			},
+		},
+	}
+	resp, err := httpc.Get("http://unix/paste")
+	if err != nil {
+		return fmt.Errorf("Failed to communicate with agent: %s", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("Failed to get clipboard content: %s", resp.Status)
+	}
+	clipboard, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("Failed to read clipboard content: %s", err)
+	}
+	fmt.Print(string(clipboard))
+	return nil
+}
+
 // handleCTRLMsg handles incoming control messages
 func handleCTRLMsg(peer *peers.Peer, msg webrtc.DataChannelMessage) {
 	if msg.Data == nil {
@@ -751,11 +780,12 @@ func main() {
 				Name:   "copy",
 				Usage:  "Copy data from STDIN to the clipboard",
 				Action: copyCMD,
-			}, {
+			}, */
+			{
 				Name:   "paste",
 				Usage:  "Paste data from the clipboard to STDOUT",
-				Action: paste,
-			},*/
+				Action: pasteCMD,
+			},
 		},
 	}
 	err := app.Run(os.Args)
