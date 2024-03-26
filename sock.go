@@ -74,24 +74,41 @@ func GetSockFP() string {
 	return RunPath("webexec.sock")
 }
 
-func (s *sockServer) handlePaste(w http.ResponseWriter, r *http.Request) {
-	// Implementation of handlePaste will be added here
-	var reply []byte
-	Logger.Info("Handling paste request")
-	peer := peers.GetRecentPeer()
-	if peer != nil {
-		err, clip := peer.SendControlMessageAndWait("get_clipboard", nil)
-		if err != nil {
-			Logger.Errorf("Failed to send the paste message: %s", err)
-			http.Error(w, "Failed to send the paste message", http.StatusInternalServerError)
-			return
+func (s *sockServer) handleClipboard(w http.ResponseWriter, r *http.Request) {
+	if r.Method == "GET" {
+		var reply []byte
+		Logger.Info("Handling paste request")
+		peer := peers.GetRecentPeer()
+		if peer != nil {
+			err, clip := peer.SendControlMessageAndWait("get_clipboard", nil)
+			if err != nil {
+				Logger.Errorf("Failed to send the paste message: %s", err)
+				http.Error(w, "Failed to send the paste message", http.StatusInternalServerError)
+				return
+			}
+			reply = []byte(clip)
+		} else {
+			// use the local clipboard as a fllaback
+			reply = clipboard.Read(clipboard.FmtText)
 		}
-		reply = []byte(clip)
+		w.Write(reply)
+	} else if r.Method == "POST" {
+		b, _ := ioutil.ReadAll(r.Body)
+		peer := peers.GetRecentPeer()
+		if peer != nil {
+			args := peers.SetClipboardArgs{Text: string(b)}
+			err := peer.SendControlMessage("set_clipboard", args)
+			if err != nil {
+				Logger.Errorf("Failed to send the paste message: %s", err)
+				http.Error(w, "Failed to send the paste message", http.StatusInternalServerError)
+				return
+			}
+		} else {
+			clipboard.Write(clipboard.FmtText, b)
+		}
 	} else {
-		// use the local clipboard as a fllaback
-		reply = clipboard.Read(clipboard.FmtText)
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 	}
-	w.Write(reply)
 }
 
 func StartSocketServer(lc fx.Lifecycle, s *sockServer) (*http.Server, error) {
@@ -119,7 +136,7 @@ func StartSocketServer(lc fx.Lifecycle, s *sockServer) (*http.Server, error) {
 	m.Handle("/status", http.HandlerFunc(s.handleStatus))
 	m.Handle("/layout", http.HandlerFunc(s.handleLayout))
 	m.Handle("/offer/", http.HandlerFunc(s.handleOffer))
-	m.Handle("/paste", http.HandlerFunc(s.handlePaste))
+	m.Handle("/clipboard", http.HandlerFunc(s.handleClipboard))
 	server := http.Server{Handler: &m}
 	lc.Append(fx.Hook{
 		OnStart: func(context.Context) error {

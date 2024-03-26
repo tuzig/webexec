@@ -57,6 +57,10 @@ type ReconnectPaneArgs struct {
 	ID int `json:"id"`
 }
 
+type SetClipboardArgs struct {
+	Text string `json:"text"`
+}
+
 // CTRLMessage type holds control messages passed over the control channel
 type CTRLMessage struct {
 	// Time is in msec since EPOCH

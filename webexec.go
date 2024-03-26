@@ -634,6 +634,33 @@ func upgrade(c *cli.Context) error {
 	return cmd.Run()
 }
 
+// copyCMD copies data from stdin to the clipboard
+func copyCMD(c *cli.Context) error {
+	b, err := ioutil.ReadAll(os.Stdin)
+	if err != nil {
+		return fmt.Errorf("Failed to read from stdin: %s", err)
+	}
+	fp := GetSockFP()
+	_, err = os.Stat(fp)
+	if os.IsNotExist(err) {
+		return fmt.Errorf("Agent is not running. Please run `webexec start`")
+	}
+	httpc := http.Client{
+		Transport: &http.Transport{
+			DialContext: func(_ context.Context, _, _ string) (net.Conn, error) {
+				return net.Dial("unix", fp)
+			},
+		},
+	}
+	resp, err := httpc.Post("http://unix/clipboard", "plain/text", bytes.NewReader(b))
+	if err != nil {
+		return fmt.Errorf("Failed to create the request: %s", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("Failed to send the copy request: %s", resp.Status)
+	}
+	return nil
+}
 func pasteCMD(c *cli.Context) error {
 	fp := GetSockFP()
 	_, err := os.Stat(fp)
@@ -647,7 +674,7 @@ func pasteCMD(c *cli.Context) error {
 			},
 		},
 	}
-	resp, err := httpc.Get("http://unix/paste")
+	resp, err := httpc.Get("http://unix/clipboard")
 	if err != nil {
 		return fmt.Errorf("Failed to communicate with agent: %s", err)
 	}
@@ -759,13 +786,11 @@ func main() {
 				Usage:  "upgrades webexec to the latest version",
 				Action: upgrade,
 			},
-			/* TODO: Add clipboard commands
 			{
 				Name:   "copy",
-				Usage:  "Copy data from STDIN to the clipboard",
+				Usage:  "Copy data from stdin to the clipboard",
 				Action: copyCMD,
-			}, */
-			{
+			}, {
 				Name:   "paste",
 				Usage:  "Paste data from the client's clipboard to stdout, or the local clipboard",
 				Action: pasteCMD,

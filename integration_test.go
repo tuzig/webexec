@@ -597,7 +597,7 @@ func TestPasteCommand(t *testing.T) {
 						},
 					},
 				}
-				resp, err := httpc.Get("http://unix/paste")
+				resp, err := httpc.Get("http://unix/clipboard")
 				require.NoError(t, err, "Failed sending a post request: %q", err)
 				body, err := io.ReadAll(resp.Body)
 				require.NoError(t, err)
@@ -623,5 +623,94 @@ func TestPasteCommand(t *testing.T) {
 		t.Error("Timeout waiting for server to open channel")
 	case <-done:
 	}
+	DEBUG_RUN_PATH = ""
+}
+
+func TestCopyCommand(t *testing.T) {
+	DEBUG_RUN_PATH = t.TempDir()
+	done := make(chan bool)
+	initTest(t) // Setup test dependencies
+
+	// Initialize socket server
+	lifecycle := fxtest.NewLifecycle(t)
+	k := KeyType{}
+	certificate, err := k.generate()
+	require.NoError(t, err, "Failed to generate a certificate")
+	conf := peers.Conf{
+		Certificate: certificate,
+		// Remaining configuration similar to TestPasteCommand
+	}
+	sockServer := NewSockServer(&conf)
+	require.NotNil(t, sockServer, "Failed to create a new server")
+	server, err := StartSocketServer(lifecycle, sockServer)
+	require.NoError(t, err, "Failed to start a new server")
+	require.NotNil(t, server, "Failed to start a new server")
+	lifecycle.RequireStart()
+	defer lifecycle.RequireStop()
+
+	client, certs, err := NewClient(true)
+	require.Nil(t, err, "Failed to create a new client")
+	defer client.Close()
+	peer := newPeer(t, "B", certs)
+	peers.MostRecentPeer = peer
+	cdc, err := client.CreateDataChannel("%", nil)
+	require.Nil(t, err, "failed to create the control data channel")
+
+	cdc.OnOpen(func() {
+		addPaneArgs := peers.AddPaneArgs{Rows: 12, Cols: 34,
+			Command: []string{"bash"}}
+		m := peers.CTRLMessage{time.Now().UnixNano(), 123, "add_pane",
+			&addPaneArgs}
+		addPaneMsg, err := json.Marshal(m)
+		require.NoError(t, err, "failed marshilng ctrl msg: %s", err)
+		Logger.Info("Sending the addPane message")
+		cdc.Send(addPaneMsg)
+	})
+
+	cdc.OnMessage(func(msg webrtc.DataChannelMessage) {
+		// Handle responses similar to TestPasteCommand, adjust based on copy command spec
+		var cm peers.CTRLMessage
+		err := json.Unmarshal(msg.Data, &cm)
+		require.Nil(t, err)
+		switch cm.Type {
+		case "ack":
+			go func() {
+				fp := GetSockFP()
+				Logger.Infof("Got a fp: %s", fp)
+				httpc := http.Client{
+					Transport: &http.Transport{
+						DialContext: func(_ context.Context, _, _ string) (net.Conn, error) {
+							return net.Dial("unix", fp)
+						},
+					},
+				}
+				// Use POST method for /copy to simulate sending data to the server
+				resp, err := httpc.Post("http://unix/clipboard", "text/plain",
+					strings.NewReader("copy this text"))
+				require.NoError(t, err, "Failed sending a post request")
+				require.Equal(t, http.StatusOK, resp.StatusCode, "Expected no content status code, got: %d", resp.StatusCode)
+			}()
+			break
+		// Handle other cases or TODOs if necessary
+		case "set_clipboard":
+			// verify the clipboard content is in the body
+			args, ok := cm.Args.(map[string]interface{})
+			require.True(t, ok, "Failed to cast args")
+			text := args["text"].(string)
+			require.Equal(t, "copy this text", text, "Expected clipboard content to be 'copy this text'")
+			done <- true
+
+		default:
+			t.Errorf("Got an unexpected message: %s", cm.Type)
+		}
+	})
+
+	SignalPair(client, peer)
+	select {
+	case <-time.After(time.Second * 6):
+		t.Error("Timeout waiting for copy action to complete")
+	case <-done:
+	}
+
 	DEBUG_RUN_PATH = ""
 }

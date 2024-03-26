@@ -35,7 +35,7 @@ var (
 	peersM         sync.Mutex
 	CDB            = NewClientsDB()
 	msgIDM         sync.Mutex
-	mostRecentPeer *Peer
+	MostRecentPeer *Peer
 )
 
 type Conf struct {
@@ -208,13 +208,13 @@ func (peer *Peer) OnChannelReq(d *webrtc.DataChannel) {
 
 // GetRecentPeer returns the most recent peer
 func GetRecentPeer() *Peer {
-	if mostRecentPeer == nil && len(Peers) > 0 {
+	if MostRecentPeer == nil && len(Peers) > 0 {
 		for _, p := range Peers {
-			mostRecentPeer = p
+			MostRecentPeer = p
 			break
 		}
 	}
-	return mostRecentPeer
+	return MostRecentPeer
 }
 func (peer *Peer) handleCTRLMsg(msg webrtc.DataChannelMessage) {
 	var raw json.RawMessage
@@ -326,7 +326,7 @@ func (peer *Peer) Reconnect(d *webrtc.DataChannel, id int) (*Pane, error) {
 	if pane.IsRunning {
 		c := CDB.Add(d, pane, peer)
 		d.OnMessage(func(msg webrtc.DataChannelMessage) {
-			mostRecentPeer = peer
+			MostRecentPeer = peer
 			pane.OnMessage(msg)
 		})
 		d.OnClose(func() {
