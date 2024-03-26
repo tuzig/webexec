@@ -30,34 +30,37 @@ var (
 	// Payload holds the client's payload
 	Payload []byte
 	// WebRTCAPI is the gateway to webrtc calls
-	WebRTCAPI  *webrtc.API
-	webrtcAPIM sync.Mutex
-	peersM     sync.Mutex
-	CDB        = NewClientsDB()
-	msgIDM     sync.Mutex
+	WebRTCAPI      *webrtc.API
+	webrtcAPIM     sync.Mutex
+	peersM         sync.Mutex
+	CDB            = NewClientsDB()
+	msgIDM         sync.Mutex
+	mostRecentPeer *Peer
 )
 
 type Conf struct {
+	AckTimeout        time.Duration
+	Certificate       *webrtc.Certificate
 	DisconnectTimeout time.Duration
+	Env               map[string]string
 	FailedTimeout     time.Duration
-	KeepAliveInterval time.Duration
 	GatheringTimeout  time.Duration
 	GetICEServers     func() ([]webrtc.ICEServer, error)
-	Env               map[string]string
-	PortMin           uint16
-	PortMax           uint16
-	Logger            *zap.SugaredLogger
-	Certificate       *webrtc.Certificate
-	RunCommand        RunCommandInterface
 	GetWelcome        func() string
-	OnCTRLMsg         func(*Peer, webrtc.DataChannelMessage)
+	KeepAliveInterval time.Duration
+	Logger            *zap.SugaredLogger
+	OnCTRLMsg         func(*Peer, CTRLMessage, json.RawMessage)
 	OnStateChange     func(*Peer, webrtc.PeerConnectionState)
+	PortMax           uint16
+	PortMin           uint16
+	RunCommand        RunCommandInterface
 	WebrtcSetting     *webrtc.SettingEngine
 }
 
 // Peer is a type used to remember a client.
 type Peer struct {
 	sync.Mutex
+	acks              map[int]chan string
 	FP                string
 	Token             string
 	LastContact       *time.Time
@@ -111,6 +114,7 @@ func NewPeer(fp string, conf *Conf) (*Peer, error) {
 		pendingCandidates: make(chan *webrtc.ICECandidateInit, 8),
 		logger:            conf.Logger,
 		Conf:              conf,
+		acks:              make(map[int]chan string),
 	}
 	peersM.Lock()
 	if Peers == nil {
@@ -201,6 +205,37 @@ func (peer *Peer) OnChannelReq(d *webrtc.DataChannel) {
 	})
 }
 
+// GetRecentPeer returns the most recent peer
+func GetRecentPeer() *Peer {
+	if mostRecentPeer == nil && len(Peers) > 0 {
+		for _, p := range Peers {
+			mostRecentPeer = p
+			break
+		}
+	}
+	return mostRecentPeer
+}
+func (peer *Peer) handleCTRLMsg(msg webrtc.DataChannelMessage) {
+	var raw json.RawMessage
+	m := CTRLMessage{
+		Args: &raw,
+	}
+	peer.logger.Infof("Got a CTRLMessage: %q\n", string(msg.Data))
+	err := json.Unmarshal(msg.Data, &m)
+	if err != nil {
+		peer.logger.Warnf("Failed to parse incoming control message: %v", err)
+		return
+	}
+	switch m.Type {
+	case "ack":
+		peer.handleAck(m, raw)
+	case "nack":
+		peer.handleNack(m, raw)
+	default:
+		peer.Conf.OnCTRLMsg(peer, m, raw)
+	}
+}
+
 // GetOrCreatePane gets a data channel and creates an associated pane
 // The function parses the label to figure out what it needs to exec:
 //
@@ -231,12 +266,7 @@ func (peer *Peer) GetOrCreatePane(d *webrtc.DataChannel) (*Pane, error) {
 		//TODO: if there's an older cdc close it
 		peer.logger.Info("Got a request to open a control channel")
 		peer.cdc = d
-		d.OnMessage(func(msg webrtc.DataChannelMessage) {
-			peer.Conf.OnCTRLMsg(peer, msg)
-		})
-		if peer.Conf.OnCTRLMsg != nil {
-			peer.Conf.OnCTRLMsg(peer, webrtc.DataChannelMessage{})
-		}
+		d.OnMessage(peer.handleCTRLMsg)
 		return nil, nil
 	}
 	// if the label starts witha digit, i.e. "80x24" it needs a pty
@@ -305,6 +335,43 @@ func (peer *Peer) Reconnect(d *webrtc.DataChannel, id int) (*Pane, error) {
 	return nil, fmt.Errorf("Can not reconnect as pane is not running")
 }
 
+func (peer *Peer) handleAck(m CTRLMessage, raw json.RawMessage) {
+	var a AckArgs
+	err := json.Unmarshal(raw, &a)
+	if err != nil {
+		peer.logger.Infof("Failed to parse incoming control message: %v", err)
+		return
+	}
+	for k, _ := range peer.acks {
+		peer.logger.Infof("waiting for ack: %d", k)
+	}
+	peer.Lock()
+	ch, ok := peer.acks[a.Ref]
+	peer.Unlock()
+	if ok {
+		ch <- a.Body
+	} else {
+		peer.logger.Warnf("got an ack with no waiting channel: %v", a)
+	}
+}
+func (peer *Peer) handleNack(m CTRLMessage, raw json.RawMessage) {
+	var a NAckArgs
+	err := json.Unmarshal(raw, &a)
+	if err != nil {
+		peer.logger.Infof("Failed to parse incoming control message: %v", err)
+		return
+	}
+	// check if someone is waiting for this ack - and if so send the body to the channel in the map
+	peer.Lock()
+	ch, ok := peer.acks[m.Ref]
+	peer.Unlock()
+	if ok {
+		ch <- ""
+	} else {
+		peer.logger.Warnf("got a nack with no waiting channel: %v", a)
+	}
+}
+
 // SendAck sends an ack for a given control message
 func (peer *Peer) SendAck(cm CTRLMessage, body string) error {
 	args := AckArgs{Ref: cm.Ref, Body: body}
@@ -329,6 +396,45 @@ func (peer *Peer) SendControlMessage(typ string, args interface{}) error {
 		return fmt.Errorf("Failed to marshal the ack msg: %e\n   msg == %q", err, msg)
 	}
 	return peer.SendMessage(msgJ)
+}
+
+// SendControlMessage sends a control message and wait for ack
+func (peer *Peer) SendControlMessageAndWait(typ string, args interface{}) (error, string) {
+	msgIDM.Lock()
+	peer.LastRef++
+	id := peer.LastRef
+	msg := CTRLMessage{time.Now().UnixNano() / 1000000,
+		id, typ, args}
+	msgIDM.Unlock()
+	ch := make(chan string, 1)
+	peer.Lock()
+	peer.acks[id] = ch
+	peer.Unlock()
+	peer.logger.Infof("Saved an acck with id: %d %v", id, peer)
+	msgJ, err := json.Marshal(msg)
+	if err != nil {
+		return fmt.Errorf("Failed to marshal the ack msg: %e\n   msg == %q", err, msg), ""
+	}
+
+	err = peer.SendMessage(msgJ)
+	if err != nil {
+		return fmt.Errorf("Failed to send message: %s", err), ""
+	}
+	select {
+	// case <-time.After(peer.Conf.AckTimeout):
+	case <-time.After(3 * time.Second):
+		_, ok := peer.acks[id]
+		if !ok {
+			return fmt.Errorf("Failed to create a channel for ack"), ""
+		}
+		return fmt.Errorf("Timed out waiting for ack"), ""
+	case a := <-ch:
+		peer.logger.Infof("Got an ack")
+		peer.Lock()
+		delete(peer.acks, id)
+		peer.Unlock()
+		return nil, a
+	}
 }
 
 // SendMessage marshales a message and sends it over the cdc

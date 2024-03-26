@@ -33,10 +33,11 @@ http_server = "0.0.0.0:7777"
 udp_port_min = 60000
 udp_port_max = 61000
 [timeouts]
+ack_timeout = 3000
 disconnect = 3000
 failed = 6000
-keep_alive = 500
 ice_gathering = 5000
+keep_alive = 500
 peerbook = 3000
 [[ice_servers]]
 urls = [ "stun:stun.l.google.com:19302" ]
@@ -72,6 +73,7 @@ var Conf struct {
 	T               *toml.Tree
 }
 
+var DEBUG_RUN_PATH string
 var emailRegex = regexp.MustCompile("^[a-zA-Z0-9.!#$%&'*+\\/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$")
 
 // parseConf loads a configuration from a toml string and fills all Conf value.
@@ -130,6 +132,12 @@ func parseConf(s string) (*peers.Conf, httpserver.AddressType, error) {
 		peersConf.GatheringTimeout = time.Duration(v.(int64)) * time.Millisecond
 	} else {
 		peersConf.GatheringTimeout = 3 * time.Second
+	}
+	v = t.Get("timeouts.ack_timeout")
+	if v != nil {
+		peersConf.AckTimeout = time.Duration(v.(int64)) * time.Millisecond
+	} else {
+		peersConf.AckTimeout = 3 * time.Second
 	}
 	v = t.Get("ice_servers")
 	if v != nil {
@@ -284,6 +292,9 @@ func ConfPath(suffix string) string {
 
 // RunPath returns the full path of a run file: socket & pid
 func RunPath(suffix string) string {
+	if DEBUG_RUN_PATH != "" {
+		return filepath.Join(DEBUG_RUN_PATH, suffix)
+	}
 	usr, _ := user.Current()
 	dir := filepath.Join(usr.HomeDir, ".local", "state", "webexec")
 	_, err := os.Stat(dir)

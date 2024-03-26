@@ -654,33 +654,19 @@ func pasteCMD(c *cli.Context) error {
 		return fmt.Errorf("Failed to communicate with agent: %s", err)
 	}
 	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("Failed to get clipboard content: %s", resp.Status)
-	}
-	clipboard, err := ioutil.ReadAll(resp.Body)
+	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return fmt.Errorf("Failed to read clipboard content: %s", err)
 	}
-	fmt.Print(string(clipboard))
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("Failed to get clipboard content: %s: %s", resp.Status, body)
+	}
+	fmt.Print(string(body))
 	return nil
 }
 
 // handleCTRLMsg handles incoming control messages
-func handleCTRLMsg(peer *peers.Peer, msg webrtc.DataChannelMessage) {
-	if msg.Data == nil {
-		Logger.Infof("Got a CTRLMessage with no data %v", msg)
-		return
-	}
-	var raw json.RawMessage
-	m := peers.CTRLMessage{
-		Args: &raw,
-	}
-	Logger.Infof("Got a CTRLMessage: %q\n", string(msg.Data))
-	err := json.Unmarshal(msg.Data, &m)
-	if err != nil {
-		Logger.Infof("Failed to parse incoming control message: %v", err)
-		return
-	}
+func handleCTRLMsg(peer *peers.Peer, m peers.CTRLMessage, raw json.RawMessage) {
 	switch m.Type {
 	case "resize":
 		handleResize(peer, m, raw)
@@ -699,7 +685,7 @@ func handleCTRLMsg(peer *peers.Peer, msg webrtc.DataChannelMessage) {
 	default:
 		Logger.Errorf("Got a control message with unknown type: %q", m.Type)
 		// send nack
-		err = peer.SendNack(m, "unknown control message type")
+		err := peer.SendNack(m, "unknown control message type")
 		if err != nil {
 			Logger.Errorf("#%d: Failed to send nack: %v", peer.FP, err)
 		}

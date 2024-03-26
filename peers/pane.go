@@ -271,6 +271,7 @@ func (pane *Pane) Kill() {
 
 // OnMessage is called when a new client message is recieved
 func (pane *Pane) OnMessage(msg webrtc.DataChannelMessage) {
+	mostRecentPeer = pane.peer
 	logger := pane.peer.logger
 	p := msg.Data
 	l, err := pane.TTY.Write(p)

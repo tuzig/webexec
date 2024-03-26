@@ -73,7 +73,6 @@ func TestOfferGetCandidate(t *testing.T) {
 	resp, err := httpc.Post("http://unix/offer/", "application/json", bytes.NewBuffer(buf))
 	require.NoError(t, err, "Failed sending a post request: %q", err)
 	require.Equal(t, http.StatusOK, resp.StatusCode)
-	require.Nil(t, err, "Failed to close post request body: %q", err)
 	// read server answer
 	var body map[string]string
 	json.NewDecoder(resp.Body).Decode(&body)

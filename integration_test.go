@@ -3,8 +3,12 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
+	"io"
+	"net"
+	"net/http"
 	"regexp"
 	"strconv"
 	"strings"
@@ -15,6 +19,7 @@ import (
 	"github.com/pion/webrtc/v3"
 	"github.com/stretchr/testify/require"
 	"github.com/tuzig/webexec/peers"
+	"go.uber.org/fx/fxtest"
 )
 
 // SendRestore sends an restore message
@@ -524,4 +529,99 @@ func TestExecCommandWithParent(t *testing.T) {
 	// validate that the pwd ends with "/tmp"
 	cwd := string(b[:l])
 	require.True(t, strings.HasSuffix(cwd, "/tmp\r\n"), "Expected ouput to end with /tmp, got %s", cwd)
+}
+func TestPasteCommand(t *testing.T) {
+	DEBUG_RUN_PATH = t.TempDir()
+	done := make(chan bool)
+	initTest(t)
+	// init socket server
+	lifecycle := fxtest.NewLifecycle(t)
+	k := KeyType{}
+	certificate, err := k.generate()
+	require.NoError(t, err, "Failed to generate a certificate", err)
+	conf := peers.Conf{
+		Certificate:       certificate,
+		Logger:            Logger,
+		DisconnectTimeout: time.Second,
+		FailedTimeout:     time.Second,
+		KeepAliveInterval: time.Second,
+		GatheringTimeout:  time.Second,
+		GetICEServers: func() ([]webrtc.ICEServer, error) {
+			return nil, nil
+		},
+	}
+	sockServer := NewSockServer(&conf)
+	require.NotNil(t, sockServer, "Failed to create a new server")
+	server, err := StartSocketServer(lifecycle, sockServer)
+	require.NoError(t, err, "Failed to start a new server")
+	require.NotNil(t, server, "Failed to start a new server")
+	lifecycle.RequireStart()
+	defer lifecycle.RequireStop()
+	client, certs, err := NewClient(true)
+	require.Nil(t, err, "Failed to create a new client %v", err)
+	defer client.Close()
+	peer := newPeer(t, "A", certs)
+	cdc, err := client.CreateDataChannel("%", nil)
+	require.Nil(t, err, "failed to create the control data channel: %v", err)
+	cdc.OnOpen(func() {
+		// control channel is open let's open another one, so we'll have
+		// what to resize
+		// dc, err := client.CreateDataChannel("12x34,bash", nil)
+		// require.Nil(t, err, "failed to create the a channel: %v", err)
+		addPaneArgs := peers.AddPaneArgs{Rows: 12, Cols: 34,
+			Command: []string{"bash"}}
+		m := peers.CTRLMessage{time.Now().UnixNano(), 123, "add_pane",
+			&addPaneArgs}
+		addPaneMsg, err := json.Marshal(m)
+		require.NoError(t, err, "failed marshilng ctrl msg: %s", err)
+		Logger.Info("Sending the addPane message")
+		cdc.Send(addPaneMsg)
+	})
+	cdc.OnMessage(func(msg webrtc.DataChannelMessage) {
+		// parse json message
+		var cm peers.CTRLMessage
+		err := json.Unmarshal(msg.Data, &cm)
+		require.Nil(t, err)
+		switch cm.Type {
+		case "ack":
+			// ack := ParseAck(t, msg)
+			// paneID, err := strconv.Atoi(string(ack.Body))
+			// require.NoError(t, err, "failed to unmarshal ack body: %s", err)
+			go func() {
+				fp := GetSockFP()
+				Logger.Infof("Got a fp: %s", fp)
+				httpc := http.Client{
+					Transport: &http.Transport{
+						DialContext: func(_ context.Context, _, _ string) (net.Conn, error) {
+							return net.Dial("unix", fp)
+						},
+					},
+				}
+				resp, err := httpc.Get("http://unix/paste")
+				require.NoError(t, err, "Failed sending a post request: %q", err)
+				body, err := io.ReadAll(resp.Body)
+				require.NoError(t, err)
+				require.Equal(t, http.StatusOK, resp.StatusCode, "Got a bad status code: %d:  %s", resp.StatusCode, body)
+				require.Equal(t, "echo hello", string(body))
+				done <- true
+			}()
+		case "get_clipboard":
+			// send the ack with the clipboard in the body
+			ack := peers.CTRLMessage{Ref: 456, Type: "ack",
+				Args: &peers.AckArgs{Body: "echo hello", Ref: cm.Ref}}
+			ackMsg, err := json.Marshal(ack)
+			require.Nil(t, err)
+			cdc.Send(ackMsg)
+			Logger.Info("Sent the ack")
+		default:
+			t.Errorf("Got a bad message: %s", cm.Type)
+		}
+	})
+	SignalPair(client, peer)
+	select {
+	case <-time.After(6 * time.Second):
+		t.Error("Timeout waiting for server to open channel")
+	case <-done:
+	}
+	DEBUG_RUN_PATH = ""
 }

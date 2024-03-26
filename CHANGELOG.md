@@ -9,6 +9,13 @@ his file's format is define in
 and the release workflow reads it to set github's release notes.
 
 
+## Unreleased
+This versio includes breaking changes the peers library.
+
+### Added
+
+- webexec paste command to paste to standard output the client's clipboard
+
 ## [1.3.2] 2024-2-25
 
 ### Fixed
