@@ -63,7 +63,7 @@ type CTRLMessage struct {
 	Time int64       `json:"time"`
 	Ref  int         `json:"message_id"`
 	Type string      `json:"type"`
-	Args interface{} `json:"args"`
+	Args interface{} `json:"args"` // TODO: add omitempty
 }
 
 // ParseWinsize gets a string in the format of "24x80" and returns a Winsize
