@@ -30,6 +30,7 @@ import (
 	"go.uber.org/fx"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
+	"golang.design/x/clipboard"
 	"golang.org/x/crypto/ssh/terminal"
 	"gopkg.in/natefinch/lumberjack.v2"
 )
@@ -303,6 +304,7 @@ func start(c *cli.Context) error {
 		}
 	}
 	// the code below runs for both --debug and --agent
+	clipboard.Init()
 	sigChan := make(chan os.Signal, 1)
 	app := fx.New(
 		loggerOption,
@@ -331,10 +333,6 @@ func start(c *cli.Context) error {
 }
 
 /* TBD:
-func paste(c *cli.Context) error {
-	fmt.Println("Soon, we'll be pasting data from the clipboard to STDOUT")
-	return nil
-}
 func copyCMD(c *cli.Context) error {
 	fmt.Println("Soon, we'll be copying data from STDIN to the clipboard")
 	return nil
@@ -769,7 +767,7 @@ func main() {
 			}, */
 			{
 				Name:   "paste",
-				Usage:  "Paste data from the clipboard to STDOUT",
+				Usage:  "Paste data from the client's clipboard to stdout, or the local clipboard",
 				Action: pasteCMD,
 			},
 		},

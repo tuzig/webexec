@@ -194,6 +194,7 @@ func (peer *Peer) OnChannelReq(d *webrtc.DataChannel) {
 		}
 		if pane != nil {
 			c := CDB.Add(d, pane, peer)
+			peer.logger.Infof("BUMP Added a new pane: %d", pane.ID)
 			d.OnMessage(pane.OnMessage)
 			d.OnClose(func() {
 				CDB.Delete(c)
@@ -324,7 +325,10 @@ func (peer *Peer) Reconnect(d *webrtc.DataChannel, id int) (*Pane, error) {
 	defer pane.Unlock()
 	if pane.IsRunning {
 		c := CDB.Add(d, pane, peer)
-		d.OnMessage(pane.OnMessage)
+		d.OnMessage(func(msg webrtc.DataChannelMessage) {
+			mostRecentPeer = peer
+			pane.OnMessage(msg)
+		})
 		d.OnClose(func() {
 			CDB.Delete(c)
 		})
