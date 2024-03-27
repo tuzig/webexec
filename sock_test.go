@@ -37,7 +37,8 @@ func TestOfferGetCandidate(t *testing.T) {
 	}
 	sockServer := NewSockServer(&conf)
 	require.NotNil(t, sockServer, "Failed to create a new server")
-	server, err := StartSocketServer(lifecycle, sockServer)
+	startParams := SocketStartParams{t.TempDir()}
+	server, err := StartSocketServer(lifecycle, sockServer, startParams)
 	require.NoError(t, err, "Failed to start a new server")
 	require.NotNil(t, server, "Failed to start a new server")
 	lifecycle.RequireStart()
@@ -114,15 +115,15 @@ func TestOfferPutCandidates(t *testing.T) {
 		},
 	}
 	sockServer := NewSockServer(&conf)
-	server, err := StartSocketServer(lifecycle, sockServer)
+	startParams := SocketStartParams{t.TempDir()}
+	server, err := StartSocketServer(lifecycle, sockServer, startParams)
 	lifecycle.RequireStart()
 	require.NoError(t, err, "Failed to start a new server")
 	require.NotNil(t, server, "Failed to start a new server")
-	fp := RunPath("webexec.sock")
 	httpc := http.Client{
 		Transport: &http.Transport{
 			DialContext: func(_ context.Context, _, _ string) (net.Conn, error) {
-				return net.Dial("unix", fp)
+				return net.Dial("unix", startParams.fp)
 			},
 		},
 	}

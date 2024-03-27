@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -20,6 +21,9 @@ import (
 	"golang.design/x/clipboard"
 )
 
+type SocketStartParams struct {
+	fp string
+}
 type sockServer struct {
 	currentOffers map[string]*LiveOffer
 	coMutex       sync.Mutex
@@ -36,6 +40,8 @@ type LiveOffer struct {
 	p  *peers.Peer
 	id string
 }
+
+var socketFilePath string
 
 func (lo *LiveOffer) handleIncoming(ctx context.Context) {
 	for {
@@ -69,9 +75,9 @@ func NewSockServer(conf *peers.Conf) *sockServer {
 	}
 }
 
-// TODO: refactor to a method on sockServer
+// GetSockFP returns the path to the socket file
 func GetSockFP() string {
-	return RunPath("webexec.sock")
+	return socketFilePath
 }
 
 func (s *sockServer) handleClipboard(w http.ResponseWriter, r *http.Request) {
@@ -111,15 +117,19 @@ func (s *sockServer) handleClipboard(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func StartSocketServer(lc fx.Lifecycle, s *sockServer) (*http.Server, error) {
-	fp := GetSockFP()
-	_, err := os.Stat(fp)
+func StartSocketServer(lc fx.Lifecycle, s *sockServer, params SocketStartParams) (*http.Server, error) {
+	socketFilePath = params.fp
+	_, err := os.Stat(params.fp)
 	if err == nil {
-		Logger.Infof("Removing stale socket file %q", fp)
-		os.Remove(fp)
+		Logger.Infof("Removing stale socket file %q", params.fp)
+		err = os.Remove(params.fp)
+		if err != nil {
+			Logger.Errorf("Failed to remove stale socket file %q: %s", params.fp, err)
+			return nil, err
+		}
 	} else if errors.Is(err, os.ErrNotExist) {
-		// file does not exist, let's make sure the dir does
-		dir := RunPath("")
+		// file does not exist, extract the directory and create it
+		dir := filepath.Dir(params.fp)
 		_, err := os.Stat(dir)
 		if errors.Is(err, os.ErrNotExist) {
 			err = os.Mkdir(dir, 0755)
@@ -140,18 +150,18 @@ func StartSocketServer(lc fx.Lifecycle, s *sockServer) (*http.Server, error) {
 	server := http.Server{Handler: &m}
 	lc.Append(fx.Hook{
 		OnStart: func(context.Context) error {
-			l, err := net.Listen("unix", fp)
+			l, err := net.Listen("unix", params.fp)
 			if err != nil {
 				return fmt.Errorf("Failed to listen to unix socket: %s", err)
 			}
 			go server.Serve(l)
-			Logger.Infof("Listening for requests on %q", fp)
+			Logger.Infof("Listening for requests on %q", params.fp)
 			return nil
 		},
 		OnStop: func(ctx context.Context) error {
 			Logger.Info("Stopping socket server")
 			err := server.Shutdown(ctx)
-			os.Remove(fp)
+			os.Remove(params.fp)
 			Logger.Info("Socket server down")
 			return err
 		},

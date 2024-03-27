@@ -73,7 +73,6 @@ var Conf struct {
 	T               *toml.Tree
 }
 
-var DEBUG_RUN_PATH string
 var emailRegex = regexp.MustCompile("^[a-zA-Z0-9.!#$%&'*+\\/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$")
 
 // parseConf loads a configuration from a toml string and fills all Conf value.
@@ -292,9 +291,6 @@ func ConfPath(suffix string) string {
 
 // RunPath returns the full path of a run file: socket & pid
 func RunPath(suffix string) string {
-	if DEBUG_RUN_PATH != "" {
-		return filepath.Join(DEBUG_RUN_PATH, suffix)
-	}
 	usr, _ := user.Current()
 	dir := filepath.Join(usr.HomeDir, ".local", "state", "webexec")
 	_, err := os.Stat(dir)

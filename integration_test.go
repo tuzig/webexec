@@ -531,7 +531,6 @@ func TestExecCommandWithParent(t *testing.T) {
 	require.True(t, strings.HasSuffix(cwd, "/tmp\r\n"), "Expected ouput to end with /tmp, got %s", cwd)
 }
 func TestPasteCommand(t *testing.T) {
-	DEBUG_RUN_PATH = t.TempDir()
 	done := make(chan bool)
 	initTest(t)
 	// init socket server
@@ -552,7 +551,8 @@ func TestPasteCommand(t *testing.T) {
 	}
 	sockServer := NewSockServer(&conf)
 	require.NotNil(t, sockServer, "Failed to create a new server")
-	server, err := StartSocketServer(lifecycle, sockServer)
+	startParams := SocketStartParams{t.TempDir()}
+	server, err := StartSocketServer(lifecycle, sockServer, startParams)
 	require.NoError(t, err, "Failed to start a new server")
 	require.NotNil(t, server, "Failed to start a new server")
 	lifecycle.RequireStart()
@@ -623,11 +623,9 @@ func TestPasteCommand(t *testing.T) {
 		t.Error("Timeout waiting for server to open channel")
 	case <-done:
 	}
-	DEBUG_RUN_PATH = ""
 }
 
 func TestCopyCommand(t *testing.T) {
-	DEBUG_RUN_PATH = t.TempDir()
 	done := make(chan bool)
 	initTest(t) // Setup test dependencies
 
@@ -642,7 +640,8 @@ func TestCopyCommand(t *testing.T) {
 	}
 	sockServer := NewSockServer(&conf)
 	require.NotNil(t, sockServer, "Failed to create a new server")
-	server, err := StartSocketServer(lifecycle, sockServer)
+	startParams := SocketStartParams{t.TempDir()}
+	server, err := StartSocketServer(lifecycle, sockServer, startParams)
 	require.NoError(t, err, "Failed to start a new server")
 	require.NotNil(t, server, "Failed to start a new server")
 	lifecycle.RequireStart()
@@ -675,12 +674,11 @@ func TestCopyCommand(t *testing.T) {
 		switch cm.Type {
 		case "ack":
 			go func() {
-				fp := GetSockFP()
-				Logger.Infof("Got a fp: %s", fp)
+				Logger.Infof("Got a fp: %s", startParams.fp)
 				httpc := http.Client{
 					Transport: &http.Transport{
 						DialContext: func(_ context.Context, _, _ string) (net.Conn, error) {
-							return net.Dial("unix", fp)
+							return net.Dial("unix", startParams.fp)
 						},
 					},
 				}
@@ -712,5 +710,4 @@ func TestCopyCommand(t *testing.T) {
 	case <-done:
 	}
 
-	DEBUG_RUN_PATH = ""
 }

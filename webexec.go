@@ -316,6 +316,9 @@ func start(c *cli.Context) error {
 			NewSockServer,
 			NewPeerbookClient,
 			GetCerts,
+			func() SocketStartParams {
+				return SocketStartParams{RunPath("webexec.sock")}
+			},
 		),
 		fx.Invoke(httpserver.StartHTTPServer, StartSocketServer, StartPeerbookClient),
 	)
