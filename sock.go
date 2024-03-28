@@ -84,7 +84,7 @@ func (s *sockServer) handleClipboard(w http.ResponseWriter, r *http.Request) {
 	if r.Method == "GET" {
 		var reply []byte
 		Logger.Info("Handling paste request")
-		peer := peers.GetRecentPeer()
+		peer := peers.GetActivePeer()
 		if peer != nil {
 			err, clip := peer.SendControlMessageAndWait("get_clipboard", nil)
 			if err != nil {
@@ -100,7 +100,7 @@ func (s *sockServer) handleClipboard(w http.ResponseWriter, r *http.Request) {
 		w.Write(reply)
 	} else if r.Method == "POST" {
 		b, _ := ioutil.ReadAll(r.Body)
-		peer := peers.GetRecentPeer()
+		peer := peers.GetActivePeer()
 		if peer != nil {
 			args := peers.SetClipboardArgs{Text: string(b)}
 			err := peer.SendControlMessage("set_clipboard", args)

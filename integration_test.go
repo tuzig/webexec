@@ -561,6 +561,7 @@ func TestPasteCommand(t *testing.T) {
 	require.Nil(t, err, "Failed to create a new client %v", err)
 	defer client.Close()
 	peer := newPeer(t, "A", certs)
+	peers.SetLastPeer(peer)
 	cdc, err := client.CreateDataChannel("%", nil)
 	require.Nil(t, err, "failed to create the control data channel: %v", err)
 	cdc.OnOpen(func() {
@@ -651,7 +652,7 @@ func TestCopyCommand(t *testing.T) {
 	require.Nil(t, err, "Failed to create a new client")
 	defer client.Close()
 	peer := newPeer(t, "B", certs)
-	peers.MostRecentPeer = peer
+	peers.SetLastPeer(peer)
 	cdc, err := client.CreateDataChannel("%", nil)
 	require.Nil(t, err, "failed to create the control data channel")
 

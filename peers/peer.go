@@ -35,7 +35,8 @@ var (
 	peersM         sync.Mutex
 	CDB            = NewClientsDB()
 	msgIDM         sync.Mutex
-	MostRecentPeer *Peer
+	mostRecentPeer *Peer
+	lastReceived   time.Time
 )
 
 type Conf struct {
@@ -91,13 +92,17 @@ func NewPeer(fp string, conf *Conf) (*Peer, error) {
 		WebRTCAPI = webrtc.NewAPI(webrtc.WithSettingEngine(*s))
 	}
 	webrtcAPIM.Unlock()
-	iceservers, err := conf.GetICEServers()
-	if err != nil {
-		conf.Logger.Errorf("Failed to get ICE servers: %s", err)
+	var iceServers []webrtc.ICEServer
+	if conf.GetICEServers != nil {
+		var err error
+		iceServers, err = conf.GetICEServers()
+		if err != nil {
+			conf.Logger.Errorf("Failed to get ICE servers: %s", err)
+		}
 	}
 	config := webrtc.Configuration{
 		PeerIdentity: "webexec",
-		ICEServers:   iceservers,
+		ICEServers:   iceServers,
 		Certificates: []webrtc.Certificate{*conf.Certificate},
 	}
 	pc, err := WebRTCAPI.NewPeerConnection(config)
@@ -206,15 +211,14 @@ func (peer *Peer) OnChannelReq(d *webrtc.DataChannel) {
 	})
 }
 
-// GetRecentPeer returns the most recent peer
-func GetRecentPeer() *Peer {
-	if MostRecentPeer == nil && len(Peers) > 0 {
-		for _, p := range Peers {
-			MostRecentPeer = p
-			break
-		}
+// GetActivePeer returns the last active peer or nil if no client has been
+// active for a while
+func GetActivePeer() *Peer {
+	if mostRecentPeer == nil ||
+		lastReceived.Add(keepAliveInterval).Before(time.Now()) {
+		return nil
 	}
-	return MostRecentPeer
+	return mostRecentPeer
 }
 func (peer *Peer) handleCTRLMsg(msg webrtc.DataChannelMessage) {
 	var raw json.RawMessage
@@ -326,7 +330,7 @@ func (peer *Peer) Reconnect(d *webrtc.DataChannel, id int) (*Pane, error) {
 	if pane.IsRunning {
 		c := CDB.Add(d, pane, peer)
 		d.OnMessage(func(msg webrtc.DataChannelMessage) {
-			MostRecentPeer = peer
+			SetLastPeer(peer)
 			pane.OnMessage(msg)
 		})
 		d.OnClose(func() {
@@ -555,4 +559,10 @@ func Shutdown() {
 			logger.Error("Failed closing a process: %w", err)
 		}
 	}
+}
+
+// SetLastPeer sets the most recent peer
+func SetLastPeer(p *Peer) {
+	mostRecentPeer = p
+	lastReceived = time.Now()
 }
