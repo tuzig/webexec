@@ -199,7 +199,6 @@ func (peer *Peer) OnChannelReq(d *webrtc.DataChannel) {
 		}
 		if pane != nil {
 			c := CDB.Add(d, pane, peer)
-			peer.logger.Infof("BUMP Added a new pane: %d", pane.ID)
 			d.OnMessage(pane.OnMessage)
 			d.OnClose(func() {
 				CDB.Delete(c)
@@ -392,13 +391,18 @@ func (peer *Peer) SendNack(cm CTRLMessage, desc string) error {
 	return peer.SendControlMessage("nack", &args)
 }
 
-// SendControlMessage sends a control message to the client
-func (peer *Peer) SendControlMessage(typ string, args interface{}) error {
+func (peer *Peer) newCTRLMessage(typ string, args interface{}) *CTRLMessage {
 	msgIDM.Lock()
 	peer.LastRef++
 	msg := CTRLMessage{time.Now().UnixNano() / 1000000, peer.LastRef,
 		typ, args}
 	msgIDM.Unlock()
+	return &msg
+}
+
+// SendControlMessage sends a control message to the client
+func (peer *Peer) SendControlMessage(typ string, args interface{}) error {
+	msg := peer.newCTRLMessage(typ, args)
 	msgJ, err := json.Marshal(msg)
 	if err != nil {
 		return fmt.Errorf("Failed to marshal the ack msg: %e\n   msg == %q", err, msg)
@@ -408,17 +412,11 @@ func (peer *Peer) SendControlMessage(typ string, args interface{}) error {
 
 // SendControlMessage sends a control message and wait for ack
 func (peer *Peer) SendControlMessageAndWait(typ string, args interface{}) (error, string) {
-	msgIDM.Lock()
-	peer.LastRef++
-	id := peer.LastRef
-	msg := CTRLMessage{time.Now().UnixNano() / 1000000,
-		id, typ, args}
-	msgIDM.Unlock()
+	msg := peer.newCTRLMessage(typ, args)
 	ch := make(chan string, 1)
 	peer.Lock()
-	peer.acks[id] = ch
+	peer.acks[msg.Ref] = ch
 	peer.Unlock()
-	peer.logger.Infof("Saved an acck with id: %d %v", id, peer)
 	msgJ, err := json.Marshal(msg)
 	if err != nil {
 		return fmt.Errorf("Failed to marshal the ack msg: %e\n   msg == %q", err, msg), ""
@@ -429,9 +427,8 @@ func (peer *Peer) SendControlMessageAndWait(typ string, args interface{}) (error
 		return fmt.Errorf("Failed to send message: %s", err), ""
 	}
 	select {
-	// case <-time.After(peer.Conf.AckTimeout):
-	case <-time.After(3 * time.Second):
-		_, ok := peer.acks[id]
+	case <-time.After(peer.Conf.AckTimeout):
+		_, ok := peer.acks[msg.Ref]
 		if !ok {
 			return fmt.Errorf("Failed to create a channel for ack"), ""
 		}
@@ -439,7 +436,7 @@ func (peer *Peer) SendControlMessageAndWait(typ string, args interface{}) (error
 	case a := <-ch:
 		peer.logger.Infof("Got an ack")
 		peer.Lock()
-		delete(peer.acks, id)
+		delete(peer.acks, msg.Ref)
 		peer.Unlock()
 		return nil, a
 	}
