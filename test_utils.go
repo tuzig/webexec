@@ -63,6 +63,7 @@ func initTest(t *testing.T) {
 func newPeer(t *testing.T, fp string, certificate *webrtc.Certificate) *peers.Peer {
 	conf := peers.Conf{
 		Certificate:       certificate,
+		AckTimeout:        time.Second,
 		Logger:            Logger,
 		DisconnectTimeout: time.Second,
 		FailedTimeout:     time.Second,

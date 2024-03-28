@@ -86,7 +86,7 @@ func (s *sockServer) handleClipboard(w http.ResponseWriter, r *http.Request) {
 		Logger.Info("Handling paste request")
 		peer := peers.GetActivePeer()
 		if peer != nil {
-			err, clip := peer.SendControlMessageAndWait("get_clipboard", nil)
+			clip, err := peer.SendControlMessageAndWait("get_clipboard", nil)
 			if err != nil {
 				Logger.Errorf("Failed to send the paste message: %s", err)
 				http.Error(w, "Failed to send the paste message", http.StatusInternalServerError)

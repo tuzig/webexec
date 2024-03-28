@@ -540,6 +540,7 @@ func TestPasteCommand(t *testing.T) {
 	require.NoError(t, err, "Failed to generate a certificate", err)
 	conf := peers.Conf{
 		Certificate:       certificate,
+		AckTimeout:        time.Second,
 		Logger:            Logger,
 		DisconnectTimeout: time.Second,
 		FailedTimeout:     time.Second,
@@ -637,6 +638,7 @@ func TestCopyCommand(t *testing.T) {
 	require.NoError(t, err, "Failed to generate a certificate")
 	conf := peers.Conf{
 		Certificate: certificate,
+		AckTimeout:  time.Second,
 		// Remaining configuration similar to TestPasteCommand
 	}
 	sockServer := NewSockServer(&conf)

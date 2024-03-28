@@ -411,7 +411,8 @@ func (peer *Peer) SendControlMessage(typ string, args interface{}) error {
 }
 
 // SendControlMessage sends a control message and wait for ack
-func (peer *Peer) SendControlMessageAndWait(typ string, args interface{}) (error, string) {
+func (peer *Peer) SendControlMessageAndWait(typ string, args interface{}) (string, error) {
+	ret := ""
 	msg := peer.newCTRLMessage(typ, args)
 	ch := make(chan string, 1)
 	peer.Lock()
@@ -419,27 +420,30 @@ func (peer *Peer) SendControlMessageAndWait(typ string, args interface{}) (error
 	peer.Unlock()
 	msgJ, err := json.Marshal(msg)
 	if err != nil {
-		return fmt.Errorf("Failed to marshal the ack msg: %e\n   msg == %q", err, msg), ""
+		return ret, fmt.Errorf("Failed to marshal the ack msg: %e\n   msg == %q", err, msg)
 	}
 
 	err = peer.SendMessage(msgJ)
 	if err != nil {
-		return fmt.Errorf("Failed to send message: %s", err), ""
+		return ret, fmt.Errorf("Failed to send message: %s", err)
 	}
+	// remove the ack after some time
+	peer.logger.Infof("Waiting for ack: %d", peer.Conf.AckTimeout)
 	select {
 	case <-time.After(peer.Conf.AckTimeout):
 		_, ok := peer.acks[msg.Ref]
 		if !ok {
-			return fmt.Errorf("Failed to create a channel for ack"), ""
+			err = fmt.Errorf("Failed to create a channel for ack")
+		} else {
+			err = fmt.Errorf("Timedout waiting for ack")
 		}
-		return fmt.Errorf("Timed out waiting for ack"), ""
-	case a := <-ch:
-		peer.logger.Infof("Got an ack")
-		peer.Lock()
-		delete(peer.acks, msg.Ref)
-		peer.Unlock()
-		return nil, a
+	case ret = <-ch:
+		err = nil
 	}
+	peer.Lock()
+	delete(peer.acks, msg.Ref)
+	peer.Unlock()
+	return ret, err
 }
 
 // SendMessage marshales a message and sends it over the cdc
