@@ -85,7 +85,7 @@ func GetSockFP() string {
 func (s *sockServer) handleClipboard(w http.ResponseWriter, r *http.Request) {
 	if r.Method == "GET" {
 		var reply []byte
-		Logger.Info("Handling paste request")
+		Logger.Info("Handling clipboard GET")
 		peer := peers.GetActivePeer()
 		if peer != nil {
 			clip, err := peer.SendControlMessageAndWait("get_clipboard", nil)
@@ -96,11 +96,12 @@ func (s *sockServer) handleClipboard(w http.ResponseWriter, r *http.Request) {
 			}
 			reply = []byte(clip)
 		} else {
-			// use the local clipboard as a fllaback
+			// use the local clipboard as a fallback
 			reply = clipboard.Read(clipboard.FmtText)
 		}
 		w.Write(reply)
 	} else if r.Method == "POST" {
+		Logger.Info("Handling clipboard POST")
 		b, _ := ioutil.ReadAll(r.Body)
 		peer := peers.GetActivePeer()
 		if peer != nil {
