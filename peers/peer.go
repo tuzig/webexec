@@ -30,11 +30,12 @@ var (
 	// Payload holds the client's payload
 	Payload []byte
 	// WebRTCAPI is the gateway to webrtc calls
-	WebRTCAPI      *webrtc.API
-	webrtcAPIM     sync.Mutex
-	peersM         sync.Mutex
-	CDB            = NewClientsDB()
-	msgIDM         sync.Mutex
+	WebRTCAPI  *webrtc.API
+	webrtcAPIM sync.Mutex
+	peersM     sync.Mutex
+	CDB        = NewClientsDB()
+	msgIDM     sync.Mutex
+	// theses two go together - the last peer and the time it was last seen
 	mostRecentPeer *Peer
 	lastReceived   time.Time
 )
@@ -62,6 +63,7 @@ type Conf struct {
 type Peer struct {
 	sync.Mutex
 	acks              map[int]chan string
+	acksM             sync.Mutex
 	FP                string
 	Token             string
 	LastContact       *time.Time
@@ -210,7 +212,7 @@ func (peer *Peer) OnChannelReq(d *webrtc.DataChannel) {
 	})
 }
 
-// GetActivePeer returns the last active peer or nil if no client has been
+// GetActivePeer returns the last active peer or nil if no peer has been
 // active for a while
 func GetActivePeer() *Peer {
 	if mostRecentPeer == nil ||
@@ -349,12 +351,9 @@ func (peer *Peer) handleAck(m CTRLMessage, raw json.RawMessage) {
 		peer.logger.Infof("Failed to parse incoming control message: %v", err)
 		return
 	}
-	for k, _ := range peer.acks {
-		peer.logger.Infof("waiting for ack: %d", k)
-	}
-	peer.Lock()
+	peer.acksM.Lock()
 	ch, ok := peer.acks[a.Ref]
-	peer.Unlock()
+	peer.acksM.Unlock()
 	if ok {
 		ch <- a.Body
 	} else {
@@ -369,11 +368,11 @@ func (peer *Peer) handleNack(m CTRLMessage, raw json.RawMessage) {
 		return
 	}
 	// check if someone is waiting for this ack - and if so send the body to the channel in the map
-	peer.Lock()
+	peer.acksM.Lock()
 	ch, ok := peer.acks[m.Ref]
-	peer.Unlock()
+	peer.acksM.Unlock()
 	if ok {
-		ch <- ""
+		ch <- "NACK"
 	} else {
 		peer.logger.Warnf("got a nack with no waiting channel: %v", a)
 	}
@@ -415,9 +414,9 @@ func (peer *Peer) SendControlMessageAndWait(typ string, args interface{}) (strin
 	ret := ""
 	msg := peer.newCTRLMessage(typ, args)
 	ch := make(chan string, 1)
-	peer.Lock()
+	peer.acksM.Lock()
 	peer.acks[msg.Ref] = ch
-	peer.Unlock()
+	peer.acksM.Unlock()
 	msgJ, err := json.Marshal(msg)
 	if err != nil {
 		return ret, fmt.Errorf("Failed to marshal the ack msg: %e\n   msg == %q", err, msg)
@@ -431,7 +430,9 @@ func (peer *Peer) SendControlMessageAndWait(typ string, args interface{}) (strin
 	peer.logger.Infof("Waiting for ack: %d", peer.Conf.AckTimeout)
 	select {
 	case <-time.After(peer.Conf.AckTimeout):
+		peer.acksM.Lock()
 		_, ok := peer.acks[msg.Ref]
+		peer.acksM.Unlock()
 		if !ok {
 			err = fmt.Errorf("Failed to create a channel for ack")
 		} else {
@@ -440,9 +441,9 @@ func (peer *Peer) SendControlMessageAndWait(typ string, args interface{}) (strin
 	case ret = <-ch:
 		err = nil
 	}
-	peer.Lock()
+	peer.acksM.Lock()
 	delete(peer.acks, msg.Ref)
-	peer.Unlock()
+	peer.acksM.Unlock()
 	return ret, err
 }
 
