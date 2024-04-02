@@ -33,7 +33,7 @@ http_server = "0.0.0.0:7777"
 udp_port_min = 60000
 udp_port_max = 61000
 [timeouts]
-ack_timeout = 3000
+ack = 3000
 disconnect = 3000
 failed = 6000
 ice_gathering = 5000
@@ -132,7 +132,7 @@ func parseConf(s string) (*peers.Conf, httpserver.AddressType, error) {
 	} else {
 		peersConf.GatheringTimeout = 3 * time.Second
 	}
-	v = t.Get("timeouts.ack_timeout")
+	v = t.Get("timeouts.ack")
 	if v != nil {
 		peersConf.AckTimeout = time.Duration(v.(int64)) * time.Millisecond
 	} else {

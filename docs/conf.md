@@ -24,7 +24,7 @@ run.
 
 All values are in Milliseconds
 
-- ack_timeout: how long to wait for a control message ack, default: 3000
+- ack: how long to wait for a control message ack, default: 3000
 - disconnect: the disconnect timeout, default: 3000
 - failed: the failed timeout, default: 6000
 - keep_alive: how long to wait between keep alive messages, default 500

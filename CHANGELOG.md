@@ -14,7 +14,9 @@ This versio includes breaking changes the peers library.
 
 ### Added
 
-- webexec paste command to paste to standard output the client's clipboard
+- webexec paste command to print the client's clipboard to standard output
+- webexec copy command to copy standard input to the client's clipboard
+- ack in the `timeouts` section of the configuration file
 
 ## [1.3.2] 2024-2-25
 

@@ -566,10 +566,6 @@ func TestPasteCommand(t *testing.T) {
 	cdc, err := client.CreateDataChannel("%", nil)
 	require.Nil(t, err, "failed to create the control data channel: %v", err)
 	cdc.OnOpen(func() {
-		// control channel is open let's open another one, so we'll have
-		// what to resize
-		// dc, err := client.CreateDataChannel("12x34,bash", nil)
-		// require.Nil(t, err, "failed to create the a channel: %v", err)
 		addPaneArgs := peers.AddPaneArgs{Rows: 12, Cols: 34,
 			Command: []string{"bash"}}
 		m := peers.CTRLMessage{time.Now().UnixNano(), 123, "add_pane",
@@ -586,9 +582,6 @@ func TestPasteCommand(t *testing.T) {
 		require.Nil(t, err)
 		switch cm.Type {
 		case "ack":
-			// ack := ParseAck(t, msg)
-			// paneID, err := strconv.Atoi(string(ack.Body))
-			// require.NoError(t, err, "failed to unmarshal ack body: %s", err)
 			go func() {
 				fp := GetSockFP()
 				Logger.Infof("Got a fp: %s", fp)

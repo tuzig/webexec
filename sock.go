@@ -41,6 +41,8 @@ type LiveOffer struct {
 	id string
 }
 
+const socketFileName = "webexec.sock"
+
 var socketFilePath string
 
 func (lo *LiveOffer) handleIncoming(ctx context.Context) {
@@ -118,7 +120,11 @@ func (s *sockServer) handleClipboard(w http.ResponseWriter, r *http.Request) {
 }
 
 func StartSocketServer(lc fx.Lifecycle, s *sockServer, params SocketStartParams) (*http.Server, error) {
-	socketFilePath = params.fp
+	if params.fp == "" {
+		socketFilePath = RunPath(socketFileName)
+	} else {
+		socketFilePath = params.fp
+	}
 	_, err := os.Stat(params.fp)
 	if err == nil {
 		Logger.Infof("Removing stale socket file %q", params.fp)
