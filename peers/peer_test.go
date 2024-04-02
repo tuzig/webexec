@@ -13,24 +13,14 @@ import (
 	"go.uber.org/zap/zaptest"
 )
 
-func newClient(known bool) (*webrtc.PeerConnection, *webrtc.Certificate, error) {
+func TestActivePeer(t *testing.T) {
 	secretKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	if err != nil {
-		return nil, nil, err
-	}
-	certificate, err := webrtc.GenerateCertificate(secretKey)
-	certs := []webrtc.Certificate{*certificate}
-	client, err := webrtc.NewPeerConnection(
-		webrtc.Configuration{Certificates: certs})
-	if err != nil {
-		return nil, nil, err
-	}
-	return client, certificate, err
-}
-func newPeer(t *testing.T, fp string, certificate *webrtc.Certificate) *Peer {
+	require.NoError(t, err)
+	certs, err := webrtc.GenerateCertificate(secretKey)
+	require.NoError(t, err)
 	logger := zaptest.NewLogger(t).Sugar()
 	conf := Conf{
-		Certificate:       certificate,
+		Certificate:       certs,
 		Logger:            logger,
 		DisconnectTimeout: time.Second,
 		FailedTimeout:     time.Second,
@@ -43,16 +33,9 @@ func newPeer(t *testing.T, fp string, certificate *webrtc.Certificate) *Peer {
 			return
 		},
 	}
-	peer, err := NewPeer(fp, &conf)
+	peer, err := NewPeer("fingerprint", &conf)
 	require.NoError(t, err)
 	require.NotNil(t, peer)
-	return peer
-}
-func TestActivePeer(t *testing.T) {
-	client, certs, err := newClient(true)
-	require.NoError(t, err, "failed to create a new client %v", err)
-	defer client.Close()
-	peer := newPeer(t, "a", certs)
 	require.NotNil(t, peer)
 	activePeer := GetActivePeer()
 	require.Nil(t, activePeer)
