@@ -136,22 +136,18 @@ func (s *sockServer) handleClipboard(w http.ResponseWriter, r *http.Request) {
 }
 
 func StartSocketServer(lc fx.Lifecycle, s *sockServer, params SocketStartParams) (*http.Server, error) {
-	if params.fp == "" {
-		socketFilePath = RunPath(socketFileName)
-	} else {
-		socketFilePath = params.fp
-	}
+	socketFilePath = params.fp
 	_, err := os.Stat(params.fp)
 	if err == nil {
-		Logger.Infof("Removing stale socket file %q", params.fp)
-		err = os.Remove(params.fp)
+		Logger.Infof("Removing stale socket file %q", socketFilePath)
+		err = os.Remove(socketFilePath)
 		if err != nil {
-			Logger.Errorf("Failed to remove stale socket file %q: %s", params.fp, err)
+			Logger.Errorf("Failed to remove stale socket file %q: %s", socketFilePath, err)
 			return nil, err
 		}
 	} else if errors.Is(err, os.ErrNotExist) {
 		// file does not exist, extract the directory and create it
-		dir := filepath.Dir(params.fp)
+		dir := filepath.Dir(socketFilePath)
 		_, err := os.Stat(dir)
 		if errors.Is(err, os.ErrNotExist) {
 			err = os.Mkdir(dir, 0755)
@@ -172,18 +168,18 @@ func StartSocketServer(lc fx.Lifecycle, s *sockServer, params SocketStartParams)
 	server := http.Server{Handler: &m}
 	lc.Append(fx.Hook{
 		OnStart: func(context.Context) error {
-			l, err := net.Listen("unix", params.fp)
+			l, err := net.Listen("unix", socketFilePath)
 			if err != nil {
 				return fmt.Errorf("Failed to listen to unix socket: %s", err)
 			}
 			go server.Serve(l)
-			Logger.Infof("Listening for requests on %q", params.fp)
+			Logger.Infof("Listening for requests on %q", socketFilePath)
 			return nil
 		},
 		OnStop: func(ctx context.Context) error {
 			Logger.Info("Stopping socket server")
 			err := server.Shutdown(ctx)
-			os.Remove(params.fp)
+			os.Remove(socketFilePath)
 			Logger.Info("Socket server down")
 			return err
 		},

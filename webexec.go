@@ -794,11 +794,11 @@ func main() {
 			},
 			{
 				Name:   "copy",
-				Usage:  "Copy data from stdin to the clipboard",
+				Usage:  "Copy data from stdin to the active peer's clipboard. If no active peer, use local clipboard",
 				Action: copyCMD,
 			}, {
 				Name:   "paste",
-				Usage:  "Paste data from the client's clipboard to stdout, or the local clipboard",
+				Usage:  "Paste data from the active peer's clipboard to stdout. If no active peer, use local clipboard",
 				Action: pasteCMD,
 			},
 		},
