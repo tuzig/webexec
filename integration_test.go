@@ -690,7 +690,9 @@ func TestCopyCommand(t *testing.T) {
 			// verify the clipboard content is in the body
 			args, ok := cm.Args.(map[string]interface{})
 			require.True(t, ok, "Failed to cast args")
-			text := args["text"].(string)
+			mime := args["mimetype"].(string)
+			require.Equal(t, "text/plain", mime, "Expected mimetype to be 'text/plain'")
+			text := args["data"].(string)
 			require.Equal(t, "copy this text", text, "Expected clipboard content to be 'copy this text'")
 			done <- true
 

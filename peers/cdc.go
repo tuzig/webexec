@@ -58,7 +58,8 @@ type ReconnectPaneArgs struct {
 }
 
 type SetClipboardArgs struct {
-	Text string `json:"text"`
+	Data     string `json:"data"`
+	MimeType string `json:"mimetype"`
 }
 
 // CTRLMessage type holds control messages passed over the control channel

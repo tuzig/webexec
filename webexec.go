@@ -644,7 +644,7 @@ func copyCMD(c *cli.Context) error {
 		return fmt.Errorf("Failed to read from stdin: %s", err)
 	}
 	mimeType := http.DetectContentType(b)
-	fmt.Fprintf(os.Stderr, "copying mimetype:", mimeType) // Outputs the MIME type, e.g., text/plain
+	fmt.Fprintf(os.Stderr, "copying mimetype: %s", mimeType) // Outputs the MIME type, e.g., text/plain
 
 	fp := GetSockFP()
 	_, err = os.Stat(fp)
