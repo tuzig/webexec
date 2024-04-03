@@ -79,15 +79,18 @@ func NewSockServer(conf *peers.Conf) *sockServer {
 
 // GetSockFP returns the path to the socket file
 func GetSockFP() string {
+	if socketFilePath == "" {
+		socketFilePath = RunPath(socketFileName)
+	}
 	return socketFilePath
 }
 
 func (s *sockServer) handleClipboard(w http.ResponseWriter, r *http.Request) {
 	if r.Method == "GET" {
 		var reply []byte
-		Logger.Info("Handling clipboard GET")
 		peer := peers.GetActivePeer()
 		if peer != nil {
+			Logger.Info("Reading the peers' clipboard")
 			clip, err := peer.SendControlMessageAndWait("get_clipboard", nil)
 			if err != nil {
 				Logger.Errorf("Failed to send the paste message: %s", err)
@@ -97,15 +100,22 @@ func (s *sockServer) handleClipboard(w http.ResponseWriter, r *http.Request) {
 			reply = []byte(clip)
 		} else {
 			// use the local clipboard as a fallback
+			Logger.Info("Got clipboard GET, using local clipboard")
 			reply = clipboard.Read(clipboard.FmtText)
 		}
 		w.Write(reply)
 	} else if r.Method == "POST" {
-		Logger.Info("Handling clipboard POST")
+		mimetype := r.Header.Get("Content-Type")
 		b, _ := ioutil.ReadAll(r.Body)
 		peer := peers.GetActivePeer()
 		if peer != nil {
-			args := peers.SetClipboardArgs{Text: string(b)}
+			// check the incoming mime type and send the appropriate message
+			Logger.Infof("Setting peers' clipboard with mime type %q", mimetype)
+			args := peers.SetClipboardArgs{
+				MimeType: mimetype,
+				Data:     string(b),
+			}
+
 			err := peer.SendControlMessage("set_clipboard", args)
 			if err != nil {
 				Logger.Errorf("Failed to send the paste message: %s", err)
@@ -113,7 +123,12 @@ func (s *sockServer) handleClipboard(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 		} else {
-			clipboard.Write(clipboard.FmtText, b)
+			Logger.Info("Got clipboard POST, using local clipboard")
+			if strings.Contains(mimetype, "text/plain") {
+				clipboard.Write(clipboard.FmtText, b)
+			} else {
+				clipboard.Write(clipboard.FmtImage, b)
+			}
 		}
 	} else {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)

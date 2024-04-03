@@ -643,6 +643,9 @@ func copyCMD(c *cli.Context) error {
 	if err != nil {
 		return fmt.Errorf("Failed to read from stdin: %s", err)
 	}
+	mimeType := http.DetectContentType(b)
+	fmt.Fprintf(os.Stderr, "copying mimetype:", mimeType) // Outputs the MIME type, e.g., text/plain
+
 	fp := GetSockFP()
 	_, err = os.Stat(fp)
 	if os.IsNotExist(err) {
@@ -655,7 +658,7 @@ func copyCMD(c *cli.Context) error {
 			},
 		},
 	}
-	resp, err := httpc.Post("http://unix/clipboard", "plain/text", bytes.NewReader(b))
+	resp, err := httpc.Post("http://unix/clipboard", mimeType, bytes.NewReader(b))
 	if err != nil {
 		return fmt.Errorf("Failed to create the request: %s", err)
 	}

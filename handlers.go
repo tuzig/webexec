@@ -185,7 +185,10 @@ func handleAddPane(peer *peers.Peer, m peers.CTRLMessage, raw json.RawMessage) {
 		c := peers.CDB.Add(d, pane, peer)
 		Logger.Infof("opened data channel for pane %d", pane.ID)
 		peer.SendAck(m, fmt.Sprintf("%d", pane.ID))
-		d.OnMessage(pane.OnMessage)
+		d.OnMessage(func(msg webrtc.DataChannelMessage) {
+			peers.SetLastPeer(peer)
+			pane.OnMessage(msg)
+		})
 		d.OnClose(func() {
 			peers.CDB.Delete(c)
 		})
