@@ -18,6 +18,10 @@ This versio includes breaking changes the peers library.
 - webexec copy command to copy standard input to the client's clipboard
 - ack in the `timeouts` section of the configuration file
 
+### Added
+
+- when ice gathering timeouts, the agent will work with the gathered candidates
+
 ## [1.3.2] 2024-2-25
 
 ### Fixed

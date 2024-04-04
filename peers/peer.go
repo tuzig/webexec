@@ -172,7 +172,6 @@ func (peer *Peer) Listen(offer webrtc.SessionDescription) (*webrtc.SessionDescri
 	}
 	select {
 	case <-time.After(peer.Conf.GatheringTimeout):
-		return nil, fmt.Errorf("timed out waiting to finish gathering ICE candidates")
 	case <-gatherComplete:
 	}
 	return peer.PC.LocalDescription(), nil
