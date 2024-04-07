@@ -9,7 +9,9 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -18,7 +20,6 @@ import (
 	"github.com/pion/webrtc/v3"
 	"github.com/tuzig/webexec/peers"
 	"go.uber.org/fx"
-	"golang.design/x/clipboard"
 )
 
 type SocketStartParams struct {
@@ -99,9 +100,14 @@ func (s *sockServer) handleClipboard(w http.ResponseWriter, r *http.Request) {
 			}
 			reply = []byte(clip)
 		} else {
+			var err error
 			// use the local clipboard as a fallback
 			Logger.Info("Got clipboard GET, using local clipboard")
-			reply = clipboard.Read(clipboard.FmtText)
+			reply, err = readClipboard()
+			if err != nil {
+				http.Error(w, "Failed to read the clipboard", http.StatusNotImplemented)
+				return
+			}
 		}
 		w.Write(reply)
 	} else if r.Method == "POST" {
@@ -124,10 +130,10 @@ func (s *sockServer) handleClipboard(w http.ResponseWriter, r *http.Request) {
 			}
 		} else {
 			Logger.Info("Got clipboard POST, using local clipboard")
-			if strings.Contains(mimetype, "text/plain") {
-				clipboard.Write(clipboard.FmtText, b)
-			} else {
-				clipboard.Write(clipboard.FmtImage, b)
+			err := writeClipboard(b, mimetype)
+			if err != nil {
+				http.Error(w, "Failed to write to the clipboard", http.StatusNotImplemented)
+				return
 			}
 		}
 	} else {
@@ -338,4 +344,42 @@ func (s *sockServer) handleOffer(w http.ResponseWriter, r *http.Request) {
 		}
 		a.incoming <- webrtc.ICECandidateInit{Candidate: string(can)}
 	}
+}
+func readClipboard() ([]byte, error) {
+	var cmd *exec.Cmd
+	switch runtime.GOOS {
+	case "darwin":
+		cmd = exec.Command("pbpaste")
+	case "linux":
+		cmd = exec.Command("xsel", "--clipboard", "--output")
+	default:
+		return nil, fmt.Errorf("Unsupported platform %q for clipboard operations", runtime.GOOS)
+	}
+	return cmd.Output()
+}
+
+func writeClipboard(data []byte, mimeType string) error {
+	var cmd *exec.Cmd
+	switch runtime.GOOS {
+	case "darwin":
+		cmd = exec.Command("pbcopy")
+	case "linux":
+		cmd = exec.Command("xsel", "--clipboard", "--input")
+	default:
+		return fmt.Errorf("unsupported platform for clipboard operations")
+	}
+	in, err := cmd.StdinPipe()
+	if err != nil {
+		return err
+	}
+	if err := cmd.Start(); err != nil {
+		return err
+	}
+	if _, err := in.Write(data); err != nil {
+		return err
+	}
+	if err := in.Close(); err != nil {
+		return err
+	}
+	return cmd.Wait()
 }

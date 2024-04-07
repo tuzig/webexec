@@ -690,7 +690,13 @@ func pasteCMD(c *cli.Context) error {
 		return fmt.Errorf("Failed to read clipboard content: %s", err)
 	}
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("Failed to get clipboard content: %s: %s", resp.Status, body)
+		clipboardContent := os.Getenv("WEBEXEC_CLIPBOARD")
+		if clipboardContent != "" {
+			fmt.Print(clipboardContent)
+			return nil
+		} else {
+			return fmt.Errorf("Failed to get clipboard content: %s: %s", resp.Status, body)
+		}
 	}
 	fmt.Print(string(body))
 	return nil
