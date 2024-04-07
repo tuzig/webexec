@@ -30,7 +30,6 @@ import (
 	"go.uber.org/fx"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
-	"golang.design/x/clipboard"
 	"golang.org/x/crypto/ssh/terminal"
 	"gopkg.in/natefinch/lumberjack.v2"
 )
@@ -304,7 +303,6 @@ func start(c *cli.Context) error {
 		}
 	}
 	// the code below runs for both --debug and --agent
-	clipboard.Init()
 	sigChan := make(chan os.Signal, 1)
 	app := fx.New(
 		loggerOption,
@@ -335,11 +333,6 @@ func start(c *cli.Context) error {
 	return nil
 }
 
-/* TBD:
-func copyCMD(c *cli.Context) error {
-	fmt.Println("Soon, we'll be copying data from STDIN to the clipboard")
-	return nil
-*/
 // restart function restarts the agent or starts it if it is stopped
 func restart(c *cli.Context) error {
 	err := stop(c)
