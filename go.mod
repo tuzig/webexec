@@ -1,6 +1,6 @@
 module github.com/tuzig/webexec
 
-go 1.22.0
+go 1.22
 
 require (
 	git.rootprojects.org/root/go-gitver/v2 v2.0.2
