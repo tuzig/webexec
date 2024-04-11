@@ -346,16 +346,29 @@ func (s *sockServer) handleOffer(w http.ResponseWriter, r *http.Request) {
 	}
 }
 func readClipboard() ([]byte, error) {
-	var cmd *exec.Cmd
+	var (
+		cmd *exec.Cmd
+		ret []byte
+		err error
+	)
+
 	switch runtime.GOOS {
 	case "darwin":
 		cmd = exec.Command("pbpaste")
+		ret, err = cmd.Output()
 	case "linux":
 		cmd = exec.Command("xsel", "--clipboard", "--output")
+		ret, err = cmd.Output()
+		if err != nil {
+			if strings.Contains(err.Error(), "not found") {
+				cmd = exec.Command("xclip", "-out", "-selection", "clipboard")
+				ret, err = cmd.Output()
+			}
+		}
 	default:
-		return nil, fmt.Errorf("Unsupported platform %q for clipboard operations", runtime.GOOS)
+		err = fmt.Errorf("Unsupported platform %q for clipboard operations", runtime.GOOS)
 	}
-	return cmd.Output()
+	return ret, err
 }
 
 func writeClipboard(data []byte, mimeType string) error {
@@ -364,7 +377,12 @@ func writeClipboard(data []byte, mimeType string) error {
 	case "darwin":
 		cmd = exec.Command("pbcopy")
 	case "linux":
-		cmd = exec.Command("xsel", "--clipboard", "--input")
+		_, err := exec.LookPath("xsel")
+		if err == nil {
+			cmd = exec.Command("xsel", "--clipboard", "--input")
+		} else {
+			cmd = exec.Command("xclip", "-selection", "clipboard")
+		}
 	default:
 		return fmt.Errorf("unsupported platform for clipboard operations")
 	}

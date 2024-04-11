@@ -10,17 +10,18 @@ and the release workflow reads it to set github's release notes.
 
 
 ## Unreleased
-This versio includes breaking changes the peers library.
+
+This version includes breaking changes in the peers library.
 
 ### Added
 
-- webexec paste command to print the client's clipboard to standard output
-- webexec copy command to copy standard input to the client's clipboard
-- ack in the `timeouts` section of the configuration file
+- paste subcommand to print the client's clipboard to standard output
+- copy subcommand to copy standard input to the client's clipboard
+- an ack value in the `timeouts` section of the configuration file
 
-### Added
+### Fixed
 
-- when ice gathering timeouts, the agent will work with the gathered candidates
+- not aboring connection attempts when ice gathering timeouts
 
 ## [1.3.2] 2024-2-25
 
