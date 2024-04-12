@@ -9,7 +9,7 @@ his file's format is define in
 and the release workflow reads it to set github's release notes.
 
 
-## Unreleased
+## [1.4.0] 2024-4-11
 
 This version includes breaking changes in the peers library.
 
