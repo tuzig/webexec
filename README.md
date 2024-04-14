@@ -20,7 +20,7 @@ server and then initiates a WebRTC connection.
 
 This repo inscludes a [one-line installer](install.sh) for installing on Mac & Linux.
 To use to install the latest version it run
-`bash -c "$(curl -sL https://get.webexec.sh)".
+`bash -c "$(curl -sL https://get.webexec.sh)"`.
 
 ### From Source
 

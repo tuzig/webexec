@@ -32,6 +32,7 @@ builds:
           apple_id {
             username = "{{.Env.APPLE_ID_USERNAME}}"
             password = "{{.Env.APPLE_ID_PASSWORD}}"
+            provider = "{{.Env.APPLE_ID_TEAM}}"
           }
           source = ["dist/darwin_{{.Target}}/{{.Name}}"]
           sign {
@@ -75,6 +76,7 @@ signs:
         apple_id {
           username = "{{.Env.APPLE_ID_USERNAME}}"
           password = "{{.Env.APPLE_ID_PASSWORD}}"
+          provider = "{{.Env.APPLE_ID_TEAM}}"
         }
         notarize {
           path = "${artifact}"
