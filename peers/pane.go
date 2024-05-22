@@ -97,6 +97,8 @@ func NewPane(peer *Peer, ws *pty.Winsize, parent int) (*Pane, error) {
 			return nil, fmt.Errorf(
 				"Got a pane request with an illegal parrent pane id: %d", parent)
 		}
+		//TODO: handle a crash here, when there's a parent pane but no process yet
+		//      https://github.com/tuzig/webexec/issues/106
 		parent = parentPane.C.Process.Pid
 	}
 	if ws != nil {
