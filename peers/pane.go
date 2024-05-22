@@ -99,7 +99,7 @@ func NewPane(peer *Peer, ws *pty.Winsize, parent int) (*Pane, error) {
 		}
 		//TODO: handle a crash here, when there's a parent pane but no process yet
 		//      https://github.com/tuzig/webexec/issues/106
-		-parent = parentPane.C.Process.Pid
+		parent = parentPane.C.Process.Pid
 	}
 	if ws != nil {
 		vt = vt10x.New(vt10x.WithSize(int(ws.Cols), int(ws.Rows)))
