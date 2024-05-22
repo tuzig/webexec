@@ -14,6 +14,7 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"text/tabwriter"
 	"time"
 
 	"github.com/dchest/uniuri"
@@ -40,6 +41,15 @@ type LiveOffer struct {
 	cs chan *webrtc.ICECandidate
 	p  *peers.Peer
 	id string
+}
+type CandidatePairValues struct {
+	FP             string `json:"fp"`
+	LocalAddr      string `json:"local_addr"` // IP:Port
+	LocalProtocol  string `json:"local_proto"`
+	LocalType      string `json:"local_type"`
+	RemoteAddr     string `json:"remote_addr"`
+	RemoteProtocol string `json:"remote_proto"`
+	RemoteType     string `json:"remote_type"`
 }
 
 const socketFileName = "webexec.sock"
@@ -194,19 +204,63 @@ func StartSocketServer(lc fx.Lifecycle, s *sockServer, params SocketStartParams)
 }
 
 func (s *sockServer) handleStatus(w http.ResponseWriter, r *http.Request) {
-	if r.Method == "GET" {
-		w.Write([]byte("READY"))
+	Logger.Info("Got status request")
+	if r.Method != "GET" {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
 	}
-	/* TODO: return status of all connected peers
 	if len(peers.Peers) == 0 {
 		fmt.Println("No peers connected")
-	} else {
-		fmt.Println("Connected peers:")
-		for _, peer := range peers.Peers {
-			fmt.Printf("  %s", peer.FP)
+		return
+	}
+	var ret []CandidatePairValues
+	fmt.Println("Connected peers:")
+	for _, peer := range peers.Peers {
+		if peer.PC == nil {
+			continue
+		}
+		stats := peer.PC.GetStats()
+		for _, report := range stats {
+			pairStats, ok := report.(webrtc.ICECandidatePairStats)
+			if !ok || pairStats.Type != webrtc.StatsTypeCandidatePair {
+				continue
+			}
+			// check if it is selected
+			if pairStats.State != webrtc.StatsICECandidatePairStateSucceeded {
+				continue
+			}
+			local, ok := stats[pairStats.LocalCandidateID].(webrtc.ICECandidateStats)
+			if !ok {
+				http.Error(w, "Failed to get local candidate", http.StatusInternalServerError)
+				return
+			}
+			remote, ok := stats[pairStats.RemoteCandidateID].(webrtc.ICECandidateStats)
+			if !ok {
+				http.Error(w, "Failed to get remote candidate", http.StatusInternalServerError)
+				return
+			}
+			ret = append(ret, CandidatePairValues{
+				FP:             peer.FP,
+				LocalAddr:      fmt.Sprintf("%s:%d", local.IP, local.Port),
+				LocalProtocol:  local.Protocol,
+				LocalType:      local.CandidateType.String(),
+				RemoteAddr:     fmt.Sprintf("%s:%d", remote.IP, remote.Port),
+				RemoteProtocol: remote.Protocol,
+				RemoteType:     remote.CandidateType.String(),
+			})
+			break
 		}
 	}
-	*/
+	if ret == nil {
+		// no peers are connected, return an empty response
+		ret = []CandidatePairValues{}
+	}
+	b, err := json.Marshal(ret)
+	if err != nil {
+		http.Error(w, "Failed to marshal response", http.StatusInternalServerError)
+		return
+	}
+	w.Write(b)
 }
 func (s *sockServer) handleLayout(w http.ResponseWriter, r *http.Request) {
 	if r.Method == "GET" {
@@ -400,4 +454,14 @@ func writeClipboard(data []byte, mimeType string) error {
 		return err
 	}
 	return cmd.Wait()
+}
+
+// const ELLIPSIS = "\uf141"
+func writeICEPairsHeader(w *tabwriter.Writer) {
+	fmt.Fprintln(w, "Finger\uf141\tAddr\tProtocol\tType\t\uf141\tAddr\tProtocol\tType")
+}
+func (p *CandidatePairValues) Write(w *tabwriter.Writer) {
+	fp := fmt.Sprintf("%s\uf141", string([]rune(p.FP)[:6]))
+	fmt.Fprintln(w, strings.Join([]string{fp, p.LocalAddr, p.LocalProtocol,
+		p.LocalType, "->", p.RemoteAddr, p.RemoteProtocol, p.RemoteType}, "\t"))
 }

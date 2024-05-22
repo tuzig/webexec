@@ -6,7 +6,6 @@ require (
 	git.rootprojects.org/root/go-gitver/v2 v2.0.2
 	github.com/coreos/go-semver v0.3.1
 	github.com/creack/pty v1.1.20
-	github.com/dchest/uniuri v0.0.0-20200228104902-7aecb25e1fe5
 	github.com/google/uuid v1.3.1
 	github.com/gorilla/websocket v1.4.2
 	github.com/kardianos/osext v0.0.0-20190222173326-2bc1f35cddc0
@@ -30,6 +29,7 @@ require (
 	github.com/benbjohnson/clock v1.3.0 // indirect
 	github.com/cpuguy83/go-md2man/v2 v2.0.4 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
+	github.com/dchest/uniuri v1.2.0 // indirect
 	github.com/go-ole/go-ole v1.2.6 // indirect
 	github.com/google/go-cmp v0.5.9 // indirect
 	github.com/kr/pretty v0.3.1 // indirect

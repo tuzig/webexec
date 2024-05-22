@@ -18,6 +18,7 @@ import (
 	"strings"
 	"sync"
 	"syscall"
+	"text/tabwriter"
 	"time"
 
 	"github.com/coreos/go-semver/semver"
@@ -345,6 +346,17 @@ func restart(c *cli.Context) error {
 	return start(c)
 }
 
+// newSocketClient creates a new http client for the unix socket
+func newSocketClient() http.Client {
+	return http.Client{
+		Transport: &http.Transport{
+			DialContext: func(_ context.Context, _, _ string) (net.Conn, error) {
+				return net.Dial("unix", GetSockFP())
+			},
+		},
+	}
+}
+
 // accept function accepts offers to connect
 func accept(c *cli.Context) error {
 	certs, err := GetCerts()
@@ -355,7 +367,7 @@ func accept(c *cli.Context) error {
 	if err != nil {
 		return err
 	}
-	fp := GetSockFP()
+
 	pid, err := getAgentPid()
 	if err != nil {
 		return err
@@ -373,13 +385,7 @@ func accept(c *cli.Context) error {
 			return fmt.Errorf("Failed to fork agent: %s", err)
 		}
 	}
-	httpc := http.Client{
-		Transport: &http.Transport{
-			DialContext: func(_ context.Context, _, _ string) (net.Conn, error) {
-				return net.Dial("unix", fp)
-			},
-		},
-	}
+	httpc := newSocketClient()
 	// First get the agent's status and print to the clist
 	var msg string
 	var r *http.Response
@@ -523,7 +529,7 @@ func getAgentPid() (int, error) {
 	}
 	return pidf.Read()
 }
-func status(c *cli.Context) error {
+func statusCMD(c *cli.Context) error {
 	pid, err := getAgentPid()
 	if err != nil {
 		return err
@@ -540,6 +546,28 @@ func status(c *cli.Context) error {
 	} else {
 		fmt.Printf("Fingerprint:  %s\n", fp)
 	}
+	httpc := newSocketClient()
+	resp, err := httpc.Get("http://unix/status")
+	if err != nil {
+		return fmt.Errorf("Failed to get the agent's status: %s", err)
+	}
+	var pairs []CandidatePairValues
+	// read the response into pair usin json.NewDecoder
+	err = json.NewDecoder(resp.Body).Decode(&pairs)
+	if err != nil {
+		if err == io.EOF {
+			fmt.Println("No connected peers")
+			return nil
+		}
+		return fmt.Errorf("Failed to decode the agent's status: %s", err)
+	}
+	fmt.Println("\nConnected peers:")
+	w := tabwriter.NewWriter(os.Stdout, 0, 0, 1, ' ', 0)
+	writeICEPairsHeader(w)
+	for _, pair := range pairs {
+		pair.Write(w)
+	}
+	w.Flush()
 	return nil
 }
 func initCMD(c *cli.Context) error {
@@ -767,7 +795,7 @@ func main() {
 			}, {
 				Name:   "status",
 				Usage:  "webexec agent's status",
-				Action: status,
+				Action: statusCMD,
 			}, {
 				Name:   "stop",
 				Usage:  "stop the user's agent",
