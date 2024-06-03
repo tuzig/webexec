@@ -51,6 +51,10 @@ type CandidatePairValues struct {
 	RemoteProtocol string `json:"remote_proto"`
 	RemoteType     string `json:"remote_type"`
 }
+type StatusMessage struct {
+	Version string                `json:"version"`
+	Peers   []CandidatePairValues `json:"peers,omitempty"`
+}
 
 const socketFileName = "webexec.sock"
 
@@ -209,12 +213,7 @@ func (s *sockServer) handleStatus(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	if len(peers.Peers) == 0 {
-		fmt.Println("No peers connected")
-		return
-	}
-	var ret []CandidatePairValues
-	fmt.Println("Connected peers:")
+	ret := StatusMessage{Version: version}
 	for _, peer := range peers.Peers {
 		if peer.PC == nil {
 			continue
@@ -239,7 +238,7 @@ func (s *sockServer) handleStatus(w http.ResponseWriter, r *http.Request) {
 				http.Error(w, "Failed to get remote candidate", http.StatusInternalServerError)
 				return
 			}
-			ret = append(ret, CandidatePairValues{
+			ret.Peers = append(ret.Peers, CandidatePairValues{
 				FP:             peer.FP,
 				LocalAddr:      fmt.Sprintf("%s:%d", local.IP, local.Port),
 				LocalProtocol:  local.Protocol,
@@ -250,10 +249,6 @@ func (s *sockServer) handleStatus(w http.ResponseWriter, r *http.Request) {
 			})
 			break
 		}
-	}
-	if ret == nil {
-		// no peers are connected, return an empty response
-		ret = []CandidatePairValues{}
 	}
 	b, err := json.Marshal(ret)
 	if err != nil {
