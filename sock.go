@@ -456,10 +456,6 @@ func writeClipboard(data []byte, mimeType string) error {
 	return cmd.Wait()
 }
 
-// const ELLIPSIS = "\uf141"
-func writeICEPairsHeader(w *tabwriter.Writer) {
-	fmt.Fprintln(w, "Finger\uf141\tAddr\tProtocol\tType\t\uf141\tAddr\tProtocol\tType")
-}
 func (p *CandidatePairValues) Write(w *tabwriter.Writer) {
 	fp := fmt.Sprintf("%s\uf141", string([]rune(p.FP)[:6]))
 	fmt.Fprintln(w, strings.Join([]string{fp, p.LocalAddr, p.LocalProtocol,
