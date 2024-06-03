@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/coreos/go-semver/semver"
+	"github.com/fatih/color"
 	"github.com/kardianos/osext"
 	"github.com/pion/webrtc/v3"
 	"github.com/tuzig/webexec/httpserver"
@@ -347,8 +348,13 @@ func restart(c *cli.Context) error {
 }
 
 // newSocketClient creates a new http client for the unix socket
-func newSocketClient() http.Client {
-	return http.Client{
+func newSocketClient() *http.Client {
+	sockpath := GetSockFP()
+	_, err := os.Stat(sockpath)
+	if os.IsNotExist(err) {
+		return nil
+	}
+	return &http.Client{
 		Transport: &http.Transport{
 			DialContext: func(_ context.Context, _, _ string) (net.Conn, error) {
 				return net.Dial("unix", GetSockFP())
@@ -418,7 +424,7 @@ gotstatus:
 	<-sigChan
 	return nil
 }
-func TrickleCandidates(ctx context.Context, httpc http.Client) {
+func TrickleCandidates(ctx context.Context, httpc *http.Client) {
 	id := ""
 	can := []byte{}
 	for {
@@ -480,7 +486,7 @@ func TrickleCandidates(ctx context.Context, httpc http.Client) {
 	}
 	can = []byte{}
 }
-func getAgentCandidates(ctx context.Context, httpc http.Client, id string) {
+func getAgentCandidates(ctx context.Context, httpc *http.Client, id string) {
 	for {
 		select {
 		case <-ctx.Done():
@@ -498,7 +504,7 @@ func getAgentCandidates(ctx context.Context, httpc http.Client, id string) {
 		}
 	}
 }
-func getCandidate(httpc http.Client, id string) (string, error) {
+func getCandidate(httpc *http.Client, id string) (string, error) {
 	r, err := httpc.Get("http://unix/offer/" + id)
 	if err != nil {
 		return "", fmt.Errorf("Failed to get candidate from the unix socket: %s", err)
@@ -530,6 +536,9 @@ func getAgentPid() (int, error) {
 	return pidf.Read()
 }
 func statusCMD(c *cli.Context) error {
+	label := color.New().PrintfFunc()
+	value := color.New(color.FgGreen).PrintfFunc()
+	header := color.New(color.FgYellow).FprintfFunc()
 	pid, err := getAgentPid()
 	if err != nil {
 		return err
@@ -537,33 +546,49 @@ func statusCMD(c *cli.Context) error {
 	if pid == 0 {
 		fmt.Println("Agent is not running")
 	} else {
-		fmt.Printf("Agent is running with process id %d\n", pid)
+		label("Process ID")
+		fmt.Printf(": ")
+		value("%d\n", pid)
 	}
 	// TODO: Get the the fingerprints of connected peers from the agent using the status socket
 	fp := getFP()
 	if fp == "" {
 		fmt.Println("Unitialized, please run `webexec init`")
 	} else {
-		fmt.Printf("Fingerprint:  %s\n", fp)
+		label("FP")
+		fmt.Printf(":  ")
+		value("%s\n", fp)
 	}
 	httpc := newSocketClient()
+	if httpc == nil {
+		return nil
+	}
 	resp, err := httpc.Get("http://unix/status")
 	if err != nil {
-		return fmt.Errorf("Failed to get the agent's status: %s", err)
+		return fmt.Errorf("Failed to get the agent's status: %v", err)
 	}
 	var pairs []CandidatePairValues
-	// read the response into pair usin json.NewDecoder
-	err = json.NewDecoder(resp.Body).Decode(&pairs)
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return fmt.Errorf("Failed to read the agent's status: %v", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("Failed to get the agent's status: %s", body)
+	}
+	err = json.Unmarshal(body, &pairs)
 	if err != nil {
 		if err == io.EOF {
 			fmt.Println("No connected peers")
 			return nil
 		}
+		// print the response body
+		fmt.Printf("Failed to decode the agent's status:\n%s\n", body)
 		return fmt.Errorf("Failed to decode the agent's status: %s", err)
 	}
-	fmt.Println("\nConnected peers:")
-	w := tabwriter.NewWriter(os.Stdout, 0, 0, 1, ' ', 0)
-	writeICEPairsHeader(w)
+	label("Connected peers")
+	fmt.Println(":")
+	w := tabwriter.NewWriter(os.Stdout, 0, 3, 1, ' ', 0)
+	header(w, "  FP\tADDRESS\tPROTO\tTYPE\t  |\tADDRESS\tPROT\tTYPE\n")
 	for _, pair := range pairs {
 		pair.Write(w)
 	}
