@@ -567,7 +567,7 @@ func statusCMD(c *cli.Context) error {
 	if err != nil {
 		return fmt.Errorf("Failed to get the agent's status: %v", err)
 	}
-	var pairs []CandidatePairValues
+	var stats StatusMessage
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
 		return fmt.Errorf("Failed to read the agent's status: %v", err)
@@ -579,7 +579,7 @@ func statusCMD(c *cli.Context) error {
 		fmt.Println("Running agent is of an older version, please `webexec restart`")
 		return nil
 	}
-	err = json.Unmarshal(body, &pairs)
+	err = json.Unmarshal(body, &stats)
 	if err != nil {
 		if err == io.EOF {
 			fmt.Println("No connected peers")
@@ -589,11 +589,19 @@ func statusCMD(c *cli.Context) error {
 		fmt.Printf("Failed to decode the agent's status:\n%s\n", body)
 		return fmt.Errorf("Failed to decode the agent's status: %s", err)
 	}
+	label("Agent version")
+	fmt.Print(": ")
+	value("%s\n", stats.Version)
 	label("Connected peers")
+	if len(stats.Peers) == 0 {
+		fmt.Print(": ")
+		header(os.Stdout, "None\n")
+		return nil
+	}
 	fmt.Println(":")
 	w := tabwriter.NewWriter(os.Stdout, 0, 3, 1, ' ', 0)
-	header(w, "  FP\tADDRESS\tPROTO\tTYPE\t  |\tADDRESS\tPROT\tTYPE\n")
-	for _, pair := range pairs {
+	header(w, "  FP\tADDRESS\tPROTO\tTYPE\t ||\tADDRESS\tPROT\tTYPE\n")
+	for _, pair := range stats.Peers {
 		pair.Write(w)
 	}
 	w.Flush()
