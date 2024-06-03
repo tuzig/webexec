@@ -575,6 +575,10 @@ func statusCMD(c *cli.Context) error {
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("Failed to get the agent's status: %s", body)
 	}
+	if string(body) == "READY" {
+		fmt.Println("Running agent is of an older version, please `webexec restart`")
+		return nil
+	}
 	err = json.Unmarshal(body, &pairs)
 	if err != nil {
 		if err == io.EOF {
