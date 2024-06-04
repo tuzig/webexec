@@ -9,6 +9,6 @@ import (
 
 func TestConfEnv(t *testing.T) {
 	initTest(t)
-	require.EqualValues(t, Conf.peerConf.Env["TERM"], "xterm")
+	require.EqualValues(t, Conf.peerConf.Env["TERM"], "xterm-256color")
 	require.EqualValues(t, Conf.peerConf.Env["COLORTERM"], "truecolor")
 }

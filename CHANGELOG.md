@@ -14,6 +14,11 @@ and the release workflow reads it to set github's release notes.
 ### Added
 
 - the status command shows the chosen ICE candidate pairs for connected peers
+- WEBEXEC environment variable to hold the unix socket path
+
+### Fixed
+
+- installer messages improved
 
 ## [1.4.0] 2024-4-14
 

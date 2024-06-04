@@ -184,9 +184,9 @@ func parseConf(s string) (*peers.Conf, httpserver.AddressType, error) {
 		Conf.insecure = v.(bool)
 	}
 	// get env vars
+	peersConf.Env = map[string]string{"WEBEXEC": GetSockFP()}
 	m := t.Get("env")
 	if m != nil {
-		peersConf.Env = make(map[string]string)
 		for k, v := range m.(*toml.Tree).ToMap() {
 			peersConf.Env[k] = v.(string)
 		}

@@ -289,7 +289,7 @@ func start(c *cli.Context) error {
 			if err != nil {
 				return err
 			}
-			fmt.Printf("agent started as process #%d\n", pid)
+			fmt.Printf("Agent started as process #%d\n", pid)
 			versionNote := getVersionNote()
 			if versionNote != "" {
 				fmt.Println(versionNote)
