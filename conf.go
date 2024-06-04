@@ -43,7 +43,7 @@ peerbook = 3000
 urls = [ "stun:stun.l.google.com:19302" ]
 [env]
 COLORTERM = "truecolor"
-TERM = "xterm"
+TERM = "xterm-256color"
 `
 const abConfTemplate = `%s[peerbook]
 host = "%s"
