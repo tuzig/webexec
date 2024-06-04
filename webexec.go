@@ -539,6 +539,14 @@ func statusCMD(c *cli.Context) error {
 	label := color.New().PrintfFunc()
 	value := color.New(color.FgGreen).PrintfFunc()
 	header := color.New(color.FgYellow).FprintfFunc()
+	fp := getFP()
+	if fp == "" {
+		fmt.Println("Unitialized, please run `webexec init`")
+	} else {
+		label("FP")
+		fmt.Printf(":  ")
+		value("%s\n", fp)
+	}
 	pid, err := getAgentPid()
 	if err != nil {
 		return err
@@ -549,15 +557,6 @@ func statusCMD(c *cli.Context) error {
 		label("Process ID")
 		fmt.Printf(": ")
 		value("%d\n", pid)
-	}
-	// TODO: Get the the fingerprints of connected peers from the agent using the status socket
-	fp := getFP()
-	if fp == "" {
-		fmt.Println("Unitialized, please run `webexec init`")
-	} else {
-		label("FP")
-		fmt.Printf(":  ")
-		value("%s\n", fp)
 	}
 	httpc := newSocketClient()
 	if httpc == nil {

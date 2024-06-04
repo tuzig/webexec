@@ -14,7 +14,6 @@ import (
 	"runtime"
 	"strings"
 	"sync"
-	"text/tabwriter"
 	"time"
 
 	"github.com/dchest/uniuri"
@@ -42,18 +41,11 @@ type LiveOffer struct {
 	p  *peers.Peer
 	id string
 }
-type CandidatePairValues struct {
-	FP             string `json:"fp"`
-	LocalAddr      string `json:"local_addr"` // IP:Port
-	LocalProtocol  string `json:"local_proto"`
-	LocalType      string `json:"local_type"`
-	RemoteAddr     string `json:"remote_addr"`
-	RemoteProtocol string `json:"remote_proto"`
-	RemoteType     string `json:"remote_type"`
-}
+
+// StatusMessage is a struct that holds the response to the status request
 type StatusMessage struct {
-	Version string                `json:"version"`
-	Peers   []CandidatePairValues `json:"peers,omitempty"`
+	Version string                     `json:"version"`
+	Peers   []peers.CandidatePairStats `json:"peers,omitempty"`
 }
 
 const socketFileName = "webexec.sock"
@@ -207,48 +199,22 @@ func StartSocketServer(lc fx.Lifecycle, s *sockServer, params SocketStartParams)
 	return &server, nil
 }
 
+// handleStatus now uses getPeerStat to extract peer stats.
 func (s *sockServer) handleStatus(w http.ResponseWriter, r *http.Request) {
-	Logger.Info("Got status request")
 	if r.Method != "GET" {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
+
 	ret := StatusMessage{Version: version}
 	for _, peer := range peers.Peers {
-		if peer.PC == nil {
-			continue
+		var cp peers.CandidatePairStats
+		err := peer.GetCandidatePair(&cp)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
 		}
-		stats := peer.PC.GetStats()
-		for _, report := range stats {
-			pairStats, ok := report.(webrtc.ICECandidatePairStats)
-			if !ok || pairStats.Type != webrtc.StatsTypeCandidatePair {
-				continue
-			}
-			// check if it is selected
-			if pairStats.State != webrtc.StatsICECandidatePairStateSucceeded {
-				continue
-			}
-			local, ok := stats[pairStats.LocalCandidateID].(webrtc.ICECandidateStats)
-			if !ok {
-				http.Error(w, "Failed to get local candidate", http.StatusInternalServerError)
-				return
-			}
-			remote, ok := stats[pairStats.RemoteCandidateID].(webrtc.ICECandidateStats)
-			if !ok {
-				http.Error(w, "Failed to get remote candidate", http.StatusInternalServerError)
-				return
-			}
-			ret.Peers = append(ret.Peers, CandidatePairValues{
-				FP:             peer.FP,
-				LocalAddr:      fmt.Sprintf("%s:%d", local.IP, local.Port),
-				LocalProtocol:  local.Protocol,
-				LocalType:      local.CandidateType.String(),
-				RemoteAddr:     fmt.Sprintf("%s:%d", remote.IP, remote.Port),
-				RemoteProtocol: remote.Protocol,
-				RemoteType:     remote.CandidateType.String(),
-			})
-			break
-		}
+		ret.Peers = append(ret.Peers, cp)
 	}
 	b, err := json.Marshal(ret)
 	if err != nil {
@@ -449,10 +415,4 @@ func writeClipboard(data []byte, mimeType string) error {
 		return err
 	}
 	return cmd.Wait()
-}
-
-func (p *CandidatePairValues) Write(w *tabwriter.Writer) {
-	fp := fmt.Sprintf("%s\uf141", string([]rune(p.FP)[:6]))
-	fmt.Fprintln(w, strings.Join([]string{fp, p.LocalAddr, p.LocalProtocol,
-		p.LocalType, "->", p.RemoteAddr, p.RemoteProtocol, p.RemoteType}, "\t"))
 }
