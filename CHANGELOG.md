@@ -13,7 +13,7 @@ and the release workflow reads it to set github's release notes.
 
 ### Added
 
-- the status command show the chosen ICE candidate pairs for connected peers
+- the status command shows the chosen ICE candidate pairs for connected peers
 
 ## [1.4.0] 2024-4-14
 

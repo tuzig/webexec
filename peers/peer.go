@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"text/tabwriter"
 	"time"
 	"unicode"
 
@@ -74,6 +75,24 @@ type Peer struct {
 	pendingCandidates chan *webrtc.ICECandidateInit
 	logger            *zap.SugaredLogger
 	Conf              *Conf
+}
+
+// CandidatePairStats is a struct that holds the values of a ICE candidate pair
+type CandidatePairStats struct {
+	FP             string `json:"fp"`
+	LocalAddr      string `json:"local_addr"` // IP:Port
+	LocalProtocol  string `json:"local_proto"`
+	LocalType      string `json:"local_type"`
+	RemoteAddr     string `json:"remote_addr"`
+	RemoteProtocol string `json:"remote_proto"`
+	RemoteType     string `json:"remote_type"`
+}
+
+// CandidatePairStats.Write writes the candidate pair to a tabwriter
+func (p *CandidatePairStats) Write(w *tabwriter.Writer) {
+	fp := fmt.Sprintf("%s\uf141", string([]rune(p.FP)[:6]))
+	fmt.Fprintln(w, strings.Join([]string{fp, p.LocalAddr, p.LocalProtocol,
+		p.LocalType, "->", p.RemoteAddr, p.RemoteProtocol, p.RemoteType}, "\t"))
 }
 
 // NewPeer funcions starts listening to incoming peer connection from a remote
@@ -477,6 +496,47 @@ func (peer *Peer) Broadcast(typ string, args interface{}) error {
 	}
 	return nil
 }
+func (peer *Peer) GetCandidatePair(ret *CandidatePairStats) error {
+	ret.FP = peer.FP
+	if peer.PC == nil {
+		return fmt.Errorf("peer has no peer connection")
+	}
+	stats := peer.PC.GetStats()
+	var localP int32
+	var remoteP int32
+	for _, report := range stats {
+		pairStats, ok := report.(webrtc.ICECandidatePairStats)
+		if !ok || pairStats.Type != webrtc.StatsTypeCandidatePair {
+			continue
+		}
+		// Check if it is selected
+		if !pairStats.Nominated {
+			continue
+		}
+		local, ok := stats[pairStats.LocalCandidateID].(webrtc.ICECandidateStats)
+		if !ok {
+			return fmt.Errorf("failed to get local candidate")
+		}
+		remote, ok := stats[pairStats.RemoteCandidateID].(webrtc.ICECandidateStats)
+		if !ok {
+			return fmt.Errorf("failed to get remote candidate")
+		}
+		if local.Priority > localP {
+			localP = local.Priority
+			ret.LocalAddr = fmt.Sprintf("%s:%d", local.IP, local.Port)
+			ret.LocalProtocol = local.Protocol
+			ret.LocalType = local.CandidateType.String()
+		}
+		if remote.Priority > remoteP {
+			remoteP = remote.Priority
+			ret.RemoteAddr = fmt.Sprintf("%s:%d", remote.IP, remote.Port)
+			ret.RemoteProtocol = remote.Protocol
+			ret.RemoteType = remote.CandidateType.String()
+		}
+	}
+	return nil
+}
+
 func (peer *Peer) Close() {
 	peer.Lock()
 	defer peer.Unlock()
