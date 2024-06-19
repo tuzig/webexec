@@ -210,11 +210,9 @@ func (s *sockServer) handleStatus(w http.ResponseWriter, r *http.Request) {
 	for _, peer := range peers.Peers {
 		var cp peers.CandidatePairStats
 		err := peer.GetCandidatePair(&cp)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
+		if err == nil {
+			ret.Peers = append(ret.Peers, cp)
 		}
-		ret.Peers = append(ret.Peers, cp)
 	}
 	b, err := json.Marshal(ret)
 	if err != nil {
