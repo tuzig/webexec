@@ -127,7 +127,7 @@ do_install() {
 	if ! debug; then
         cd $tmp
 	fi
-    et_n_extract $tmp
+    get_n_extract $tmp
     if [ -n "$WEBEXEC" ]
     then
         if [ ! -d $HOME/.config/webexec ]
