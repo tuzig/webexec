@@ -354,7 +354,6 @@ func FuncTestOffer(t *testing.T) {
 		authBackend: a,
 		peerConf:    conf,
 		logger:      logger,
-		address:     AddressType("127.0.0.1:7777"),
 	}
 	h.HandleOffer(w, req)
 	require.Equal(t, http.StatusCreated, w.Code)

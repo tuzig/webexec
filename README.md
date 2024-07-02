@@ -33,8 +33,8 @@ $ go install ./...
 
 webexec has a signlaing server that listen for connection request on 
 ports 7777. By default it listens only for localhost. To
-open webexec to the world set `WEBEXEC_SERVER_URL` to the the server's
-public URL, default is `http://localhost:7777`.
+open webexec to the world set the http_server under [net] in the config file
+to 0.0.0.0:7777.
 
 Once communication is established, WebRTC uses UDP ports with 
 a default range of 60000-61000.

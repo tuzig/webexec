@@ -9,7 +9,7 @@ require (
 	github.com/dchest/uniuri v1.2.0
 	github.com/fatih/color v1.17.0
 	github.com/google/uuid v1.3.1
-	github.com/gorilla/websocket v1.4.2
+	github.com/gorilla/websocket v1.5.1
 	github.com/kardianos/osext v0.0.0-20190222173326-2bc1f35cddc0
 	github.com/pelletier/go-toml v1.9.3
 	github.com/pion/webrtc/v3 v3.2.32

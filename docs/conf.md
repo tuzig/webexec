@@ -16,7 +16,8 @@ run.
 
 ### net
 
-- http_server: The address the https server listen on. default: `0.0.0.0:7777`
+- http_server: The address the https server listen on. default: `127.0.0.1:7777`
+set to 0.0.0.0:7777 to listen on all interfaces
 - udp_port_min: the minimum UDP port to use
 - udp_port_max: the maximum UDP port to use
 

@@ -7,7 +7,6 @@ import (
 	"io"
 	"io/ioutil"
 	"net/http"
-	"os"
 	"time"
 
 	"github.com/google/uuid"
@@ -30,7 +29,6 @@ type ConnectHandler struct {
 	authBackend AuthBackend
 	peerConf    *peers.Conf
 	logger      *zap.SugaredLogger
-	address     AddressType
 	sessions    map[uuid.UUID]*peers.Peer
 }
 
@@ -44,17 +42,10 @@ type ConnectRequest struct {
 func NewConnectHandler(
 	backend AuthBackend, conf *peers.Conf, logger *zap.SugaredLogger) *ConnectHandler {
 
-	adress := os.Getenv("WEBEXEC_SERVER_URL")
-	if adress == "" {
-		adress = "http://localhost:7777"
-	}
-	logger.Infof("Using %s as server address", adress)
-
 	return &ConnectHandler{
 		authBackend: backend,
 		peerConf:    conf,
 		logger:      logger,
-		address:     AddressType(adress),
 		sessions:    make(map[uuid.UUID]*peers.Peer),
 	}
 }
@@ -167,7 +158,11 @@ func (h *ConnectHandler) HandleOffer(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/sdp")
 	w.Header().Set("ETag", fmt.Sprintf("%x", time.Now().Unix()))
-	url := fmt.Sprintf("%s/candidates/%s", h.address, sessionID)
+	scheme := r.Header.Get("X-Forwarded-Proto")
+	if scheme == "" {
+		scheme = "http" // Assume http if header is missing.
+	}
+	url := fmt.Sprintf("%s://%s/candidates/%s", scheme, r.Host, sessionID)
 	w.Header().Set("Location", url)
 	w.WriteHeader(http.StatusCreated)
 	w.Write([]byte(answer.SDP))
