@@ -294,6 +294,7 @@ func (peer *Peer) GetOrCreatePane(d *webrtc.DataChannel) (*Pane, error) {
 		peer.logger.Info("Got a request to open a control channel")
 		peer.cdc = d
 		d.OnMessage(peer.handleCTRLMsg)
+		peer.handleCTRLMsg(webrtc.DataChannelMessage{})
 		return nil, nil
 	}
 	// if the label starts witha digit, i.e. "80x24" it needs a pty
