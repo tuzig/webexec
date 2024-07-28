@@ -29,7 +29,7 @@ func TestActivePeer(t *testing.T) {
 		GetICEServers: func() ([]webrtc.ICEServer, error) {
 			return []webrtc.ICEServer{}, nil
 		},
-		OnCTRLMsg: func(*Peer, CTRLMessage, json.RawMessage) {
+		OnCTRLMsg: func(*Peer, *CTRLMessage, json.RawMessage) {
 			return
 		},
 	}

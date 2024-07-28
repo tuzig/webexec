@@ -52,7 +52,7 @@ type Conf struct {
 	GetWelcome        func() string
 	KeepAliveInterval time.Duration
 	Logger            *zap.SugaredLogger
-	OnCTRLMsg         func(*Peer, CTRLMessage, json.RawMessage)
+	OnCTRLMsg         func(*Peer, *CTRLMessage, json.RawMessage)
 	OnStateChange     func(*Peer, webrtc.PeerConnectionState)
 	PortMax           uint16
 	PortMin           uint16
@@ -230,6 +230,10 @@ func (peer *Peer) OnChannelReq(d *webrtc.DataChannel) {
 		if label != "%" {
 			peer.logger.Infof("Ignoring a strange channel label %q", label)
 		}
+		// cdc is open, let the caller know
+		if peer.Conf.OnCTRLMsg != nil {
+			peer.Conf.OnCTRLMsg(peer, nil, nil)
+		}
 	})
 }
 
@@ -259,7 +263,7 @@ func (peer *Peer) handleCTRLMsg(msg webrtc.DataChannelMessage) {
 	case "nack":
 		peer.handleNack(m, raw)
 	default:
-		peer.Conf.OnCTRLMsg(peer, m, raw)
+		peer.Conf.OnCTRLMsg(peer, &m, raw)
 	}
 }
 

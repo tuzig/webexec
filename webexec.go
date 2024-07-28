@@ -754,26 +754,30 @@ func pasteCMD(c *cli.Context) error {
 }
 
 // handleCTRLMsg handles incoming control messages
-func handleCTRLMsg(peer *peers.Peer, m peers.CTRLMessage, raw json.RawMessage) {
+func handleCTRLMsg(peer *peers.Peer, m *peers.CTRLMessage, raw json.RawMessage) {
+	// do nothing on connection open and nil messages
+	if m == nil {
+		return
+	}
 	switch m.Type {
 	case "resize":
-		handleResize(peer, m, raw)
+		handleResize(peer, *m, raw)
 	case "restore":
-		handleRestore(peer, m, raw)
+		handleRestore(peer, *m, raw)
 	case "get_payload":
-		handleGetPayload(peer, m)
+		handleGetPayload(peer, *m)
 	case "set_payload":
-		handleSetPayload(peer, m, raw)
+		handleSetPayload(peer, *m, raw)
 	case "mark":
-		handleMark(peer, m)
+		handleMark(peer, *m)
 	case "reconnect_pane":
-		handleReconnectPane(peer, m, raw)
+		handleReconnectPane(peer, *m, raw)
 	case "add_pane":
-		handleAddPane(peer, m, raw)
+		handleAddPane(peer, *m, raw)
 	default:
 		Logger.Errorf("Got a control message with unknown type: %q", m.Type)
 		// send nack
-		err := peer.SendNack(m, "unknown control message type")
+		err := peer.SendNack(*m, "unknown control message type")
 		if err != nil {
 			Logger.Errorf("#%d: Failed to send nack: %v", peer.FP, err)
 		}
