@@ -167,6 +167,12 @@ func TestOfferPutCandidates(t *testing.T) {
 	err = resp.Body.Close()
 	require.Nil(t, err, "Failed to parse offer+id url: %q", err)
 	a := sockServer.currentOffers[id]
+	// Close the server-side peer connection to prevent logging after test completion
+	defer func() {
+		if a != nil && a.p != nil && a.p.PC != nil {
+			a.p.PC.Close()
+		}
+	}()
 	var i int
 	for i = 0; i < 3; i++ {
 		select {

@@ -1,0 +1,17 @@
+__asimi_run() {
+  local id="$1"
+  local cmd="$2"
+  # Output start markers directly before any redirects can affect them
+  printf "__ASIMI_STDOUT_START:%s\n" "$id"
+  # Execute the command in a subshell to isolate its redirects and state
+  # This ensures each command starts fresh and doesn't pollute the parent shell
+  (eval "$cmd")
+  local exit_code=$?
+  # Output end markers after command completes, directly to original streams
+  printf "__ASIMI_STDOUT_END:%s:%s\n" "$id" "$exit_code"
+  return $exit_code
+}
+alias ll="ls -l"
+alias grep="rg"
+export TERM="dumb"
+
