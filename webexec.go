@@ -404,7 +404,7 @@ func accept(c *cli.Context) error {
 	}
 	msg = "Failed to communicate with agent"
 	fmt.Println(msg)
-	return fmt.Errorf(msg)
+	return errors.New(msg)
 gotstatus:
 	defer r.Body.Close()
 	body, _ := ioutil.ReadAll(r.Body)

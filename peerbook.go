@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -85,7 +86,7 @@ func verifyPeer(host string) (bool, error) {
 	defer resp.Body.Close()
 	if resp.StatusCode != 200 && resp.StatusCode != 201 {
 		b, _ := ioutil.ReadAll(resp.Body)
-		return false, fmt.Errorf(string(b))
+		return false, errors.New(string(b))
 	}
 	var ret map[string]interface{}
 	err = json.NewDecoder(resp.Body).Decode(&ret)
@@ -117,7 +118,7 @@ func GetICEServers() ([]webrtc.ICEServer, error) {
 		defer resp.Body.Close()
 		if resp.StatusCode != 200 {
 			b, _ := ioutil.ReadAll(resp.Body)
-			return nil, fmt.Errorf(string(b))
+			return nil, errors.New(string(b))
 		}
 		err = json.NewDecoder(resp.Body).Decode(&PBICEServers)
 		if err != nil {
@@ -232,7 +233,7 @@ func (pb *PeerbookClient) Dial() error {
 	defer resp.Body.Close()
 	if resp.StatusCode == 400 {
 		bodyBytes, _ := ioutil.ReadAll(resp.Body)
-		return fmt.Errorf(string(bodyBytes))
+		return errors.New(string(bodyBytes))
 	}
 	if resp.StatusCode == 401 {
 		return &errUnauthorized{}

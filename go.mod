@@ -1,6 +1,6 @@
 module github.com/tuzig/webexec
 
-go 1.22
+go 1.25.0
 
 require (
 	git.rootprojects.org/root/go-gitver/v2 v2.0.2
@@ -21,8 +21,8 @@ require (
 	github.com/urfave/cli/v2 v2.3.0
 	go.uber.org/fx v1.19.2
 	go.uber.org/zap v1.23.0
-	golang.org/x/crypto v0.21.0
-	golang.org/x/sys v0.18.0
+	golang.org/x/crypto v0.51.0
+	golang.org/x/sys v0.44.0
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0
 )
 
@@ -60,7 +60,7 @@ require (
 	go.uber.org/atomic v1.7.0 // indirect
 	go.uber.org/dig v1.16.1 // indirect
 	go.uber.org/multierr v1.6.0 // indirect
-	golang.org/x/net v0.23.0 // indirect
-	golang.org/x/term v0.18.0 // indirect
+	golang.org/x/net v0.53.0 // indirect
+	golang.org/x/term v0.43.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
