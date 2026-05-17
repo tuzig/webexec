@@ -1,5 +1,8 @@
 PROJECT_NAME := "daonb-webexec"
 
+# Silence Clang's -Wgnu-folding-constant noise from go-m1cpu's cgo build
+export CGO_CFLAGS := "-Wno-gnu-folding-constant"
+
 # Default recipe - show available commands
 default:
     @just --list
