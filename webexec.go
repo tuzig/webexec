@@ -24,7 +24,7 @@ import (
 	"github.com/coreos/go-semver/semver"
 	"github.com/fatih/color"
 	"github.com/kardianos/osext"
-	"github.com/pion/webrtc/v3"
+	"github.com/pion/webrtc/v4"
 	"github.com/tuzig/webexec/httpserver"
 	"github.com/tuzig/webexec/peers"
 	"github.com/tuzig/webexec/pidfile"

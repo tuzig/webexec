@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/pelletier/go-toml"
-	"github.com/pion/webrtc/v3"
+	"github.com/pion/webrtc/v4"
 	"github.com/tuzig/webexec/httpserver"
 	"github.com/tuzig/webexec/peers"
 	"go.uber.org/zap/zapcore"

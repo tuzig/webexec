@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/creack/pty"
-	"github.com/pion/webrtc/v3"
+	"github.com/pion/webrtc/v4"
 	"github.com/riywo/loginshell"
 	"github.com/tuzig/webexec/peers"
 )

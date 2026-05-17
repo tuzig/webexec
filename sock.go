@@ -17,7 +17,7 @@ import (
 	"time"
 
 	"github.com/dchest/uniuri"
-	"github.com/pion/webrtc/v3"
+	"github.com/pion/webrtc/v4"
 	"github.com/tuzig/webexec/peers"
 	"go.uber.org/fx"
 )
