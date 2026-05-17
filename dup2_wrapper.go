@@ -1,3 +1,4 @@
+//go:build (!arm || freebsd || darwin) && ((!arm && !arm64) || !linux)
 // +build !arm freebsd darwin
 // +build !arm,!arm64 !linux
 
