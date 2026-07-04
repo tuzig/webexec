@@ -1,17 +1,45 @@
-__asimi_run() {
-  local id="$1"
-  local cmd="$2"
-  # Output start markers directly before any redirects can affect them
-  printf "__ASIMI_STDOUT_START:%s\n" "$id"
-  # Execute the command in a subshell to isolate its redirects and state
-  # This ensures each command starts fresh and doesn't pollute the parent shell
-  (eval "$cmd")
-  local exit_code=$?
-  # Output end markers after command completes, directly to original streams
-  printf "__ASIMI_STDOUT_END:%s:%s\n" "$id" "$exit_code"
-  return $exit_code
+# NOTE: __asimi_run lives in /etc/bash.bashrc (installed by the Dockerfile from
+# .agents/sandbox/asimi_runtime.sh) so it is sourced before this file and cannot
+# be overridden by edits here. Do not redefine __asimi_run below.
+
+# Git shim: enforce Li (礼) - proper conduct for git operations
+git() {
+  # Block forbidden flags on all subcommands
+  for arg in "${@:2}"; do
+    if [[ "$arg" == "--hard" || "$arg" == "--force" || "$arg" == "--force-with-lease" || "$arg" == "-D" || "$arg" == "--no-verify" || "$arg" == "--overwrite-ignore" ]]; then
+      echo "⚠️  Li violation: 'git $*' uses a forbidden flag. Ask the ruler to run it for you."
+      return 1
+    fi
+  done
+  # Subcommand-specific rules
+  case "$1" in
+    add)
+      for arg in "${@:2}"; do
+        if [[ "$arg" == "-A" || "$arg" == "--all" || "$arg" == "." ]]; then
+          echo "⚠️  Li violation: 'git add $arg' is forbidden. Stage files explicitly by path."
+          return 1
+        fi
+      done
+      ;;
+    clean)
+      echo "⚠️  Li violation: 'git clean' is forbidden. Ask the ruler to run it for you."
+      return 1
+      ;;
+  esac
+  command git "$@"
 }
 alias ll="ls -l"
-alias grep="rg"
 export TERM="dumb"
-
+export GIT_TERMINAL_PROMPT=0
+# Disable interactive features that could block shell
+set +m  # Disable job control
+bind 'set disable-completion on' 2>/dev/null || true  # Disable tab completion
+bind 'set pagination off' 2>/dev/null || true  # Disable pagination in readline
+# Go environment
+export GOPATH=/root/go
+export PATH=$PATH:/usr/local/go/bin:$GOPATH/bin
+export GOFLAGS=-mod=mod
+# Silence go-m1cpu cgo warning (indirect dep via gopsutil)
+export CGO_CFLAGS="-Wno-error=implicit-function-declaration -Wno-error=deprecated-declarations"
+# Rewrite localhost ports so the sandbox can reach host services
+export PEERBOOK_HOST=host.containers.internal:7777

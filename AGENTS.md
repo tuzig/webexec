@@ -1,172 +1,73 @@
-# webexec Development Guide
+# webexec — Agent & Contributor Guide
 
-## Language & Build System
+## Project Overview
 
-**Primary Language:** Go 1.22+
+webexec is a terminal server running over WebRTC with support for
+signaling over SSH or HTTP. It listens for connection requests, executes
+commands over pseudo ttys, and pipes their I/O over WebRTC data channels.
 
-**Build System:** Just (task runner) + Go modules
+## Language & Tooling
 
-## Essential Commands
+- **Language:** Go (module `github.com/tuzig/webexec`, Go 1.25+)
+- **Build system:** `go build`, `go generate` (uses `go-gitver` for versioning)
+- **Test framework:** Go standard `testing` + `stretchr/testify`
+- **Task runner:** `just` (see `Justfile`)
 
-### Setup & Installation
+## Common Commands
+
 ```bash
-just install          # Download and verify Go dependencies
-just bootstrap        # Install system dependencies (for container)
-just build            # Build the webexec binary
+# Bootstrap (verify Go, install go-gitver)
+just bootstrap
+
+# Install dependencies
+just install          # or: go mod download
+
+# Run linter & formatter checks
+just lint             # or: go vet ./... && gofmt -l -s .
+
+# Run all tests (verbose, 120s timeout)
+just test             # or: go test ./... -v -timeout 120s
+
+# Build the binary (runs go generate then go build)
+just build            # or: go generate ./... && go build -o webexec .
+
+# Run the server
+just run              # or: ./webexec
+
+# Clean build artifacts
+just clean            # or: rm -f webexec && go clean -cache -testcache
 ```
 
-### Testing
-```bash
-just test                    # Run all tests with race detector
-just test-single TestName    # Run a specific test (e.g., TestAuth)
-just test-integration        # Run integration tests
-```
+## Build Conventions
 
-### Development
-```bash
-just run              # Run webexec in debug mode (foreground)
-just lint             # Format code and run static analysis
-just generate         # Generate version information
-```
+- `go generate ./...` must be run before building — it generates version
+  info via `go-gitver` (see `//go:generate` directive in `webexec.go`).
+- The binary output is named `webexec` and placed in the repo root.
+- Build tags are used for platform-specific files (e.g.,
+  `dup2_wrapper.go` vs `dup2_wrapper_armlinux.go`, `pidfile` package).
 
-### Webexec Operations
-```bash
-just init             # Initialize webexec configuration
-just start            # Start webexec agent (background)
-just stop             # Stop webexec agent
-just restart          # Restart webexec agent
-just status           # Show agent status
-```
+## Coding Style
 
-### Build & Release
-```bash
-just build-release    # Build release binaries with goreleaser
-just clean            # Remove build artifacts
-```
+- Follow `gofmt` formatting (use `gofmt -s` for simplification).
+- Run `go vet ./...` before submitting — no warnings allowed.
+- Package `main` contains the server entry point and core logic.
+  Sub-packages: `httpserver`, `peers`, `pidfile`.
+- Tests live alongside source files (`*_test.go`).
+  Some test files use `//go:build ignore` and are excluded from normal
+  test runs (e.g., `session_test.go`).
+- Integration tests are under `aatp/` — run with `./aatp/test`.
 
-### Container Management
-```bash
-just build-sandbox    # Build the sandbox container for Asimi
-just clean-sandbox    # Remove the sandbox container
-```
+## Ports & Networking
 
-**Note:** The sandbox container image name is configured in `.agents/asimi.conf` under `[run_in_shell]` section as `image_name = "localhost/asimi-sandbox-daonb-webexec:latest"`.
+- **TCP 7777** — HTTP signaling server (default: `127.0.0.1:7777`).
+- **UDP 60000–61000** — WebRTC data channel range.
+- When running inside a sandbox, `host.containers.internal` is used to
+  reach services on the host.
 
-## Code Style Guidelines
+## Configuration
 
-### Imports
-- Order: standard library → third-party → local packages
-- Use `goimports` or `go fmt` to organize automatically
-- Group imports with blank lines between categories
-
-### Formatting
-- Use `go fmt` for all code (enforced by `just lint`)
-- Tabs for indentation (Go standard)
-- Line length: aim for 100 characters, but not strict
-
-### Types
-- Prefer explicit types for public APIs
-- Use type aliases for clarity: `type AddressType string`
-- Export struct fields when needed for JSON/TOML marshaling
-- Use pointer receivers for methods that modify state
-
-### Naming Conventions
-- **Unexported:** camelCase (e.g., `handleResize`)
-- **Exported:** PascalCase (e.g., `StartHTTPServer`)
-- **Interfaces:** Single-method interfaces end in `-er` (e.g., `AuthBackend`)
-- **Acronyms:** All caps (e.g., `HTTPServer`, `FP` for fingerprint, `ID`)
-- **Constants:** PascalCase for exported, camelCase for unexported
-
-### Error Handling
-- Always check errors; never ignore with `_`
-- Wrap errors with context: `fmt.Errorf("failed to connect: %w", err)`
-- Use `Logger.Errorf()` for logging in long-running processes
-- Return errors to callers; avoid panic except in init/main
-- Use `cli.Exit()` for CLI command errors with appropriate exit codes
-
-### Testing
-- Use `testify/require` for assertions (preferred) or `testify/assert`
-- Test files: `*_test.go` in the same package
-- Integration tests: `integration_test.go` with build tags if needed
-- Use helper functions like `initTest(t)` for common setup
-- Table-driven tests for multiple similar cases
-
-### Logging
-- Use the global `Logger` (zap.SugaredLogger)
-- Levels: `Debug`, `Info`, `Warn`, `Error`
-- Include context: peer FP, connection ID, function name
-- Format: `Logger.Infof("message with %s", context)`
-- Structured logging for important events
-
-### Comments
-- Public APIs must have doc comments
-- Doc comments start with the name: `// StartHTTPServer starts...`
-- Explain "why" not "what" for complex logic
-- Use `TODO:` with issue links for future work
-
-## Project-Specific Conventions
-
-### Architecture
-- **WebRTC:** Peer connections managed via `peers` package
-- **Configuration:** TOML format (see `conf.go`)
-- **IPC:** Unix socket at `~/.webexec/webexec.sock`
-- **Daemon:** PID file for process management
-- **Signaling:** HTTP server on port 7777 (default)
-
-### Key Components
-- `webexec.go` - Main CLI and daemon logic
-- `peers/` - WebRTC peer and pane management
-- `httpserver/` - HTTP signaling server
-- `auth.go` - Authentication backend
-- `conf.go` - Configuration management
-- `key.go` - Certificate generation and management
-
-### Configuration
-- Default config: `~/.webexec/`
-- Certificate: `~/.webexec/certnkey.pem`
-- Config file: `~/.webexec/webexec.conf`
-- Logs: `~/.webexec/webexec.log`
-
-### WebRTC Ports
-- **TCP 7777:** Signaling server (configurable)
-- **UDP 60000-61000:** WebRTC data channels (configurable)
-
-### Testing Patterns
-- Use `initTest(t)` for test initialization
-- Mock WebRTC connections when needed
-- Test both success and error paths
-- Clean up resources in `defer` statements
-
-### Dependencies
-- **WebRTC:** `github.com/pion/webrtc/v3`
-- **CLI:** `github.com/urfave/cli/v2`
-- **Logging:** `go.uber.org/zap`
-- **Config:** `github.com/pelletier/go-toml`
-- **DI:** `go.uber.org/fx`
-
-## Common Development Tasks
-
-### Adding a New Command
-1. Define command in `webexec.go` under `app.Commands`
-2. Implement handler function with signature `func(c *cli.Context) error`
-3. Add flags if needed
-4. Update this guide with the new command
-
-### Adding a New Control Message
-1. Define message type in `peers/peer.go`
-2. Add handler in `handleCTRLMsg()` in `webexec.go`
-3. Implement handler function: `handleXxx(peer, msg, raw)`
-4. Send ACK/NACK responses
-
-### Debugging
-- Use `just run` to run in foreground with console output
-- Check logs: `~/.webexec/webexec.log`
-- Check errors: `~/.webexec/webexec.err`
-- Use `just status` to check agent state
-
-## Release Process
-1. Update `CHANGELOG.md`
-2. Tag version: `git tag vX.Y.Z`
-3. Push tag: `git push origin vX.Y.Z`
-4. GitHub Actions runs goreleaser
-5. Draft release is created automatically
+- Config file is TOML format, sections: `[log]`, `[net]`, `[timeouts]`,
+  `[ice_servers]`, `[env]`, `[peerbook]`.
+- Default config is embedded in `conf.go`.
+- Env vars: `PEERBOOK_UID`, `PEERBOOK_HOST`, `PEERBOOK_NAME` for
+  PeerBook integration.
