@@ -196,7 +196,10 @@ loop:
 			}
 		}
 		conNull = 0
-		pane.outbuf <- b[:l]
+		filtered := pane.filterPTYOutput(b[:l])
+		if len(filtered) > 0 {
+			pane.outbuf <- filtered
+		}
 	}
 
 	// TODO: find a better way to wait for all the messages to be sent
@@ -271,10 +274,36 @@ func (pane *Pane) Kill() {
 	}
 }
 
-// OnMessage is called when a new client message is recieved
-func (pane *Pane) OnMessage(msg webrtc.DataChannelMessage) {
+// OnMessage is called when a new client message is recieved.
+// The sender *Peer identifies which client sent the message; this is used
+// for active-peer tracking and OSC color query filtering.
+// Terminal query escape sequences are intercepted before reaching the PTY to
+// prevent N² amplification when multiple clients share a pane:
+//   - CPR/DSR/DA queries are answered directly from vt10x state or hardcoded
+//     responses and routed through outbuf to all clients.
+//   - OSC 10/11 color queries are forwarded to the PTY only from the
+//     most-recently-active client; other clients' color queries are dropped.
+//   - All other input passes through to the PTY unchanged.
+func (pane *Pane) OnMessage(sender *Peer, msg webrtc.DataChannelMessage) {
 	logger := pane.peer.logger
 	p := msg.Data
+
+	// Intercept terminal query escape sequences before hitting the PTY.
+	if response, handled := pane.interceptQuery(sender, p); handled {
+		if len(response) > 0 {
+			// Synthesized response: push to outbuf so sender()
+			// broadcasts it to all clients (pane-wide state).
+			pane.outbuf <- response
+		}
+		return
+	}
+
+	// Only real input (keystrokes, etc.) updates the active peer —
+	// not intercepted query sequences.  This prevents the race where
+	// SetLastPeer would run before OnMessage, making every OSC color
+	// query appear to come from the active peer.
+	SetLastPeer(sender)
+
 	l, err := pane.TTY.Write(p)
 	if err == os.ErrClosed {
 		logger.Infof("got an os.ErrClosed")
@@ -289,6 +318,221 @@ func (pane *Pane) OnMessage(msg webrtc.DataChannelMessage) {
 		logger.Warnf("pty of %d wrote %d instead of %d bytes",
 			pane.ID, l, len(p))
 	}
+}
+
+// Terminal query response constants shared by interceptQuery and filterPTYOutput.
+const (
+	dsrStatusResponse   = "\x1b[0n"
+	primaryDAResponse   = "\x1b[?1;2c"
+	secondaryDAResponse = "\x1b[>0;115;0c"
+)
+
+// matchCSIQuery checks if data[pos] starts with a known CSI terminal query.
+// Returns (response, queryLength, true) if matched.
+// queryLength includes the \x1b[ prefix.
+func (pane *Pane) matchCSIQuery(data []byte, pos int) ([]byte, int, bool) {
+	// Caller ensures data[pos] == \x1b and data[pos+1] == '['
+	if pos+2 >= len(data) {
+		return nil, 0, false
+	}
+	b := data[pos+2:] // bytes after \x1b[
+
+	switch {
+	// CSI 6n — cursor position query → CPR from vt10x
+	case len(b) >= 2 && b[0] == '6' && b[1] == 'n':
+		return pane.synthesizeCPR(), 4, true
+	// CSI 5n — device status query → "no malfunction"
+	case len(b) >= 2 && b[0] == '5' && b[1] == 'n':
+		return []byte(dsrStatusResponse), 4, true
+	// CSI >c — secondary DA (check before >0c)
+	case len(b) >= 2 && b[0] == '>' && b[1] == 'c':
+		return []byte(secondaryDAResponse), 4, true
+	// CSI >0c — secondary DA
+	case len(b) >= 3 && b[0] == '>' && b[1] == '0' && b[2] == 'c':
+		return []byte(secondaryDAResponse), 5, true
+	// CSI c — primary DA
+	case len(b) >= 1 && b[0] == 'c':
+		return []byte(primaryDAResponse), 3, true
+	// CSI 0c — primary DA
+	case len(b) >= 2 && b[0] == '0' && b[1] == 'c':
+		return []byte(primaryDAResponse), 4, true
+	}
+	return nil, 0, false
+}
+
+// interceptQuery checks if data is a known terminal query escape sequence.
+// The sender *Peer identifies which client sent the data; this is used for
+// OSC color query filtering against the active peer.
+// Returns (response, handled):
+//   - handled=false: not a known query — pass through to PTY.
+//   - handled=true, len(response)>0: synthesized answer — push to outbuf.
+//   - handled=true, len(response)==0: silently dropped (non-active OSC query).
+func (pane *Pane) interceptQuery(sender *Peer, p []byte) ([]byte, bool) {
+	if len(p) < 3 || p[0] != 0x1b {
+		return nil, false
+	}
+
+	// CSI queries — use shared matchCSIQuery helper
+	if p[1] == '[' {
+		resp, qLen, matched := pane.matchCSIQuery(p, 0)
+		if matched && qLen == len(p) {
+			return resp, true
+		}
+	}
+
+	switch {
+	// OSC 10/11 color queries — forward to PTY from active peer only
+	case isOSCColorQuery(p):
+		activePeer := GetActivePeer()
+		if activePeer != sender {
+			return nil, true // drop from non-active peer
+		}
+		return nil, false // pass through to PTY from active peer
+
+	// OSC 10/11 color responses (not queries) — forward to PTY from
+	// active peer only, to prevent N copies of the response from reaching
+	// the program when N clients all respond to the broadcast query.
+	case isOSCColorResponse(p):
+		activePeer := GetActivePeer()
+		if activePeer != sender {
+			return nil, true // drop from non-active peer
+		}
+		return nil, false // pass through to PTY from active peer
+	}
+
+	return nil, false
+}
+
+// filterPTYOutput scans PTY output for terminal query escape sequences
+// (OSC 10/11 color queries and CSI 6n/5n/c/>c queries).
+// When a query is found, it synthesizes a response and writes it directly
+// back to the PTY (so the running program gets its answer), then strips
+// the query from the data before broadcasting to clients (so clients never
+// see it and never respond, preventing N² amplification).
+func (pane *Pane) filterPTYOutput(data []byte) []byte {
+	for i := 0; i < len(data); i++ {
+		if data[i] != 0x1b {
+			continue
+		}
+		if i+1 >= len(data) {
+			continue
+		}
+
+		// CSI queries: \x1b[ followed by 6n, 5n, c, 0c, >c, >0c
+		if data[i+1] == '[' {
+			response, qLen, matched := pane.matchCSIQuery(data, i)
+			if matched {
+				if pane.TTY != nil {
+					pane.TTY.Write(response)
+				}
+				data = append(data[:i], data[i+qLen:]...)
+				i-- // re-check same position
+				continue
+			}
+			continue
+		}
+
+		// OSC color queries: \x1b]10;? or \x1b]11;? terminated by BEL or ST
+		if data[i+1] != ']' {
+			continue
+		}
+		// Check for "10;?" or "11;?" — ensure i+5 is in bounds first
+		if i+5 >= len(data) || data[i+4] != ';' || data[i+5] != '?' {
+			continue
+		}
+		color := byte(0)
+		if data[i+2] == '1' && data[i+3] == '0' {
+			color = 10
+		} else if data[i+2] == '1' && data[i+3] == '1' {
+			color = 11
+		} else {
+			continue
+		}
+		// Find the terminator: BEL (\x07) or ST (\x1b\\)
+		end := -1
+		for j := i + 6; j < len(data); j++ {
+			if data[j] == 0x07 {
+				end = j + 1
+				break
+			}
+			if data[j] == 0x1b && j+1 < len(data) && data[j+1] == '\\' {
+				end = j + 2
+				break
+			}
+		}
+		if end == -1 {
+			continue // incomplete sequence, leave it
+		}
+		// Synthesize a response and write it back to the PTY
+		var response string
+		if color == 11 {
+			response = "\x1b]11;rgb:0000/0000/0000\x1b\\"
+		} else {
+			response = "\x1b]10;rgb:ffff/ffff/ffff\x1b\\"
+		}
+		if pane.TTY != nil {
+			pane.TTY.Write([]byte(response))
+		}
+		// Strip the query from the data
+		data = append(data[:i], data[end:]...)
+		i-- // compensate for the for loop's i++ to re-check same position
+	}
+	return data
+}
+
+// isOSCColorResponse reports whether p is an OSC 10 or 11 color response
+// (not a query).  Responses have the form:
+//
+//	\x1b]11;rgb:....\x07  or  \x1b]11;rgb:....\x1b\\
+//
+// The key difference from a query: the 6th byte is NOT '?'.
+func isOSCColorResponse(p []byte) bool {
+	if len(p) < 7 || p[0] != 0x1b || p[1] != ']' {
+		return false
+	}
+	// Must start with "10;" or "11;"
+	if p[4] != ';' {
+		return false
+	}
+	if !((p[2] == '1' && p[3] == '0') || (p[2] == '1' && p[3] == '1')) {
+		return false
+	}
+	// Must NOT be a query (no '?' after ';')
+	if p[5] == '?' {
+		return false
+	}
+	// Must end with BEL (\x07) or ST (\x1b\\)
+	last := len(p) - 1
+	return p[last] == 0x07 || (last >= 1 && p[last-1] == 0x1b && p[last] == '\\')
+}
+
+// isOSCColorQuery reports whether p is an OSC 10 or 11 color query.
+// Accepts both BEL (\x07) and ST (\x1b\\) terminators.
+func isOSCColorQuery(p []byte) bool {
+	if len(p) < 6 || p[0] != 0x1b || p[1] != ']' {
+		return false
+	}
+	// Must start with "10;?" or "11;?"
+	if p[4] != ';' || p[5] != '?' {
+		return false
+	}
+	if !((p[2] == '1' && p[3] == '0') || (p[2] == '1' && p[3] == '1')) {
+		return false
+	}
+	// Must end with BEL (\x07) or ST (\x1b\\)
+	last := len(p) - 1
+	return p[last] == 0x07 || (last >= 1 && p[last-1] == 0x1b && p[last] == '\\')
+}
+
+// synthesizeCPR builds a CPR (Cursor Position Report) from vt10x cursor state.
+func (pane *Pane) synthesizeCPR() []byte {
+	if pane.vt == nil {
+		return []byte("\x1b[1;1R")
+	}
+	pane.vt.Lock()
+	c := pane.vt.Cursor()
+	pane.vt.Unlock()
+	return []byte(fmt.Sprintf("\x1b[%d;%dR", c.Y+1, c.X+1))
 }
 
 // Resize is used to resize the pane's tty.

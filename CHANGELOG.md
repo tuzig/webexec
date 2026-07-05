@@ -8,6 +8,29 @@ his file's format is define in
 [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 and the release workflow reads it to set github's release notes.
 
+## [Unreleased]
+
+### Changed
+
+- Upgraded pion/webrtc from v3 to v4
+- Upgraded dependencies to latest minor versions: creack/pty, fatih/color,
+  google/uuid, gorilla/websocket, go-toml, rs/cors, gopsutil, urfave/cli,
+  fx, zap, lumberjack, x/net
+
+### Added
+
+- Modern `//go:build` constraints alongside legacy `// +build` tags
+- CGO_CFLAGS to silence go-m1cpu cgo warning
+
+### Fixed
+
+- Closing a connection properly to prevent test crashes
+- Complete terminal query filtering for multi clients
+
+### Infrastructure
+
+- General infrastructure improvements
+
 ## [1.5.1] 2024-7-28
 
 ### Fixed

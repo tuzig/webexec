@@ -220,8 +220,7 @@ func (peer *Peer) OnChannelReq(d *webrtc.DataChannel) {
 		if pane != nil {
 			c := CDB.Add(d, pane, peer)
 			d.OnMessage(func(msg webrtc.DataChannelMessage) {
-				SetLastPeer(peer)
-				pane.OnMessage(msg)
+				pane.OnMessage(peer, msg)
 			})
 			d.OnClose(func() {
 				CDB.Delete(c)
@@ -357,8 +356,7 @@ func (peer *Peer) Reconnect(d *webrtc.DataChannel, id int) (*Pane, error) {
 	if pane.IsRunning {
 		c := CDB.Add(d, pane, peer)
 		d.OnMessage(func(msg webrtc.DataChannelMessage) {
-			SetLastPeer(peer)
-			pane.OnMessage(msg)
+			pane.OnMessage(peer, msg)
 		})
 		d.OnClose(func() {
 			CDB.Delete(c)

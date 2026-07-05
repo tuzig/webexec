@@ -14,6 +14,7 @@ import (
 )
 
 func TestActivePeer(t *testing.T) {
+	resetActivePeer(t)
 	secretKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	require.NoError(t, err)
 	certs, err := webrtc.GenerateCertificate(secretKey)
