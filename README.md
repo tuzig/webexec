@@ -18,14 +18,12 @@ server and then initiates a WebRTC connection.
 
 ## Install
 
-This repo inscludes a [one-line installer](install.sh) for installing on Mac & Linux.
-To use to install the latest version it run
-`bash -c "$(curl -sL https://get.webexec.sh)"`.
+Checkout the releases page for latest binary.
 
-### From Source
+### Using Go
 
 ```
-$ go install ./...
+$ go install tuzig/webexec
 
 ```
 
